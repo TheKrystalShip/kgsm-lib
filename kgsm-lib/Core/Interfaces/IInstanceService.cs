@@ -128,4 +128,65 @@ public interface IInstanceService
     /// <param name="backupName">Name of the backup to restore.</param>
     /// <returns>Result of the backup restoration operation.</returns>
     KgsmResult RestoreBackup(string instanceName, string backupName);
+
+    /// <summary>
+    /// Subscribes to continuous log streaming for an instance.
+    /// This method starts a background process that continuously streams logs from the specified instance
+    /// using the KGSM "--follow" flag. The returned LogSubscription object provides events for
+    /// receiving log entries, handling errors, and monitoring connection status.
+    /// </summary>
+    /// <param name="instanceName">The name of the instance to stream logs from.</param>
+    /// <param name="cancellationToken">Optional cancellation token to stop the log streaming.</param>
+    /// <returns>
+    /// A Task that resolves to a LogSubscription object which can be used to:
+    /// - Subscribe to log events via the LogReceived event
+    /// - Handle errors via the ErrorOccurred event
+    /// - Monitor connection status via the StatusChanged event
+    /// - Stop the streaming by calling StopAsync() or disposing the subscription
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when instanceName is null.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the KGSM process fails to start.</exception>
+    /// <remarks>
+    /// <para>
+    /// This method executes the KGSM command: "--instance {instanceName} --logs --follow"
+    /// which provides continuous log output until manually stopped.
+    /// </para>
+    /// <para>
+    /// The LogSubscription implements IDisposable and should be properly disposed to clean up resources.
+    /// When disposed, it will automatically stop the underlying KGSM process and clean up all resources.
+    /// </para>
+    /// <para>
+    /// Example usage:
+    /// <code>
+    /// var subscription = await instanceService.SubscribeToLogsAsync("my-server");
+    /// subscription.LogReceived += (sender, args) =>
+    /// {
+    ///     Console.WriteLine($"[{args.LogEntry.Timestamp}] {args.LogEntry.Message}");
+    /// };
+    ///
+    /// // Later, stop the subscription
+    /// await subscription.StopAsync();
+    /// subscription.Dispose();
+    /// </code>
+    /// </para>
+    /// </remarks>
+    Task<LogSubscription> SubscribeToLogsAsync(string instanceName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Subscribes to continuous log streaming for an instance with filtering options.
+    /// This overload allows you to specify log level filtering and custom parsing options.
+    /// </summary>
+    /// <param name="instanceName">The name of the instance to stream logs from.</param>
+    /// <param name="minimumLogLevel">The minimum log level to include in the stream. Logs below this level will be filtered out.</param>
+    /// <param name="includeRawLines">Whether to include raw log lines in addition to parsed entries.</param>
+    /// <param name="cancellationToken">Optional cancellation token to stop the log streaming.</param>
+    /// <returns>A Task that resolves to a LogSubscription object for managing the log stream.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when instanceName is null.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the KGSM process fails to start.</exception>
+    /// <remarks>
+    /// This method provides additional filtering capabilities:
+    /// - minimumLogLevel: Only log entries at or above this level will be included
+    /// - includeRawLines: When true, the LogEntry.RawLine property will contain the original log line
+    /// </remarks>
+    Task<LogSubscription> SubscribeToLogsAsync(string instanceName, LogLevel minimumLogLevel, bool includeRawLines = true, CancellationToken cancellationToken = default);
 }

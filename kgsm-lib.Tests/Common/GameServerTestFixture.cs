@@ -17,12 +17,12 @@ public abstract class GameServerTestFixture : IDisposable
     /// Gets the name of the test instance.
     /// </summary>
     public string InstanceName { get; }
-    
+
     /// <summary>
     /// Gets the installation directory of the test instance.
     /// </summary>
     public string InstallDir { get; }
-    
+
     /// <summary>
     /// Gets the blueprint name used for this test instance.
     /// </summary>
@@ -32,12 +32,12 @@ public abstract class GameServerTestFixture : IDisposable
     /// Gets the KGSM client for interacting with KGSM.
     /// </summary>
     protected readonly IKgsmClient KgsmClient;
-    
+
     /// <summary>
     /// Gets the logger factory for creating loggers.
     /// </summary>
     protected readonly ILoggerFactory LoggerFactory;
-    
+
     /// <summary>
     /// Gets the logger for this test fixture.
     /// </summary>
@@ -56,15 +56,15 @@ public abstract class GameServerTestFixture : IDisposable
 
         // Create service provider for KGSM client
         var services = new ServiceCollection();
-        services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Debug));
+        services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Debug));
         services.AddKgsmServices(TestConstants.KgsmPath, TestConstants.KgsmSocketPath);
-        
+
         var serviceProvider = services.BuildServiceProvider();
-        
+
         KgsmClient = serviceProvider.GetRequiredService<IKgsmClient>();
         LoggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
         Logger = LoggerFactory.CreateLogger<GameServerTestFixture>();
-        
+
         // Install the game server instance
         InstallInstance();
     }
@@ -74,18 +74,18 @@ public abstract class GameServerTestFixture : IDisposable
     /// </summary>
     private void InstallInstance()
     {
-        Logger.LogInformation("Installing {Blueprint} test instance '{InstanceName}' at {InstallDir}", 
+        Logger.LogInformation("Installing {Blueprint} test instance '{InstanceName}' at {InstallDir}",
             BlueprintName, InstanceName, InstallDir);
-        
+
         var result = KgsmClient.Instances.Install(BlueprintName, InstallDir, name: InstanceName);
-        
+
         if (!result.IsSuccess)
         {
-            Logger.LogError("Failed to install {Blueprint} test instance: {ErrorMessage}", 
+            Logger.LogError("Failed to install {Blueprint} test instance: {ErrorMessage}",
                 BlueprintName, result.Stderr);
             throw new Exception($"Failed to install test {BlueprintName} instance: {result.Stderr}");
         }
-        
+
         Logger.LogInformation("Successfully installed {Blueprint} test instance", BlueprintName);
     }
 
@@ -96,9 +96,9 @@ public abstract class GameServerTestFixture : IDisposable
     {
         try
         {
-            Logger.LogInformation("Cleaning up {Blueprint} test instance '{InstanceName}'", 
+            Logger.LogInformation("Cleaning up {Blueprint} test instance '{InstanceName}'",
                 BlueprintName, InstanceName);
-            
+
             // Stop instance if running
             if (KgsmClient.Instances.IsActive(InstanceName))
             {
@@ -106,17 +106,17 @@ public abstract class GameServerTestFixture : IDisposable
                 KgsmClient.Instances.Stop(InstanceName);
                 Thread.Sleep(2000); // Give it time to fully stop
             }
-            
+
             // Uninstall test instance
             Logger.LogInformation("Uninstalling instance '{InstanceName}'", InstanceName);
             var result = KgsmClient.Instances.Uninstall(InstanceName);
-            
+
             if (!result.IsSuccess)
             {
-                Logger.LogWarning("Failed to uninstall instance '{InstanceName}': {ErrorMessage}", 
+                Logger.LogWarning("Failed to uninstall instance '{InstanceName}': {ErrorMessage}",
                     InstanceName, result.Stderr);
             }
-            
+
             // Clean up test directory
             if (Directory.Exists(InstallDir))
             {
