@@ -6,6 +6,11 @@ namespace TheKrystalShip.KGSM.Core.Models;
 public class LogStreamEventArgs : EventArgs
 {
     /// <summary>
+    /// Gets the log entry that was received.
+    /// </summary>
+    public LogEntry LogEntry { get; }
+
+    /// <summary>
     /// Initializes a new instance of the LogStreamEventArgs class.
     /// </summary>
     /// <param name="logEntry">The log entry that was received.</param>
@@ -13,11 +18,6 @@ public class LogStreamEventArgs : EventArgs
     {
         LogEntry = logEntry ?? throw new ArgumentNullException(nameof(logEntry));
     }
-
-    /// <summary>
-    /// Gets the log entry that was received.
-    /// </summary>
-    public LogEntry LogEntry { get; }
 }
 
 /// <summary>
@@ -25,6 +25,16 @@ public class LogStreamEventArgs : EventArgs
 /// </summary>
 public class LogStreamErrorEventArgs : EventArgs
 {
+    /// <summary>
+    /// Gets the name of the instance where the error occurred.
+    /// </summary>
+    public string InstanceName { get; }
+
+    /// <summary>
+    /// Gets the exception that occurred.
+    /// </summary>
+    public Exception Exception { get; }
+
     /// <summary>
     /// Initializes a new instance of the LogStreamErrorEventArgs class.
     /// </summary>
@@ -35,16 +45,6 @@ public class LogStreamErrorEventArgs : EventArgs
         InstanceName = instanceName ?? throw new ArgumentNullException(nameof(instanceName));
         Exception = exception ?? throw new ArgumentNullException(nameof(exception));
     }
-
-    /// <summary>
-    /// Gets the name of the instance where the error occurred.
-    /// </summary>
-    public string InstanceName { get; }
-
-    /// <summary>
-    /// Gets the exception that occurred.
-    /// </summary>
-    public Exception Exception { get; }
 }
 
 /// <summary>
@@ -52,19 +52,6 @@ public class LogStreamErrorEventArgs : EventArgs
 /// </summary>
 public class LogStreamStatusEventArgs : EventArgs
 {
-    /// <summary>
-    /// Initializes a new instance of the LogStreamStatusEventArgs class.
-    /// </summary>
-    /// <param name="instanceName">The name of the instance.</param>
-    /// <param name="isConnected">Whether the log stream is connected.</param>
-    /// <param name="message">Optional status message.</param>
-    public LogStreamStatusEventArgs(string instanceName, bool isConnected, string? message = null)
-    {
-        InstanceName = instanceName ?? throw new ArgumentNullException(nameof(instanceName));
-        IsConnected = isConnected;
-        Message = message;
-    }
-
     /// <summary>
     /// Gets the name of the instance.
     /// </summary>
@@ -79,4 +66,17 @@ public class LogStreamStatusEventArgs : EventArgs
     /// Gets the optional status message.
     /// </summary>
     public string? Message { get; }
+
+    /// <summary>
+    /// Initializes a new instance of the LogStreamStatusEventArgs class.
+    /// </summary>
+    /// <param name="instanceName">The name of the instance.</param>
+    /// <param name="isConnected">Whether the log stream is connected.</param>
+    /// <param name="message">Optional status message.</param>
+    public LogStreamStatusEventArgs(string instanceName, bool isConnected, string? message = null)
+    {
+        InstanceName = instanceName ?? throw new ArgumentNullException(nameof(instanceName));
+        IsConnected = isConnected;
+        Message = message;
+    }
 }

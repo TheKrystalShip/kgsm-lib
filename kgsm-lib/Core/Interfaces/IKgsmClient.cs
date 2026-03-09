@@ -24,6 +24,31 @@ public interface IKgsmClient
     IEventService Events { get; }
 
     /// <summary>
+    /// Gets the configuration service for managing KGSM configuration.
+    /// </summary>
+    IConfigService Config { get; }
+
+    /// <summary>
+    /// Gets the lifecycle service for managing instance lifecycle operations.
+    /// </summary>
+    ILifecycleService Lifecycle { get; }
+
+    /// <summary>
+    /// Gets the file service for managing file operations.
+    /// </summary>
+    IFileService Files { get; }
+
+    /// <summary>
+    /// Gets the directory service for managing directory operations.
+    /// </summary>
+    IDirectoryService Directories { get; }
+
+    /// <summary>
+    /// Gets the watcher service for monitoring instance readiness.
+    /// </summary>
+    IWatcherService Watcher { get; }
+
+    /// <summary>
     /// Prints the help message.
     /// </summary>
     /// <returns>Result of the help command execution.</returns>

@@ -1,4 +1,4 @@
-using System.Text.Json.Serialization;
+using TheKrystalShip.KGSM.Core.Models.Enums;
 
 namespace TheKrystalShip.KGSM.Core.Models;
 
@@ -16,6 +16,11 @@ public class Blueprint
     /// Gets or sets the ports used by the game server.
     /// </summary>
     public string Ports { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the blueprint type (Native or Container).
+    /// </summary>
+    public BlueprintType BlueprintType { get; set; } = BlueprintType.Native;
 
     /// <summary>
     /// Gets or sets the Steam App ID.
@@ -65,6 +70,7 @@ public class Blueprint
     {
         return $"Blueprint: {Name}, " +
                $"Ports: {Ports}, " +
+               $"BlueprintType: {BlueprintType}, " +
                $"SteamAppId: {SteamAppId}, " +
                $"IsSteamAccountRequired: {IsSteamAccountRequired}, " +
                $"ExecutableFile: {ExecutableFile}, " +

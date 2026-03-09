@@ -60,7 +60,24 @@ public class LogSubscription : IDisposable
     /// <summary>
     /// Gets a value indicating whether the underlying process is running.
     /// </summary>
-    public bool IsProcessRunning => _process != null && !_process.HasExited;
+    public bool IsProcessRunning
+    {
+        get
+        {
+            if (_process == null)
+                return false;
+
+            try
+            {
+                return !_process.HasExited;
+            }
+            catch (InvalidOperationException)
+            {
+                // Process is not in a valid state (e.g., not started or already disposed)
+                return false;
+            }
+        }
+    }
 
     /// <summary>
     /// Gets the current status of the streaming task.
@@ -97,23 +114,26 @@ public class LogSubscription : IDisposable
             _cancellationTokenSource.Cancel();
 
             // Kill the process if it's still running
-            if (_process != null && !_process.HasExited)
+            if (_process != null)
             {
                 try
                 {
-                    _process.Kill();
-                    await _process.WaitForExitAsync();
+                    if (!_process.HasExited)
+                    {
+                        _process.Kill();
+                        await _process.WaitForExitAsync().ConfigureAwait(false);
+                    }
                 }
                 catch (InvalidOperationException)
                 {
-                    // Process already exited
+                    // Process is not in a valid state (e.g., not started or already disposed)
                 }
             }
 
             // Wait for the streaming task to complete with a timeout
             try
             {
-                await _streamingTask.WaitAsync(TimeSpan.FromSeconds(5));
+                await _streamingTask.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
             }
             catch (TimeoutException)
             {
@@ -176,7 +196,7 @@ public class LogSubscription : IDisposable
             try
             {
                 // Stop the streaming asynchronously, but don't wait for it
-                _ = Task.Run(async () => await StopAsync());
+                _ = Task.Run(async () => await StopAsync().ConfigureAwait(false));
             }
             catch
             {

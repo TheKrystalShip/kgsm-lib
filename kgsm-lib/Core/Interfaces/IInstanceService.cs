@@ -1,4 +1,5 @@
 using TheKrystalShip.KGSM.Core.Models;
+using TheKrystalShip.KGSM.Core.Models.Enums;
 
 namespace TheKrystalShip.KGSM.Core.Interfaces;
 
@@ -12,6 +13,20 @@ public interface IInstanceService
     /// </summary>
     /// <returns>A dictionary of instance names to instance objects.</returns>
     Dictionary<string, Instance> GetAll();
+
+    /// <summary>
+    /// Gets detailed information about a specific instance in JSON format.
+    /// </summary>
+    /// <param name="instanceName">Instance name to get information for.</param>
+    /// <returns>The instance information as a structured object.</returns>
+    Instance? GetInstanceInfo(string instanceName);
+
+    /// <summary>
+    /// Gets the runtime status summary for a specific instance in JSON format.
+    /// </summary>
+    /// <param name="instanceName">Instance name to get status for.</param>
+    /// <returns>The instance status as a structured object.</returns>
+    InstanceRuntimeStatus? GetInstanceStatus(string instanceName);
 
     /// <summary>
     /// Installs an instance of a blueprint.
@@ -34,8 +49,18 @@ public interface IInstanceService
     /// Gets the logs for an instance.
     /// </summary>
     /// <param name="instanceName">Instance name to get logs for.</param>
+    /// <param name="maxLines">Maximum number of log lines to retrieve. Default is 10.</param>
     /// <returns>Result containing the instance logs.</returns>
-    KgsmResult GetLogs(string instanceName);
+    ICollection<string> GetLogs(string instanceName, int maxLines = 10);
+
+    /// <summary>
+    /// Gets the logs for an instance asynchronously.
+    /// </summary>
+    /// <param name="instanceName">Instance name to get logs for.</param>
+    /// <param name="maxLines">Maximum number of log lines to retrieve. Default is 10.</param>
+    /// <param name="cancellationToken">Cancellation token for the async operation.</param>
+    /// <returns>Result containing the instance logs.</returns>
+    Task<ICollection<string>> GetLogsAsync(string instanceName, int maxLines = 10, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Gets the status of an instance.

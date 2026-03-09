@@ -1,5 +1,5 @@
 using System.Text.Json;
-using TheKrystalShip.KGSM.Core.Models;
+using TheKrystalShip.KGSM.Core.Models.Enums;
 
 namespace TheKrystalShip.KGSM.Events;
 
@@ -178,6 +178,14 @@ public class InstanceStartedData : EventDataBase
     /// Gets or sets the lifecycle manager that started the instance.
     /// </summary>
     public LifecycleManager LifecycleManager { get; set; }
+}
+
+/// <summary>
+/// Event data for when an instance is ready.
+/// This event is triggered when the instance is fully operational and ready for use.
+/// </summary>
+public class InstanceReadyData : EventDataBase
+{
 }
 
 /// <summary>

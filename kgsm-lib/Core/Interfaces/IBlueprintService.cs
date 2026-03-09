@@ -8,15 +8,53 @@ namespace TheKrystalShip.KGSM.Core.Interfaces;
 public interface IBlueprintService
 {
     /// <summary>
-    /// Gets a dictionary of all available blueprints.
+    /// Gets a list of all blueprint names.
     /// </summary>
-    /// <returns>A dictionary of blueprint names to blueprint objects.</returns>
-    Dictionary<string, Blueprint> GetAll();
+    /// <returns>
+    /// A list of blueprint names or empty if none found.
+    /// </returns>
+    List<string> List();
 
     /// <summary>
-    /// Creates a new blueprint with the specified configuration.
+    /// Gets a list of default (official) blueprint names.
     /// </summary>
-    /// <param name="blueprint">The blueprint configuration to create.</param>
-    /// <returns>Result of the blueprint creation operation.</returns>
-    KgsmResult Create(Blueprint blueprint);
+    /// <returns>
+    /// A list of default blueprint names or empty if none found.
+    /// </returns>
+    List<string> ListDefault();
+
+    /// <summary>
+    /// Gets a list of custom (user-created) blueprint names.
+    /// </summary>
+    /// <returns>
+    /// A list of custom blueprint names or empty if none found.
+    /// </returns>
+    List<string> ListCustom();
+
+    /// <summary>
+    /// Gets detailed information for all blueprints.
+    /// </summary>
+    /// <returns>
+    /// A dictionary of blueprint names to blueprint objects with full details,
+    /// or empty if none found.
+    /// </returns>
+    Dictionary<string, Blueprint> ListDetailed();
+
+    /// <summary>
+    /// Gets detailed information about a specific blueprint.
+    /// </summary>
+    /// <param name="blueprintName">The name of the blueprint to get info for.</param>
+    /// <returns>
+    /// The blueprint object with all details.
+    /// </returns>
+    Blueprint? GetInfo(string blueprintName);
+
+    /// <summary>
+    /// Finds the file path for a specific blueprint.
+    /// </summary>
+    /// <param name="blueprintName">The name of the blueprint to find.</param>
+    /// <returns>
+    /// The absolute file path to the blueprint file.
+    /// </returns>
+    string? FindPath(string blueprintName);
 }

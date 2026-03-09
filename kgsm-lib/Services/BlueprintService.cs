@@ -1,5 +1,3 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
@@ -11,76 +9,137 @@ namespace TheKrystalShip.KGSM.Services;
 /// </summary>
 public class BlueprintService : IBlueprintService
 {
-    private readonly IProcessRunner _processRunner;
-    private readonly string _kgsmPath;
+    private readonly IKgsmCommandExecutor _commandExecutor;
     private readonly ILogger<BlueprintService> _logger;
 
     /// <summary>
     /// Initializes a new instance of the BlueprintService class.
     /// </summary>
-    /// <param name="processRunner">The process runner to use for executing KGSM commands.</param>
-    /// <param name="kgsmPath">The path to the KGSM executable.</param>
+    /// <param name="commandExecutor">The command executor to use for executing KGSM commands.</param>
     /// <param name="logger">The logger to use for logging.</param>
-    public BlueprintService(IProcessRunner processRunner, string kgsmPath, ILogger<BlueprintService> logger)
+    public BlueprintService(IKgsmCommandExecutor commandExecutor, ILogger<BlueprintService> logger)
     {
-        _processRunner = processRunner ?? throw new ArgumentNullException(nameof(processRunner));
-        _kgsmPath = kgsmPath ?? throw new ArgumentNullException(nameof(kgsmPath));
+        _commandExecutor = commandExecutor ?? throw new ArgumentNullException(nameof(commandExecutor));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+        _logger.LogDebug("BlueprintService initialized");
     }
 
     /// <inheritdoc/>
-    public Dictionary<string, Blueprint> GetAll()
+    public List<string> List()
     {
-        _logger.LogDebug("Getting all blueprints");
-        
-        Dictionary<string, Blueprint> blueprints = new();
-        ProcessResult result = _processRunner.Execute(_kgsmPath, "--blueprints", "--detailed", "--json");
+        _logger.LogDebug("Listing all blueprints");
+
+        List<string>? blueprintNames = _commandExecutor
+            .ExecuteForJson<List<string>>(["blueprints", "list", "--json"]);
+
+        if (blueprintNames == null)
+        {
+            _logger.LogWarning("No blueprint names found");
+            return new();
+        }
+
+        _logger.LogDebug("Found {Count} blueprint names", blueprintNames.Count);
+        return blueprintNames;
+    }
+
+    /// <inheritdoc/>
+    public List<string> ListDefault()
+    {
+        _logger.LogDebug("Listing default blueprints");
+
+        List<string>? blueprintNames = _commandExecutor
+            .ExecuteForJson<List<string>>(["blueprints", "list", "default", "--json"]);
+
+        if (blueprintNames == null)
+        {
+            _logger.LogWarning("No default blueprint names found");
+            return new();
+        }
+
+        _logger.LogDebug("Found {Count} default blueprint names", blueprintNames.Count);
+        return blueprintNames;
+    }
+
+    /// <inheritdoc/>
+    public List<string> ListCustom()
+    {
+        _logger.LogDebug("Listing custom blueprints");
+
+        List<string>? blueprintNames = _commandExecutor
+            .ExecuteForJson<List<string>>(["blueprints", "list", "custom", "--json"]);
+
+        if (blueprintNames == null)
+        {
+            _logger.LogWarning("No custom blueprint names found");
+            return new();
+        }
+
+        _logger.LogDebug("Found {Count} custom blueprint names", blueprintNames.Count);
+        return blueprintNames;
+    }
+
+    /// <inheritdoc/>
+    public Dictionary<string, Blueprint> ListDetailed()
+    {
+        _logger.LogDebug("Listing detailed blueprints");
+
+        Dictionary<string, Blueprint>? detailedBlueprints = _commandExecutor
+            .ExecuteForJson<Dictionary<string, Blueprint>>(["blueprints", "list", "detailed", "--json"]);
+
+        if (detailedBlueprints == null)
+        {
+            _logger.LogWarning("No detailed blueprints found");
+            return new();
+        }
+
+        _logger.LogDebug("Found {Count} detailed blueprints", detailedBlueprints.Count);
+        return detailedBlueprints;
+    }
+
+    /// <inheritdoc/>
+    public Blueprint? GetInfo(string blueprintName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(blueprintName, nameof(blueprintName));
+
+        _logger.LogDebug("Getting info for blueprint: {Name}", blueprintName);
+
+        Blueprint? blueprint = _commandExecutor
+            .ExecuteForJson<Blueprint>(["blueprints", "info", blueprintName, "--json"]);
+
+        if (blueprint != null)
+        {
+            _logger.LogDebug("Successfully retrieved info for blueprint: {Name}", blueprintName);
+        }
+
+        return blueprint;
+    }
+
+    /// <inheritdoc/>
+    public string? FindPath(string blueprintName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(blueprintName, nameof(blueprintName));
+
+        _logger.LogDebug("Finding path for blueprint: {Name}", blueprintName);
+
+        KgsmResult result = _commandExecutor
+            .Execute("blueprints", "find", blueprintName);
 
         if (result.ExitCode != 0)
         {
-            _logger.LogError("Failed to get blueprints: {Error}", result.Stderr);
-            return blueprints;
+            _logger.LogError("Failed to find blueprint path for {Name}: {Error}", blueprintName, result.Stderr);
+            return null;
         }
 
-        var serializerOptions = new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true  
-        };
-        serializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
-        serializerOptions.Converters.Add(new JsonStringToBoolConverter());
+        string path = result.Stdout.Trim();
 
-        try
+        if (string.IsNullOrWhiteSpace(path))
         {
-            blueprints = JsonSerializer.Deserialize<Dictionary<string, Blueprint>>(
-                result.Stdout,
-                serializerOptions
-            ) ?? new Dictionary<string, Blueprint>();
-            
-            _logger.LogDebug("Found {Count} blueprints", blueprints.Count);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to deserialize blueprints");
+            _logger.LogWarning("Blueprint path for {Name} is empty", blueprintName);
+            return null;
         }
 
-        return blueprints;
-    }
-
-    /// <inheritdoc/>
-    public KgsmResult Create(Blueprint blueprint)
-    {
-        ArgumentNullException.ThrowIfNull(blueprint, nameof(blueprint));
-        
-        if (string.IsNullOrEmpty(blueprint.Name))
-        {
-            throw new ArgumentException("Blueprint name is required", nameof(blueprint));
-        }
-        
-        _logger.LogDebug("Creating blueprint {Name}", blueprint.Name);
-        
-        // Implement the blueprint creation logic
-        // This is a placeholder - the actual implementation would depend on how KGSM handles blueprint creation
-        
-        return new KgsmResult(0, $"Blueprint {blueprint.Name} created successfully");
+        _logger.LogDebug("Found blueprint path for {Name}: {Path}", blueprintName, path);
+        return path;
     }
 }

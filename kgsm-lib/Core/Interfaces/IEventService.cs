@@ -5,7 +5,7 @@ namespace TheKrystalShip.KGSM.Core.Interfaces;
 /// <summary>
 /// Interface for handling KGSM events.
 /// </summary>
-public interface IEventService : IDisposable
+public interface IEventService : IDisposable, IAsyncDisposable
 {
     /// <summary>
     /// Initializes the event listener and starts listening for events.

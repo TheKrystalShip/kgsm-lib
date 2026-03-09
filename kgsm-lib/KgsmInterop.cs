@@ -1,10 +1,7 @@
-﻿using System.Text.Json;
-using System.Text.Json.Serialization;
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.DependencyInjection;
 using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
-using TheKrystalShip.KGSM.Events;
-using TheKrystalShip.KGSM.Services;
+using TheKrystalShip.KGSM.Extensions;
 
 namespace TheKrystalShip.KGSM;
 
@@ -19,6 +16,9 @@ namespace TheKrystalShip.KGSM;
 [Obsolete("This class is kept for backward compatibility. New code should use IKgsmClient interface.")]
 public class KgsmInterop
 {
+    /// <summary>
+    /// The underlying KGSM client instance.
+    /// </summary>
     private readonly IKgsmClient _client;
 
     /// <summary>
@@ -30,90 +30,115 @@ public class KgsmInterop
     /// Initializes a new instance of the KgsmInterop class with the specified KGSM path and socket path.
     /// Throws an ArgumentNullException if the kgsmPath is null or empty.
     /// </summary>
+    /// <param name="kgsmPath">The path to the KGSM executable.</param>
+    /// <param name="kgsmSocketPath">The path to the KGSM Unix socket.</param>
+    /// <exception cref="ArgumentNullException">Thrown when kgsmPath or kgsmSocketPath is null or empty.</exception>
     public KgsmInterop(string kgsmPath, string kgsmSocketPath)
     {
-        ArgumentNullException.ThrowIfNull(kgsmPath, nameof(kgsmPath));
-        ArgumentNullException.ThrowIfNull(kgsmSocketPath, nameof(kgsmSocketPath));
+        if (string.IsNullOrWhiteSpace(kgsmPath))
+            throw new ArgumentNullException(nameof(kgsmPath), "KGSM path cannot be null, empty, or whitespace.");
 
-        // Create the necessary services using the default nulllogger
-        var processRunner = new ProcessRunner(NullLogger<ProcessRunner>.Instance);
-        var socketClient = new UnixSocketClient(kgsmSocketPath, NullLogger<UnixSocketClient>.Instance);
-        var eventService = new EventService(socketClient, NullLogger<EventService>.Instance);
-        var blueprintService = new BlueprintService(processRunner, kgsmPath, NullLogger<BlueprintService>.Instance);
-        var instanceService = new InstanceService(processRunner, kgsmPath, NullLogger<InstanceService>.Instance);
+        if (string.IsNullOrWhiteSpace(kgsmSocketPath))
+            throw new ArgumentNullException(nameof(kgsmSocketPath), "Socket path cannot be null, empty, or whitespace.");
 
-        _client = new KgsmClient(
-            kgsmPath,
-            processRunner,
-            blueprintService,
-            instanceService,
-            eventService,
-            NullLogger<KgsmClient>.Instance);
-    }    // General
+        IServiceCollection services = new ServiceCollection();
+        services.AddKgsmServices(kgsmPath, kgsmSocketPath);
+
+        var serviceProvider = services.BuildServiceProvider();
+
+        _client = serviceProvider.GetRequiredService<IKgsmClient>();
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the KgsmInterop class with the specified KGSM options.
+    /// Throws an ArgumentNullException if the options are null.
+    /// </summary>
+    /// <param name="options">The KGSM options.</param>
+    /// <exception cref="ArgumentNullException">Thrown when options are null.</exception>
+    public KgsmInterop(KgsmOptions options) : this(options.KgsmPath, options.SocketPath)
+    {
+        ArgumentNullException.ThrowIfNull(options, nameof(options));
+    }
+
     /// <summary>
     /// Prints the help message
     /// </summary>
-    public KgsmResult Help() => _client.Help();
+    public KgsmResult Help()
+        => _client.Help();
 
     /// <summary>
     /// Prints the help message for the interactive mode
     /// </summary>
-    public KgsmResult HelpInteractive() => _client.HelpInteractive();
+    public KgsmResult HelpInteractive()
+        => _client.HelpInteractive();
 
     /// <summary>
     /// Update KGSM if a new version is available
     /// </summary>
-    public KgsmResult Update() => _client.UpdateKgsm();
+    public KgsmResult Update()
+        => _client.UpdateKgsm();
 
     /// <summary>
     /// Prints the server's public IP address
     /// </summary>
-    public KgsmResult GetIp() => _client.GetIp();
+    public KgsmResult GetIp()
+        => _client.GetIp();
 
     /// <summary>
     /// Print the version information for KGSM
     /// </summary>
-    public KgsmResult GetVersion() => _client.GetVersion();    // Blueprints
+    public KgsmResult GetVersion()
+        => _client.GetVersion();
 
     /// <summary>
     /// Prints a list of all available blueprints
     /// </summary>
     public Dictionary<string, Blueprint> GetBlueprints()
-    {
-        return _client.Blueprints.GetAll();
-    }    /// <summary>
+        => _client.Blueprints.ListDetailed();
+
+    /// <summary>
     /// Create an instance of a blueprint
     /// </summary>
     /// <param name="blueprintName">Name of the blueprint to install</param>
     /// <param name="installDir">Optional installation directory</param>
     /// <param name="version">Optional version to install</param>
     /// <param name="name">Optional identifier used when creating the instance</param>
-    public KgsmResult Install(string blueprintName, string? installDir = null, string? version = null, string? name = null) 
-    {
-        return _client.Instances.Install(blueprintName, installDir, version, name);
-    }    // Instances
+    public KgsmResult Install(string blueprintName, string? installDir = null, string? version = null, string? name = null)
+        => _client.Instances.Install(blueprintName, installDir, version, name);
 
     /// <summary>
     /// Uninstall an instance
     /// </summary>
     /// <param name="instance">Instance name</param>
-    public KgsmResult Uninstall(string instance) 
+    /// <returns>KgsmResult</returns>
+    public KgsmResult Uninstall(string instance)
         => _client.Instances.Uninstall(instance);
 
     /// <summary>
     /// Prints a list of all instances
     /// </summary>
+    /// <returns>A dictionary of instance names to their details</returns>
     public Dictionary<string, Instance> GetInstances()
-    {
-        return _client.Instances.GetAll();
-    }
+        => _client.Instances.GetAll();
 
     /// <summary>
     /// Print the last 10 lines for the instance log
     /// </summary>
     /// <param name="instance">Instance name</param>
-    public KgsmResult GetLogs(string instance)
-        => _client.Instances.GetLogs(instance);
+    /// <param name="lines">Number of lines to retrieve</param>
+    /// <returns>A collection of log lines</returns>
+    public ICollection<string> GetLogs(string instance, int lines = 10)
+        => _client.Instances.GetLogs(instance, lines);
+
+    /// <summary>
+    /// Print the last specified number of lines for the instance log
+    /// </summary>
+    /// <param name="instance">Instance name</param>
+    /// <param name="lines">Number of lines to retrieve</param>
+    /// <param name="cancellationToken">Cancellation token for the async operation.</param>
+    /// <returns>A collection of log lines</returns>
+    public async Task<ICollection<string>> GetLogsAsync(string instance, int lines = 10, CancellationToken cancellationToken = default)
+        => await _client.Instances.GetLogsAsync(instance, lines, cancellationToken).ConfigureAwait(false);
 
     /// <summary>
     /// Print a detailed message about the current status of the instance
@@ -141,7 +166,9 @@ public class KgsmInterop
     /// </summary>
     /// <param name="instance">Instance name</param>
     public KgsmResult Start(string instance)
-        => _client.Instances.Start(instance);    /// <summary>
+        => _client.Instances.Start(instance);
+
+    /// <summary>
     /// Stop the instance
     /// </summary>
     /// <param name="instance">Instance name</param>

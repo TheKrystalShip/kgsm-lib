@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using TheKrystalShip.KGSM.Core.Interfaces;
+using TheKrystalShip.KGSM.Core.Models;
 using TheKrystalShip.KGSM.Services;
 
 namespace TheKrystalShip.KGSM.Extensions;
@@ -16,46 +16,39 @@ public static class ServiceCollectionExtensions
     /// <param name="services">The IServiceCollection to add services to.</param>
     /// <param name="kgsmPath">The path to the KGSM executable.</param>
     /// <param name="socketPath">The path to the KGSM Unix socket.</param>
-    /// <returns>The IServiceCollection so that additional calls can be chained.</returns>
+    /// <returns>
+    /// The IServiceCollection so that additional calls can be chained.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when services, kgsmPath, or socketPath are null.</exception>
     public static IServiceCollection AddKgsmServices(this IServiceCollection services, string kgsmPath, string socketPath)
     {
         ArgumentNullException.ThrowIfNull(services, nameof(services));
-        ArgumentNullException.ThrowIfNull(kgsmPath, nameof(kgsmPath));
-        ArgumentNullException.ThrowIfNull(socketPath, nameof(socketPath));
-        
-        // Register process runner
+
+        if (string.IsNullOrWhiteSpace(kgsmPath))
+            throw new ArgumentNullException(nameof(kgsmPath), "KGSM path cannot be null, empty, or whitespace.");
+
+        if (string.IsNullOrWhiteSpace(socketPath))
+            throw new ArgumentNullException(nameof(socketPath), "Socket path cannot be null, empty, or whitespace.");
+
+        // Some services require the kgsmPath and socketPath, so we register them as options
+        services.AddSingleton(new KgsmOptions { KgsmPath = kgsmPath, SocketPath = socketPath });
+
+        // Transient services
         services.AddTransient<IProcessRunner, ProcessRunner>();
+        services.AddTransient<IKgsmCommandExecutor, KgsmCommandExecutor>();
+        services.AddTransient<ILogSubscriptionService, LogSubscriptionService>();
+        services.AddTransient<IBlueprintService, BlueprintService>();
+        services.AddTransient<ILifecycleService, LifecycleService>();
+        services.AddTransient<IInstanceService, InstanceService>();
+        services.AddTransient<IConfigService, ConfigService>();
+        services.AddTransient<IFileService, FileService>();
+        services.AddTransient<IDirectoryService, DirectoryService>();
+        services.AddTransient<IWatcherService, WatcherService>();
 
-        // Register socket client
-        services.AddSingleton<IUnixSocketClient>(provider => 
-            new UnixSocketClient(socketPath, provider.GetRequiredService<ILogger<UnixSocketClient>>()));
-
-        // Register event service
+        // Singleton services
+        services.AddSingleton<IUnixSocketClient, UnixSocketClient>();
         services.AddSingleton<IEventService, EventService>();
-        
-        // Register blueprint service
-        services.AddTransient<IBlueprintService>(provider => 
-            new BlueprintService(
-                provider.GetRequiredService<IProcessRunner>(), 
-                kgsmPath, 
-                provider.GetRequiredService<ILogger<BlueprintService>>()));
-        
-        // Register instance service
-        services.AddTransient<IInstanceService>(provider => 
-            new InstanceService(
-                provider.GetRequiredService<IProcessRunner>(), 
-                kgsmPath, 
-                provider.GetRequiredService<ILogger<InstanceService>>()));
-        
-        // Register main client
-        services.AddSingleton<IKgsmClient>(provider => 
-            new KgsmClient(
-                kgsmPath,
-                provider.GetRequiredService<IProcessRunner>(),
-                provider.GetRequiredService<IBlueprintService>(),
-                provider.GetRequiredService<IInstanceService>(),
-                provider.GetRequiredService<IEventService>(),
-                provider.GetRequiredService<ILogger<KgsmClient>>()));
+        services.AddSingleton<IKgsmClient, KgsmClient>();
 
         return services;
     }
@@ -65,31 +58,35 @@ public static class ServiceCollectionExtensions
     /// </summary>
     /// <param name="services">The IServiceCollection to add services to.</param>
     /// <param name="configureOptions">Action to configure the KGSM options.</param>
-    /// <returns>The IServiceCollection so that additional calls can be chained.</returns>
+    /// <returns>
+    /// The IServiceCollection so that additional calls can be chained.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when services or configureOptions are null.</exception>
     public static IServiceCollection AddKgsmServices(this IServiceCollection services, Action<KgsmOptions> configureOptions)
     {
         ArgumentNullException.ThrowIfNull(services, nameof(services));
         ArgumentNullException.ThrowIfNull(configureOptions, nameof(configureOptions));
-        
+
         var options = new KgsmOptions();
         configureOptions(options);
-        
+
         return AddKgsmServices(services, options.KgsmPath, options.SocketPath);
     }
-}
 
-/// <summary>
-/// Options for configuring KGSM services.
-/// </summary>
-public class KgsmOptions
-{
     /// <summary>
-    /// Gets or sets the path to the KGSM executable.
+    /// Adds KGSM services with the specified KGSM options.
     /// </summary>
-    public string KgsmPath { get; set; } = string.Empty;
-    
-    /// <summary>
-    /// Gets or sets the path to the KGSM Unix socket.
-    /// </summary>
-    public string SocketPath { get; set; } = string.Empty;
+    /// <param name="services">The IServiceCollection to add services to.</param>
+    /// <param name="options">The KGSM options.</param>
+    /// <returns>
+    /// The IServiceCollection so that additional calls can be chained.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when services or options are null.</exception>
+    public static IServiceCollection AddKgsmServices(this IServiceCollection services, KgsmOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(services, nameof(services));
+        ArgumentNullException.ThrowIfNull(options, nameof(options));
+
+        return AddKgsmServices(services, options.KgsmPath, options.SocketPath);
+    }
 }
