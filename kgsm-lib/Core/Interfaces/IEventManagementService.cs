@@ -1,0 +1,123 @@
+using TheKrystalShip.KGSM.Core.Models;
+
+namespace TheKrystalShip.KGSM.Core.Interfaces;
+
+/// <summary>
+/// Interface for managing KGSM event system configuration and transports.
+/// This service maps CLI-side event management commands and is separate from
+/// IEventService, which handles real-time socket event listening.
+/// </summary>
+public interface IEventManagementService
+{
+    /// <summary>
+    /// Gets the overall event system status, aggregating socket and webhook transport status.
+    /// </summary>
+    /// <returns>
+    /// A <see cref="KgsmResult"/> containing formatted status text.
+    /// <see cref="KgsmResult.IsSuccess"/> is true when the status was retrieved successfully.
+    /// </returns>
+    KgsmResult GetStatus();
+
+    /// <summary>
+    /// Tests one or more event transports and returns pass/fail results.
+    /// </summary>
+    /// <param name="transport">
+    /// The transport to test. Must be one of: <c>all</c>, <c>socket</c>, <c>webhook</c>.
+    /// </param>
+    /// <returns>
+    /// A <see cref="KgsmResult"/> containing pass/fail result text.
+    /// <see cref="KgsmResult.IsSuccess"/> is true when all tested transports pass.
+    /// </returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="transport"/> is null, whitespace, or not one of the valid values.
+    /// </exception>
+    KgsmResult TestTransport(string transport);
+
+    /// <summary>
+    /// Emits a specific event via KGSM, dispatching it to all enabled transports.
+    /// </summary>
+    /// <param name="eventType">
+    /// The event type to emit (e.g. <c>instance-created</c>, <c>instance-started</c>).
+    /// </param>
+    /// <param name="parameters">Optional additional parameters for the event.</param>
+    /// <returns>
+    /// A <see cref="KgsmResult"/> indicating success or failure.
+    /// <see cref="KgsmResult.IsSuccess"/> is true when the event was emitted successfully.
+    /// </returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="eventType"/> is null or whitespace.
+    /// </exception>
+    KgsmResult Emit(string eventType, params string[] parameters);
+
+    /// <summary>
+    /// Enables the Unix domain socket transport.
+    /// </summary>
+    /// <returns>
+    /// A <see cref="KgsmResult"/> containing the command output.
+    /// <see cref="KgsmResult.IsSuccess"/> is true when the transport was enabled successfully.
+    /// </returns>
+    KgsmResult EnableSocket();
+
+    /// <summary>
+    /// Disables the Unix domain socket transport.
+    /// </summary>
+    /// <returns>
+    /// A <see cref="KgsmResult"/> containing the command output.
+    /// <see cref="KgsmResult.IsSuccess"/> is true when the transport was disabled successfully.
+    /// </returns>
+    KgsmResult DisableSocket();
+
+    /// <summary>
+    /// Tests the Unix domain socket transport and returns pass/fail results.
+    /// </summary>
+    /// <returns>
+    /// A <see cref="KgsmResult"/> containing pass/fail result text.
+    /// <see cref="KgsmResult.IsSuccess"/> is true when the socket transport test passes.
+    /// </returns>
+    KgsmResult TestSocket();
+
+    /// <summary>
+    /// Gets the current status of the Unix domain socket transport.
+    /// </summary>
+    /// <returns>
+    /// A <see cref="KgsmResult"/> containing formatted socket status text.
+    /// <see cref="KgsmResult.IsSuccess"/> is true when the status was retrieved successfully.
+    /// </returns>
+    KgsmResult GetSocketStatus();
+
+    /// <summary>
+    /// Enables the webhook transport.
+    /// </summary>
+    /// <returns>
+    /// A <see cref="KgsmResult"/> containing the command output.
+    /// <see cref="KgsmResult.IsSuccess"/> is true when the transport was enabled successfully.
+    /// </returns>
+    KgsmResult EnableWebhook();
+
+    /// <summary>
+    /// Disables the webhook transport.
+    /// </summary>
+    /// <returns>
+    /// A <see cref="KgsmResult"/> containing the command output.
+    /// <see cref="KgsmResult.IsSuccess"/> is true when the transport was disabled successfully.
+    /// </returns>
+    KgsmResult DisableWebhook();
+
+    /// <summary>
+    /// Tests the webhook transport and returns pass/fail results.
+    /// </summary>
+    /// <returns>
+    /// A <see cref="KgsmResult"/> containing pass/fail result text.
+    /// <see cref="KgsmResult.IsSuccess"/> is true when the webhook transport test passes.
+    /// </returns>
+    KgsmResult TestWebhook();
+
+    /// <summary>
+    /// Gets the current status of the webhook transport.
+    /// </summary>
+    /// <returns>
+    /// A <see cref="KgsmResult"/> containing formatted webhook status text.
+    /// <see cref="KgsmResult.IsSuccess"/> is true when the status was retrieved successfully.
+    /// </returns>
+    KgsmResult GetWebhookStatus();
+}

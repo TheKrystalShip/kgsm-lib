@@ -30,79 +30,77 @@ public class FileService : IFileService
 
     /// <inheritdoc/>
     public KgsmResult Create(string instanceName) =>
-        ExecuteFileOperation(instanceName, "--create", "Creating all files");
+        ExecuteFileOperation(instanceName, "create");
 
     /// <inheritdoc/>
     public KgsmResult CreateManage(string instanceName) =>
-        ExecuteFileOperation(instanceName, "--create", "Creating management script", "--manage");
+        ExecuteFileOperation(instanceName, "management", "create");
 
     /// <inheritdoc/>
     public KgsmResult CreateConfig(string instanceName) =>
-        ExecuteFileOperation(instanceName, "--create", "Copying configuration file", "--config");
+        ExecuteFileOperation(instanceName, "config", "install");
 
     /// <inheritdoc/>
     public KgsmResult CreateSystemd(string instanceName) =>
-        ExecuteFileOperation(instanceName, "--create", "Creating systemd files", "--systemd");
+        ExecuteFileOperation(instanceName, "systemd", "enable");
 
     /// <inheritdoc/>
     public KgsmResult CreateUfw(string instanceName) =>
-        ExecuteFileOperation(instanceName, "--create", "Creating UFW firewall rule", "--ufw");
+        ExecuteFileOperation(instanceName, "ufw", "enable");
 
     /// <inheritdoc/>
     public KgsmResult CreateSymlink(string instanceName) =>
-        ExecuteFileOperation(instanceName, "--create", "Creating symlink", "--symlink");
+        ExecuteFileOperation(instanceName, "symlink", "enable");
 
     /// <inheritdoc/>
     public KgsmResult CreateUpnp(string instanceName) =>
-        ExecuteFileOperation(instanceName, "--create", "Creating UPnP configuration", "--upnp");
+        ExecuteFileOperation(instanceName, "upnp", "enable");
 
     /// <inheritdoc/>
     public KgsmResult Remove(string instanceName) =>
-        ExecuteFileOperation(instanceName, "--remove", "Removing all files");
+        ExecuteFileOperation(instanceName, "remove");
 
     /// <inheritdoc/>
     public KgsmResult RemoveSystemd(string instanceName) =>
-        ExecuteFileOperation(instanceName, "--remove", "Removing systemd files", "--systemd");
+        ExecuteFileOperation(instanceName, "systemd", "disable");
 
     /// <inheritdoc/>
     public KgsmResult RemoveUfw(string instanceName) =>
-        ExecuteFileOperation(instanceName, "--remove", "Removing UFW firewall rules", "--ufw");
+        ExecuteFileOperation(instanceName, "ufw", "disable");
 
     /// <inheritdoc/>
     public KgsmResult RemoveSymlink(string instanceName) =>
-        ExecuteFileOperation(instanceName, "--remove", "Removing symlink", "--symlink");
+        ExecuteFileOperation(instanceName, "symlink", "disable");
 
     /// <inheritdoc/>
     public KgsmResult RemoveUpnp(string instanceName) =>
-        ExecuteFileOperation(instanceName, "--remove", "Removing UPnP configuration", "--upnp");
+        ExecuteFileOperation(instanceName, "upnp", "disable");
 
     /// <inheritdoc/>
     public KgsmResult RemoveConfig(string instanceName) =>
-        ExecuteFileOperation(instanceName, "--remove", "Removing configuration file", "--config");
+        ExecuteFileOperation(instanceName, "config", "uninstall");
 
     /// <inheritdoc/>
     public KgsmResult RemoveManage(string instanceName) =>
-        ExecuteFileOperation(instanceName, "--remove", "Removing management file", "--manage");
+        ExecuteFileOperation(instanceName, "management", "remove");
 
     /// <summary>
-    /// Executes a file operation with centralized parameter validation, logging, and command execution.
+    /// Validates the instance name and executes a new-style file command of the form
+    /// <c>files [component] &lt;verb&gt; &lt;instance&gt;</c>.
     /// </summary>
     /// <param name="instanceName">Instance name to perform the operation on.</param>
-    /// <param name="operation">The operation type (--create or --remove).</param>
-    /// <param name="logMessage">The log message describing the operation.</param>
-    /// <param name="subCommand">Optional subcommand (e.g., --manage, --systemd).</param>
+    /// <param name="command">
+    /// The command tokens that precede the instance name. Either a single quick-command
+    /// verb (e.g. <c>create</c>, <c>remove</c>) or a component and its verb
+    /// (e.g. <c>systemd</c>, <c>enable</c>).
+    /// </param>
     /// <returns>Result of the file operation.</returns>
-    /// <exception cref="ArgumentNullException">Thrown if any required parameter is null.</exception>
-    private KgsmResult ExecuteFileOperation(string instanceName, string operation, string logMessage, string? subCommand = null)
+    /// <exception cref="ArgumentException">Thrown if the instance name is null or whitespace.</exception>
+    private KgsmResult ExecuteFileOperation(string instanceName, params string[] command)
     {
-        ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
-        ArgumentNullException.ThrowIfNull(operation, nameof(operation));
-        ArgumentNullException.ThrowIfNull(logMessage, nameof(logMessage));
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
 
-        _logger.LogInformation("{Message} for instance {InstanceName}", logMessage, instanceName);
-
-        return subCommand is null
-            ? _commandExecutor.Execute("--instance", instanceName, operation)
-            : _commandExecutor.Execute("--instance", instanceName, operation, subCommand);
+        string[] args = ["files", .. command, instanceName];
+        return _commandExecutor.Execute(args);
     }
 }

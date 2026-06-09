@@ -24,25 +24,50 @@ public class DirectoryService : IDirectoryService
     {
         _commandExecutor = commandExecutor ?? throw new ArgumentNullException(nameof(commandExecutor));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+        _logger.LogDebug("DirectoryService initialized");
     }
 
     /// <inheritdoc/>
     public KgsmResult Create(string instanceName)
     {
-        ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
 
-        _logger.LogInformation("Creating directory structure for instance {InstanceName}", instanceName);
-
-        return _commandExecutor.Execute("--instance", instanceName, "--directories", "create");
+        return _commandExecutor.Execute("directories", "create", instanceName);
     }
 
     /// <inheritdoc/>
     public KgsmResult Remove(string instanceName)
     {
-        ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
 
-        _logger.LogWarning("Removing directory structure for instance {InstanceName} - this will delete all instance data", instanceName);
+        return _commandExecutor.Execute("directories", "remove", instanceName);
+    }
 
-        return _commandExecutor.Execute("--instance", instanceName, "--directories", "remove");
+    /// <inheritdoc/>
+    public KgsmResult LinkInstance(string blueprint, string instanceName, string workingDir)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(blueprint, nameof(blueprint));
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+        ArgumentException.ThrowIfNullOrWhiteSpace(workingDir, nameof(workingDir));
+
+        return _commandExecutor.Execute("directories", "link-instance", blueprint, instanceName, workingDir);
+    }
+
+    /// <inheritdoc/>
+    public KgsmResult UnlinkInstance(string blueprint, string instanceName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(blueprint, nameof(blueprint));
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+
+        return _commandExecutor.Execute("directories", "unlink-instance", blueprint, instanceName);
+    }
+
+    /// <inheritdoc/>
+    public KgsmResult EnsureCreated(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path, nameof(path));
+
+        return _commandExecutor.Execute("directories", "ensure-created", path);
     }
 }

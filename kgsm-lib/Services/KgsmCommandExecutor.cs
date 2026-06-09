@@ -15,6 +15,7 @@ public class KgsmCommandExecutor : IKgsmCommandExecutor
 {
     private readonly IProcessRunner _processRunner;
     private readonly string _kgsmPath;
+    private readonly TimeSpan _defaultTimeout;
     private readonly ILogger<KgsmCommandExecutor> _logger;
     private readonly JsonSerializerOptions _defaultJsonOptions;
 
@@ -31,6 +32,7 @@ public class KgsmCommandExecutor : IKgsmCommandExecutor
     {
         _processRunner = processRunner ?? throw new ArgumentNullException(nameof(processRunner));
         _kgsmPath = kgsmOptions.KgsmPath ?? throw new ArgumentNullException(nameof(kgsmOptions.KgsmPath));
+        _defaultTimeout = kgsmOptions.Timeouts.Default;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         // Setup default JSON options with KGSM-specific converters
@@ -54,7 +56,7 @@ public class KgsmCommandExecutor : IKgsmCommandExecutor
         var commandName = string.Join(" ", args);
         _logger.LogDebug("Executing KGSM command: {Command}", commandName);
 
-        ProcessResult result = _processRunner.Execute(_kgsmPath, args);
+        ProcessResult result = _processRunner.Execute(_kgsmPath, _defaultTimeout, args);
 
         if (result.ExitCode != 0)
         {
@@ -140,11 +142,15 @@ public class KgsmCommandExecutor : IKgsmCommandExecutor
 
     /// <inheritdoc/>
     public KgsmResult Execute(params string[] args)
+        => Execute(_defaultTimeout, args);
+
+    /// <inheritdoc/>
+    public KgsmResult Execute(TimeSpan timeout, params string[] args)
     {
         var commandName = string.Join(" ", args);
-        _logger.LogDebug("Executing KGSM command: {Command}", commandName);
+        _logger.LogDebug("Executing KGSM command: {Command} (timeout {Timeout})", commandName, timeout);
 
-        ProcessResult result = _processRunner.Execute(_kgsmPath, args);
+        ProcessResult result = _processRunner.Execute(_kgsmPath, timeout, args);
 
         if (result.ExitCode != 0)
         {
@@ -174,6 +180,21 @@ public class KgsmCommandExecutor : IKgsmCommandExecutor
         {
             _logger.LogDebug("Command succeeded: {Command}", commandName);
         }
+
+        return new KgsmResult(result);
+    }
+
+    /// <inheritdoc/>
+    public KgsmResult Probe(params string[] args)
+    {
+        var commandName = string.Join(" ", args);
+        _logger.LogDebug("Probing KGSM command: {Command}", commandName);
+
+        ProcessResult result = _processRunner.Execute(_kgsmPath, _defaultTimeout, args);
+
+        // A non-zero exit code is a normal outcome for a probe (e.g. "port in use"),
+        // so it is reported at Debug level rather than logged as an error.
+        _logger.LogDebug("Probe completed: {Command} (exit code {ExitCode})", commandName, result.ExitCode);
 
         return new KgsmResult(result);
     }

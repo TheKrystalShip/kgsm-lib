@@ -155,6 +155,44 @@ public interface IInstanceService
     KgsmResult RestoreBackup(string instanceName, string backupName);
 
     /// <summary>
+    /// Generates a unique instance identifier for a blueprint.
+    /// If a custom name is provided and is valid and unique, returns that name.
+    /// Otherwise, generates a name with format blueprint-suffix.
+    /// </summary>
+    /// <param name="blueprintName">The blueprint to generate an ID for.</param>
+    /// <param name="customName">Optional custom name to use if valid and unique.</param>
+    /// <returns>Result containing the generated or custom instance name.</returns>
+    /// <exception cref="ArgumentException">Thrown when blueprintName is null or whitespace.</exception>
+    KgsmResult GenerateId(string blueprintName, string? customName = null);
+
+    /// <summary>
+    /// Sends a save command to a running instance.
+    /// Delegates to the instance's management file save command.
+    /// </summary>
+    /// <param name="instanceName">The instance to save.</param>
+    /// <returns>Result of the save operation.</returns>
+    /// <exception cref="ArgumentException">Thrown when instanceName is null or whitespace.</exception>
+    KgsmResult Save(string instanceName);
+
+    /// <summary>
+    /// Sends a console command to a running instance.
+    /// The command is sent to the instance's console and the last log lines are returned.
+    /// </summary>
+    /// <param name="instanceName">The instance to send the command to.</param>
+    /// <param name="command">The console command to send.</param>
+    /// <returns>Result containing log output after command execution.</returns>
+    /// <exception cref="ArgumentException">Thrown when instanceName or command is null or whitespace.</exception>
+    KgsmResult SendInput(string instanceName, string command);
+
+    /// <summary>
+    /// Gets the absolute path to an instance's configuration file.
+    /// </summary>
+    /// <param name="instanceName">The instance to find the config path for.</param>
+    /// <returns>Result containing the absolute path to the config file.</returns>
+    /// <exception cref="ArgumentException">Thrown when instanceName is null or whitespace.</exception>
+    KgsmResult FindConfigPath(string instanceName);
+
+    /// <summary>
     /// Subscribes to continuous log streaming for an instance.
     /// This method starts a background process that continuously streams logs from the specified instance
     /// using the KGSM "--follow" flag. The returned LogSubscription object provides events for

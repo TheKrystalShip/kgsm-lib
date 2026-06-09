@@ -288,4 +288,158 @@ public class ConfigServiceTests
         Assert.False(result.IsSuccess);
         Assert.Equal(1, result.ExitCode);
     }
+
+    [Fact]
+    public void Merge_SuccessfulExecution_ReturnsSuccessResult()
+    {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(args =>
+                args.SequenceEqual(new[] { "config", "merge" }))))
+            .Returns(new KgsmResult(new ProcessResult(0, "Merged successfully", string.Empty)));
+
+        // Act
+        KgsmResult result = _configService.Merge();
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0, result.ExitCode);
+    }
+
+    [Fact]
+    public void Merge_ExecutionFails_ReturnsFailureResult()
+    {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(args =>
+                args.SequenceEqual(new[] { "config", "merge" }))))
+            .Returns(new KgsmResult(new ProcessResult(1, string.Empty, "Failed to merge configuration")));
+
+        // Act
+        KgsmResult result = _configService.Merge();
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal(1, result.ExitCode);
+    }
+
+    [Fact]
+    public void Rollback_DefaultGeneration_SuccessfulExecution_ReturnsSuccessResult()
+    {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(args =>
+                args.SequenceEqual(new[] { "config", "rollback", "0" }))))
+            .Returns(new KgsmResult(new ProcessResult(0, "Rolled back to generation 0", string.Empty)));
+
+        // Act
+        KgsmResult result = _configService.Rollback();
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0, result.ExitCode);
+    }
+
+    [Fact]
+    public void Rollback_SpecificGeneration_SuccessfulExecution_ReturnsSuccessResult()
+    {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(args =>
+                args.SequenceEqual(new[] { "config", "rollback", "3" }))))
+            .Returns(new KgsmResult(new ProcessResult(0, "Rolled back to generation 3", string.Empty)));
+
+        // Act
+        KgsmResult result = _configService.Rollback(3);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0, result.ExitCode);
+    }
+
+    [Fact]
+    public void Rollback_ExecutionFails_ReturnsFailureResult()
+    {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(args =>
+                args.SequenceEqual(new[] { "config", "rollback", "0" }))))
+            .Returns(new KgsmResult(new ProcessResult(1, string.Empty, "Failed to rollback configuration")));
+
+        // Act
+        KgsmResult result = _configService.Rollback();
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal(1, result.ExitCode);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(10)]
+    public void Rollback_InvalidGeneration_ThrowsArgumentOutOfRangeException(int generation)
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => _configService.Rollback(generation));
+    }
+
+    [Fact]
+    public void Diff_DefaultGeneration_SuccessfulExecution_ReturnsSuccessResult()
+    {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(args =>
+                args.SequenceEqual(new[] { "config", "diff", "0" }))))
+            .Returns(new KgsmResult(new ProcessResult(0, "--- backup\n+++ current\n@@ -1 +1 @@", string.Empty)));
+
+        // Act
+        KgsmResult result = _configService.Diff();
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0, result.ExitCode);
+    }
+
+    [Fact]
+    public void Diff_SpecificGeneration_SuccessfulExecution_ReturnsSuccessResult()
+    {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(args =>
+                args.SequenceEqual(new[] { "config", "diff", "5" }))))
+            .Returns(new KgsmResult(new ProcessResult(0, "--- backup.5\n+++ current\n@@ -1 +1 @@", string.Empty)));
+
+        // Act
+        KgsmResult result = _configService.Diff(5);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0, result.ExitCode);
+    }
+
+    [Fact]
+    public void Diff_ExecutionFails_ReturnsFailureResult()
+    {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(args =>
+                args.SequenceEqual(new[] { "config", "diff", "0" }))))
+            .Returns(new KgsmResult(new ProcessResult(1, string.Empty, "Failed to retrieve diff")));
+
+        // Act
+        KgsmResult result = _configService.Diff();
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal(1, result.ExitCode);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(10)]
+    public void Diff_InvalidGeneration_ThrowsArgumentOutOfRangeException(int generation)
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentOutOfRangeException>(() => _configService.Diff(generation));
+    }
 }

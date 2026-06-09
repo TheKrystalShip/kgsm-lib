@@ -181,6 +181,56 @@ public class ProcessRunnerTests
         Assert.True(result.Stdout == result.Stdout.Trim());
     }
 
+    #region Timeout Tests
+
+    [Fact]
+    public void Execute_WithExplicitTimeout_KillsProcessThatExceedsTimeout()
+    {
+        // Arrange: a command that sleeps far longer than the tiny timeout we give it.
+        string command = "sleep";
+        string[] args = new[] { "5" };
+        var startTime = DateTime.UtcNow;
+
+        // Act
+        var result = _processRunner.Execute(command, TimeSpan.FromMilliseconds(200), args);
+        var duration = DateTime.UtcNow - startTime;
+
+        // Assert: failure returned promptly (not after the process's own 5s) with a timeout message.
+        Assert.NotNull(result);
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("timed out", result.Stderr.ToLower());
+        Assert.True(duration.TotalSeconds < 4, "Process should have been killed well before its own 5s sleep");
+    }
+
+    [Fact]
+    public void Execute_WithExplicitTimeout_AllowsProcessThatCompletesInTime()
+    {
+        // Arrange
+        string command = "echo";
+        string[] args = new[] { "fast" };
+
+        // Act: generous timeout, quick command — should succeed normally.
+        var result = _processRunner.Execute(command, TimeSpan.FromSeconds(10), args);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("fast", result.Stdout);
+    }
+
+    [Fact]
+    public void Execute_DefaultTimeoutOverload_DelegatesAndSucceeds()
+    {
+        // The parameterless-timeout overload must still behave as before.
+        var result = _processRunner.Execute("echo", "hello");
+
+        Assert.NotNull(result);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("hello", result.Stdout);
+    }
+
+    #endregion
+
     #region Async Tests
 
     [Fact]

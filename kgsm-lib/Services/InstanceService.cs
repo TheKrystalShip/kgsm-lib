@@ -12,6 +12,7 @@ public class InstanceService : IInstanceService
     private readonly IKgsmCommandExecutor _commandExecutor;
     private readonly ILogSubscriptionService _logSubscriptionService;
     private readonly ILifecycleService _lifecycleService;
+    private readonly KgsmTimeoutOptions _timeouts;
     private readonly ILogger<InstanceService> _logger;
 
     /// <summary>
@@ -21,15 +22,22 @@ public class InstanceService : IInstanceService
     /// <param name="logSubscriptionService">The log subscription service for managing log streams.</param>
     /// <param name="lifecycleService">The lifecycle service for managing instance lifecycle operations.</param>
     /// <param name="logger">The logger to use for logging.</param>
+    /// <param name="kgsmOptions">
+    /// KGSM options, used here for the per-operation timeouts. Optional: when null
+    /// (e.g. in tests that don't exercise timeouts), generous defaults are used.
+    /// The DI container injects the registered instance.
+    /// </param>
     public InstanceService(
         IKgsmCommandExecutor commandExecutor,
         ILogSubscriptionService logSubscriptionService,
         ILifecycleService lifecycleService,
-        ILogger<InstanceService> logger)
+        ILogger<InstanceService> logger,
+        KgsmOptions? kgsmOptions = null)
     {
         _commandExecutor = commandExecutor ?? throw new ArgumentNullException(nameof(commandExecutor));
         _logSubscriptionService = logSubscriptionService ?? throw new ArgumentNullException(nameof(logSubscriptionService));
         _lifecycleService = lifecycleService ?? throw new ArgumentNullException(nameof(lifecycleService));
+        _timeouts = kgsmOptions?.Timeouts ?? new KgsmTimeoutOptions();
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         _logger.LogDebug("InstanceService initialized");
@@ -38,13 +46,7 @@ public class InstanceService : IInstanceService
     /// <inheritdoc/>
     public Dictionary<string, Instance> GetAll()
     {
-        _logger.LogDebug("Getting all instances");
-
-        Dictionary<string, Instance>? instances =
-            _commandExecutor.ExecuteForJson<Dictionary<string, Instance>>(["--instances", "--detailed", "--json"]) ?? new();
-
-        _logger.LogDebug("Found {Count} instances", instances.Count);
-        return instances;
+        return _commandExecutor.ExecuteForJson<Dictionary<string, Instance>>(["instances", "list", "--detailed", "--json"]) ?? [];
     }
 
     /// <inheritdoc/>
@@ -52,9 +54,7 @@ public class InstanceService : IInstanceService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Getting detailed info for instance {InstanceName}", instanceName);
-
-        return _commandExecutor.ExecuteForJson<Instance>(["--instance", instanceName, "--info", "--json"]);
+        return _commandExecutor.ExecuteForJson<Instance>(["instances", "info", instanceName, "--json"]);
     }
 
     /// <inheritdoc/>
@@ -62,9 +62,7 @@ public class InstanceService : IInstanceService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Getting status for instance {InstanceName}", instanceName);
-
-        return _commandExecutor.ExecuteForJson<InstanceRuntimeStatus>(["--instance", instanceName, "--status", "--json"]);
+        return _commandExecutor.ExecuteForJson<InstanceRuntimeStatus>(["instances", "status", instanceName, "--json"]);
     }
 
     /// <inheritdoc/>
@@ -72,9 +70,7 @@ public class InstanceService : IInstanceService
     {
         ArgumentNullException.ThrowIfNull(blueprintName, nameof(blueprintName));
 
-        _logger.LogDebug("Installing instance of blueprint {Blueprint}", blueprintName);
-
-        List<string> args = ["--create", blueprintName];
+        List<string> args = ["install", blueprintName];
 
         if (installDir is not null)
         {
@@ -94,14 +90,7 @@ public class InstanceService : IInstanceService
             args.Add(name);
         }
 
-        KgsmResult result = _commandExecutor.Execute(args.ToArray());
-
-        if (result.IsSuccess)
-        {
-            _logger.LogInformation("Successfully installed instance of blueprint {Blueprint}", blueprintName);
-        }
-
-        return result;
+        return _commandExecutor.Execute(_timeouts.Install, args.ToArray());
     }
 
     /// <inheritdoc/>
@@ -109,16 +98,7 @@ public class InstanceService : IInstanceService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Uninstalling instance {InstanceName}", instanceName);
-
-        KgsmResult result = _commandExecutor.Execute("--uninstall", instanceName);
-
-        if (result.IsSuccess)
-        {
-            _logger.LogInformation("Successfully uninstalled instance {InstanceName}", instanceName);
-        }
-
-        return result;
+        return _commandExecutor.Execute(_timeouts.Uninstall, "uninstall", instanceName);
     }
 
     /// <inheritdoc/>
@@ -144,9 +124,7 @@ public class InstanceService : IInstanceService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Getting info for instance {InstanceName}", instanceName);
-
-        return _commandExecutor.Execute("--instance", instanceName, "--info");
+        return _commandExecutor.Execute("instances", "info", instanceName);
     }
 
     /// <inheritdoc/>
@@ -178,9 +156,7 @@ public class InstanceService : IInstanceService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Getting installed version for instance {InstanceName}", instanceName);
-
-        return _commandExecutor.Execute("--instance", instanceName, "--version", "--installed");
+        return _commandExecutor.Execute("instances", "version", instanceName, "--installed");
     }
 
     /// <inheritdoc/>
@@ -188,9 +164,7 @@ public class InstanceService : IInstanceService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Getting latest version for instance {InstanceName}", instanceName);
-
-        return _commandExecutor.Execute("--instance", instanceName, "--version", "--latest");
+        return _commandExecutor.Execute("instances", "version", instanceName, "--latest");
     }
 
     /// <inheritdoc/>
@@ -198,9 +172,7 @@ public class InstanceService : IInstanceService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Checking for updates for instance {InstanceName}", instanceName);
-
-        return _commandExecutor.Execute("--instance", instanceName, "--check-update");
+        return _commandExecutor.Execute("instances", "check-update", instanceName);
     }
 
     /// <inheritdoc/>
@@ -208,16 +180,7 @@ public class InstanceService : IInstanceService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Updating instance {InstanceName}", instanceName);
-
-        KgsmResult result = _commandExecutor.Execute("--instance", instanceName, "--update");
-
-        if (result.IsSuccess)
-        {
-            _logger.LogInformation("Successfully updated instance {InstanceName}", instanceName);
-        }
-
-        return result;
+        return _commandExecutor.Execute(_timeouts.Update, "instances", "update", instanceName);
     }
 
     /// <inheritdoc/>
@@ -225,9 +188,7 @@ public class InstanceService : IInstanceService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Getting backups for instance {InstanceName}", instanceName);
-
-        return _commandExecutor.Execute("--instance", instanceName, "--backups");
+        return _commandExecutor.Execute("instances", "backups", instanceName);
     }
 
     /// <inheritdoc/>
@@ -235,16 +196,7 @@ public class InstanceService : IInstanceService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Creating backup for instance {InstanceName}", instanceName);
-
-        KgsmResult result = _commandExecutor.Execute("--instance", instanceName, "--create-backup");
-
-        if (result.IsSuccess)
-        {
-            _logger.LogInformation("Successfully created backup for instance {InstanceName}", instanceName);
-        }
-
-        return result;
+        return _commandExecutor.Execute(_timeouts.Backup, "instances", "create-backup", instanceName);
     }
 
     /// <inheritdoc/>
@@ -253,16 +205,48 @@ public class InstanceService : IInstanceService
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
         ArgumentNullException.ThrowIfNull(backupName, nameof(backupName));
 
-        _logger.LogDebug("Restoring backup {BackupName} for instance {InstanceName}", backupName, instanceName);
+        return _commandExecutor.Execute(_timeouts.Restore, "instances", "restore-backup", instanceName, backupName);
+    }
 
-        KgsmResult result = _commandExecutor.Execute("--instance", instanceName, "--restore-backup", backupName);
+    /// <inheritdoc/>
+    public KgsmResult GenerateId(string blueprintName, string? customName = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(blueprintName, nameof(blueprintName));
 
-        if (result.IsSuccess)
+        var args = new List<string> { "instances", "generate-id", blueprintName };
+
+        if (!string.IsNullOrWhiteSpace(customName))
         {
-            _logger.LogInformation("Successfully restored backup {BackupName} for instance {InstanceName}", backupName, instanceName);
+            args.Add("--name");
+            args.Add(customName);
         }
 
-        return result;
+        return _commandExecutor.Execute(args.ToArray());
+    }
+
+    /// <inheritdoc/>
+    public KgsmResult Save(string instanceName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+
+        return _commandExecutor.Execute("instances", "save", instanceName);
+    }
+
+    /// <inheritdoc/>
+    public KgsmResult SendInput(string instanceName, string command)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+        ArgumentException.ThrowIfNullOrWhiteSpace(command, nameof(command));
+
+        return _commandExecutor.Execute("instances", "input", instanceName, command);
+    }
+
+    /// <inheritdoc/>
+    public KgsmResult FindConfigPath(string instanceName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+
+        return _commandExecutor.Execute("instances", "find", instanceName);
     }
 
     /// <inheritdoc/>

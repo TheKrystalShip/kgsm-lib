@@ -13,7 +13,14 @@ public class ProcessRunner : IProcessRunner
 {
     private const int EXIT_CODE_SUCCESS = 0;
     private const int EXIT_CODE_FAILURE = 1;
-    private const int DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
+
+    /// <summary>
+    /// Fallback timeout for the parameterless-timeout overload. This is a generic
+    /// safety net for direct callers; KGSM operations route their per-operation
+    /// timeout (see <see cref="TheKrystalShip.KGSM.Core.Models.KgsmTimeoutOptions"/>)
+    /// in explicitly via the command executor, so this value rarely applies in practice.
+    /// </summary>
+    private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(30);
 
     private readonly ILogger<ProcessRunner> _logger;
 
@@ -30,6 +37,10 @@ public class ProcessRunner : IProcessRunner
 
     /// <inheritdoc/>
     public ProcessResult Execute(string command, params string[] args)
+        => Execute(command, DefaultTimeout, args);
+
+    /// <inheritdoc/>
+    public ProcessResult Execute(string command, TimeSpan timeout, params string[] args)
     {
         ArgumentNullException.ThrowIfNull(command, nameof(command));
 
@@ -97,11 +108,12 @@ public class ProcessRunner : IProcessRunner
                 process.BeginErrorReadLine();
 
                 // Wait for process to exit with timeout
-                bool exited = process.WaitForExit(DEFAULT_TIMEOUT_MS);
+                int timeoutMs = ToMilliseconds(timeout);
+                bool exited = process.WaitForExit(timeoutMs);
 
                 if (!exited)
                 {
-                    _logger.LogError("Process timed out after {Timeout}ms: {Command} {Arguments}", DEFAULT_TIMEOUT_MS, command, arguments);
+                    _logger.LogError("Process timed out after {Timeout}: {Command} {Arguments}", timeout, command, arguments);
 
                     try
                     {
@@ -112,7 +124,7 @@ public class ProcessRunner : IProcessRunner
                         _logger.LogWarning(killEx, "Failed to kill timed out process: {Command} {Arguments}", command, arguments);
                     }
 
-                    return new ProcessResult(EXIT_CODE_FAILURE, string.Empty, $"Process execution timed out after {DEFAULT_TIMEOUT_MS}ms");
+                    return new ProcessResult(EXIT_CODE_FAILURE, string.Empty, $"Process execution timed out after {DescribeTimeout(timeout)}");
                 }
 
                 // Ensure all output has been read
@@ -141,6 +153,26 @@ public class ProcessRunner : IProcessRunner
             }
         }
     }
+
+    /// <summary>
+    /// Converts a timeout to a millisecond value suitable for <see cref="Process.WaitForExit(int)"/>.
+    /// A non-positive or infinite timeout maps to -1 (wait indefinitely); very large
+    /// finite timeouts are clamped to <see cref="int.MaxValue"/>.
+    /// </summary>
+    private static int ToMilliseconds(TimeSpan timeout)
+    {
+        if (timeout <= TimeSpan.Zero || timeout == Timeout.InfiniteTimeSpan)
+            return Timeout.Infinite;
+
+        double ms = timeout.TotalMilliseconds;
+        return ms >= int.MaxValue ? int.MaxValue : (int)ms;
+    }
+
+    /// <summary>Human-readable rendering of a timeout for log/error messages.</summary>
+    private static string DescribeTimeout(TimeSpan timeout) =>
+        timeout.TotalSeconds < 90
+            ? $"{timeout.TotalSeconds:0}s"
+            : $"{timeout.TotalMinutes:0.#} minutes";
 
     /// <inheritdoc/>
     public async Task<ProcessResult> ExecuteAsync(string command, string[] args, CancellationToken cancellationToken = default)

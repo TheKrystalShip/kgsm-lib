@@ -38,11 +38,22 @@ public interface IKgsmCommandExecutor
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Executes a KGSM command and returns the raw result wrapped in a KgsmResult.
+    /// Executes a KGSM command and returns the raw result wrapped in a KgsmResult,
+    /// using the configured default timeout.
     /// </summary>
     /// <param name="args">The command arguments to pass to KGSM.</param>
     /// <returns>A KgsmResult containing the command output and exit code.</returns>
     KgsmResult Execute(params string[] args);
+
+    /// <summary>
+    /// Executes a KGSM command with an explicit timeout and returns the raw result
+    /// wrapped in a KgsmResult. Use this for long-running operations (install,
+    /// update, backup, restore) whose duration exceeds the default timeout.
+    /// </summary>
+    /// <param name="timeout">Maximum time to wait for the command to complete.</param>
+    /// <param name="args">The command arguments to pass to KGSM.</param>
+    /// <returns>A KgsmResult containing the command output and exit code.</returns>
+    KgsmResult Execute(TimeSpan timeout, params string[] args);
 
     /// <summary>
     /// Executes a KGSM command asynchronously and returns the raw result wrapped in a KgsmResult.
@@ -51,4 +62,14 @@ public interface IKgsmCommandExecutor
     /// <param name="cancellationToken">Cancellation token for the async operation.</param>
     /// <returns>A KgsmResult containing the command output and exit code.</returns>
     Task<KgsmResult> ExecuteAsync(string[] args, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Executes a KGSM command whose exit code is a boolean signal rather than a
+    /// success/failure indication (for example, a port check where a non-zero exit
+    /// simply means "in use"). Unlike <see cref="Execute(string[])"/>, a non-zero exit
+    /// code is logged at Debug level as a normal outcome, never as an error.
+    /// </summary>
+    /// <param name="args">The command arguments to pass to KGSM.</param>
+    /// <returns>A KgsmResult containing the command output and exit code.</returns>
+    KgsmResult Probe(params string[] args);
 }

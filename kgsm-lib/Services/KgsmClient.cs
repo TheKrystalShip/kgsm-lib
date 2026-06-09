@@ -15,6 +15,9 @@ namespace TheKrystalShip.KGSM.Services;
 /// - File Service
 /// - Directory Service
 /// - Watcher Service
+/// - Network Service
+/// - System Service
+/// - Event Management Service
 /// </summary>
 public class KgsmClient : IKgsmClient
 {
@@ -45,6 +48,15 @@ public class KgsmClient : IKgsmClient
     /// <inheritdoc/>
     public IWatcherService Watcher { get; }
 
+    /// <inheritdoc/>
+    public INetworkService Network { get; }
+
+    /// <inheritdoc/>
+    public ISystemService System { get; }
+
+    /// <inheritdoc/>
+    public IEventManagementService EventManagement { get; }
+
     /// <summary>
     /// Initializes a new instance of the KgsmClient class.
     /// </summary>
@@ -57,6 +69,9 @@ public class KgsmClient : IKgsmClient
     /// <param name="fileService">The file service to use for managing file operations.</param>
     /// <param name="directoryService">The directory service to use for managing directory operations.</param>
     /// <param name="watcherService">The watcher service to use for monitoring instance readiness.</param>
+    /// <param name="networkService">The network service to use for querying and managing network configuration.</param>
+    /// <param name="systemService">The system service to use for managing system operations.</param>
+    /// <param name="eventManagementService">The event management service to use for managing event transports and configuration.</param>
     /// <param name="logger">The logger to use for logging.</param>
     public KgsmClient(
         IKgsmCommandExecutor commandExecutor,
@@ -68,6 +83,9 @@ public class KgsmClient : IKgsmClient
         IFileService fileService,
         IDirectoryService directoryService,
         IWatcherService watcherService,
+        INetworkService networkService,
+        ISystemService systemService,
+        IEventManagementService eventManagementService,
         ILogger<KgsmClient> logger)
     {
         _commandExecutor = commandExecutor ?? throw new ArgumentNullException(nameof(commandExecutor));
@@ -79,6 +97,9 @@ public class KgsmClient : IKgsmClient
         Files = fileService ?? throw new ArgumentNullException(nameof(fileService));
         Directories = directoryService ?? throw new ArgumentNullException(nameof(directoryService));
         Watcher = watcherService ?? throw new ArgumentNullException(nameof(watcherService));
+        Network = networkService ?? throw new ArgumentNullException(nameof(networkService));
+        System = systemService ?? throw new ArgumentNullException(nameof(systemService));
+        EventManagement = eventManagementService ?? throw new ArgumentNullException(nameof(eventManagementService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         _logger.LogDebug("KgsmClient initialized");
@@ -92,7 +113,7 @@ public class KgsmClient : IKgsmClient
     {
         _logger.LogDebug("Getting help information");
 
-        return _commandExecutor.Execute("--help");
+        return _commandExecutor.Execute("help");
     }
 
     /// <inheritdoc/>
@@ -100,30 +121,7 @@ public class KgsmClient : IKgsmClient
     {
         _logger.LogDebug("Getting interactive help information");
 
-        return _commandExecutor.Execute("--help", "--interactive");
-    }
-
-    /// <inheritdoc/>
-    public KgsmResult UpdateKgsm()
-    {
-        _logger.LogInformation("Updating KGSM");
-
-        KgsmResult result = _commandExecutor.Execute("--update");
-
-        if (result.IsSuccess)
-        {
-            _logger.LogInformation("KGSM updated successfully");
-        }
-
-        return result;
-    }
-
-    /// <inheritdoc/>
-    public KgsmResult GetIp()
-    {
-        _logger.LogDebug("Getting server IP address");
-
-        return _commandExecutor.Execute("--ip");
+        return _commandExecutor.Execute("interactive", "help");
     }
 
     /// <inheritdoc/>

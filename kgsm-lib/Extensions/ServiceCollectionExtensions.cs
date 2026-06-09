@@ -44,6 +44,9 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IFileService, FileService>();
         services.AddTransient<IDirectoryService, DirectoryService>();
         services.AddTransient<IWatcherService, WatcherService>();
+        services.AddTransient<INetworkService, NetworkService>();
+        services.AddTransient<ISystemService, SystemService>();
+        services.AddTransient<IEventManagementService, EventManagementService>();
 
         // Singleton services
         services.AddSingleton<IUnixSocketClient, UnixSocketClient>();

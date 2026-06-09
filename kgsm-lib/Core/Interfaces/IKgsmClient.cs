@@ -49,6 +49,21 @@ public interface IKgsmClient
     IWatcherService Watcher { get; }
 
     /// <summary>
+    /// Gets the network service for querying and managing network configuration.
+    /// </summary>
+    INetworkService Network { get; }
+
+    /// <summary>
+    /// Gets the system service for managing system operations.
+    /// </summary>
+    ISystemService System { get; }
+
+    /// <summary>
+    /// Gets the event management service for managing event transports and configuration.
+    /// </summary>
+    IEventManagementService EventManagement { get; }
+
+    /// <summary>
     /// Prints the help message.
     /// </summary>
     /// <returns>Result of the help command execution.</returns>
@@ -59,18 +74,6 @@ public interface IKgsmClient
     /// </summary>
     /// <returns>Result of the help command execution.</returns>
     KgsmResult HelpInteractive();
-
-    /// <summary>
-    /// Updates KGSM if a new version is available.
-    /// </summary>
-    /// <returns>Result of the update command execution.</returns>
-    KgsmResult UpdateKgsm();
-
-    /// <summary>
-    /// Gets the server's public IP address.
-    /// </summary>
-    /// <returns>Result containing the server's public IP address.</returns>
-    KgsmResult GetIp();
 
     /// <summary>
     /// Gets the version information for KGSM.

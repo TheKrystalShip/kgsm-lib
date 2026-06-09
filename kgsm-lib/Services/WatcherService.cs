@@ -24,6 +24,8 @@ public class WatcherService : IWatcherService
     {
         _commandExecutor = commandExecutor ?? throw new ArgumentNullException(nameof(commandExecutor));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+        _logger.LogDebug("WatcherService initialized");
     }
 
     /// <inheritdoc/>
@@ -31,9 +33,7 @@ public class WatcherService : IWatcherService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogInformation("Starting watcher for instance {InstanceName}", instanceName);
-
-        return _commandExecutor.Execute("--instance", instanceName, "--watcher", "--start-watch");
+        return _commandExecutor.Execute("watcher", "start", instanceName);
     }
 
     /// <inheritdoc/>
@@ -41,9 +41,7 @@ public class WatcherService : IWatcherService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Testing log pattern matching for instance {InstanceName}", instanceName);
-
-        return _commandExecutor.Execute("--instance", instanceName, "--watcher", "--test-log-watch");
+        return _commandExecutor.Execute("watcher", "logs", "test", instanceName);
     }
 
     /// <inheritdoc/>
@@ -51,9 +49,7 @@ public class WatcherService : IWatcherService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Testing port monitoring for instance {InstanceName}", instanceName);
-
-        return _commandExecutor.Execute("--instance", instanceName, "--watcher", "--test-port-watch");
+        return _commandExecutor.Execute("watcher", "ports", "test", instanceName);
     }
 
     /// <inheritdoc/>
@@ -61,8 +57,6 @@ public class WatcherService : IWatcherService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Getting watcher status for instance {InstanceName}", instanceName);
-
-        return _commandExecutor.Execute("--instance", instanceName, "--watcher", "--status");
+        return _commandExecutor.Execute("watcher", "status", instanceName);
     }
 }

@@ -73,18 +73,6 @@ public class KgsmInterop
         => _client.HelpInteractive();
 
     /// <summary>
-    /// Update KGSM if a new version is available
-    /// </summary>
-    public KgsmResult Update()
-        => _client.UpdateKgsm();
-
-    /// <summary>
-    /// Prints the server's public IP address
-    /// </summary>
-    public KgsmResult GetIp()
-        => _client.GetIp();
-
-    /// <summary>
     /// Print the version information for KGSM
     /// </summary>
     public KgsmResult GetVersion()

@@ -52,4 +52,30 @@ public interface IConfigService
     /// IsSuccess will be true if configuration is valid.
     /// </returns>
     KgsmResult Validate();
+
+    /// <summary>
+    /// Merges the current configuration with updated defaults.
+    /// Preserves user customizations while adding new keys and commenting deprecated ones.
+    /// Creates a numbered backup before merging.
+    /// </summary>
+    /// <returns>Result of the merge operation.</returns>
+    KgsmResult Merge();
+
+    /// <summary>
+    /// Rolls back the configuration to a previous backup.
+    /// Creates a safety backup of the current configuration before rolling back.
+    /// </summary>
+    /// <param name="generation">The backup generation to restore (0-9, where 0 is the most recent). Default is 0.</param>
+    /// <returns>Result of the rollback operation.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when generation is not between 0 and 9.</exception>
+    KgsmResult Rollback(int generation = 0);
+
+    /// <summary>
+    /// Shows the differences between the current configuration and a backup.
+    /// Returns unified diff format output.
+    /// </summary>
+    /// <param name="generation">The backup generation to compare with (0-9, where 0 is the most recent). Default is 0.</param>
+    /// <returns>Result containing the diff output.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when generation is not between 0 and 9.</exception>
+    KgsmResult Diff(int generation = 0);
 }

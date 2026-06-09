@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
@@ -31,19 +30,12 @@ public class ConfigService : IConfigService
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(key, nameof(key));
 
-        _logger.LogDebug("Getting configuration value for key: {Key}", key);
-
         KgsmResult result = _commandExecutor.Execute("config", "get", key);
 
         if (!result.IsSuccess)
-        {
-            _logger.LogWarning("Failed to get configuration value for key {Key}: {Error}", key, result.Stderr);
             return null;
-        }
 
         string value = result.Stdout.Trim();
-        _logger.LogDebug("Retrieved configuration value for key {Key}: {Value}", key, value);
-
         return string.IsNullOrEmpty(value) ? null : value;
     }
 
@@ -53,75 +45,40 @@ public class ConfigService : IConfigService
         ArgumentException.ThrowIfNullOrWhiteSpace(key, nameof(key));
         ArgumentException.ThrowIfNullOrWhiteSpace(value, nameof(value));
 
-        _logger.LogDebug("Setting configuration value for key {Key} to {Value}", key, value);
-
-        KgsmResult result = _commandExecutor.Execute("config", "set", $"{key}={value}");
-
-        if (result.IsSuccess)
-        {
-            _logger.LogInformation("Successfully set configuration value for key {Key}", key);
-        }
-        else
-        {
-            _logger.LogError("Failed to set configuration value for key {Key}: {Error}", key, result.Stderr);
-        }
-
-        return result;
+        return _commandExecutor.Execute("config", "set", $"{key}={value}");
     }
 
     /// <inheritdoc/>
     public Dictionary<string, string> List()
-    {
-        _logger.LogDebug("Listing all configuration values");
-
-        Dictionary<string, string>? config = _commandExecutor
-            .ExecuteForJson<Dictionary<string, string>>(["config", "list", "--json"]);
-
-        if (config == null)
-        {
-            _logger.LogWarning("No configuration values found");
-            return new Dictionary<string, string>();
-        }
-
-        _logger.LogDebug("Found {Count} configuration values", config.Count);
-        return config;
-    }
+        => _commandExecutor.ExecuteForJson<Dictionary<string, string>>(["config", "list", "--json"]) ?? [];
 
     /// <inheritdoc/>
     public KgsmResult Reset()
-    {
-        _logger.LogInformation("Resetting configuration to defaults");
-
-        KgsmResult result = _commandExecutor.Execute("config", "reset");
-
-        if (result.IsSuccess)
-        {
-            _logger.LogInformation("Successfully reset configuration to defaults");
-        }
-        else
-        {
-            _logger.LogError("Failed to reset configuration: {Error}", result.Stderr);
-        }
-
-        return result;
-    }
+        => _commandExecutor.Execute("config", "reset");
 
     /// <inheritdoc/>
     public KgsmResult Validate()
+        => _commandExecutor.Execute("config", "validate");
+
+    /// <inheritdoc/>
+    public KgsmResult Merge()
+        => _commandExecutor.Execute("config", "merge");
+
+    /// <inheritdoc/>
+    public KgsmResult Rollback(int generation = 0)
     {
-        _logger.LogDebug("Validating configuration");
+        if (generation < 0 || generation > 9)
+            throw new ArgumentOutOfRangeException(nameof(generation), generation, "Generation must be between 0 and 9.");
 
-        KgsmResult result = _commandExecutor.Execute("config", "validate");
+        return _commandExecutor.Execute("config", "rollback", generation.ToString());
+    }
 
-        if (result.IsSuccess)
-        {
-            _logger.LogInformation("Configuration is valid");
-        }
-        else
-        {
-            _logger.LogWarning("Configuration validation failed: {Error}", result.Stderr);
-        }
+    /// <inheritdoc/>
+    public KgsmResult Diff(int generation = 0)
+    {
+        if (generation < 0 || generation > 9)
+            throw new ArgumentOutOfRangeException(nameof(generation), generation, "Generation must be between 0 and 9.");
 
-        return result;
+        return _commandExecutor.Execute("config", "diff", generation.ToString());
     }
 }

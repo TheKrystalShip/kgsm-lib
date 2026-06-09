@@ -465,4 +465,211 @@ public class InstanceServiceTests
         // Assert
         Assert.False(result);
     }
+
+    // GenerateId tests
+
+    [Fact]
+    public void GenerateId_NullBlueprintName_ThrowsArgumentException()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => _instanceService.GenerateId(null!));
+    }
+
+    [Fact]
+    public void GenerateId_WhitespaceBlueprintName_ThrowsArgumentException()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentException>(() => _instanceService.GenerateId("   "));
+    }
+
+    [Fact]
+    public void GenerateId_SuccessfulExecution_ReturnsSuccessResult()
+    {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(args =>
+                args.SequenceEqual(new[] { "instances", "generate-id", "valheim" }))))
+            .Returns(new KgsmResult(new ProcessResult(0, "valheim-abc", string.Empty)));
+
+        // Act
+        KgsmResult result = _instanceService.GenerateId("valheim");
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("valheim-abc", result.Stdout);
+    }
+
+    [Fact]
+    public void GenerateId_WithCustomName_SuccessfulExecution_ReturnsSuccessResult()
+    {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(args =>
+                args.SequenceEqual(new[] { "instances", "generate-id", "valheim", "--name", "my-valheim" }))))
+            .Returns(new KgsmResult(new ProcessResult(0, "my-valheim", string.Empty)));
+
+        // Act
+        KgsmResult result = _instanceService.GenerateId("valheim", "my-valheim");
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.Equal("my-valheim", result.Stdout);
+    }
+
+    [Fact]
+    public void GenerateId_ExecutionFails_ReturnsFailureResult()
+    {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(args =>
+                args.SequenceEqual(new[] { "instances", "generate-id", "unknown-blueprint" }))))
+            .Returns(new KgsmResult(new ProcessResult(1, string.Empty, "Blueprint not found")));
+
+        // Act
+        KgsmResult result = _instanceService.GenerateId("unknown-blueprint");
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal(1, result.ExitCode);
+    }
+
+    // Save tests
+
+    [Fact]
+    public void Save_NullInstanceName_ThrowsArgumentException()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => _instanceService.Save(null!));
+    }
+
+    [Fact]
+    public void Save_SuccessfulExecution_ReturnsSuccessResult()
+    {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(args =>
+                args.SequenceEqual(new[] { "instances", "save", "my-instance" }))))
+            .Returns(new KgsmResult(new ProcessResult(0, "Saved", string.Empty)));
+
+        // Act
+        KgsmResult result = _instanceService.Save("my-instance");
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0, result.ExitCode);
+    }
+
+    [Fact]
+    public void Save_ExecutionFails_ReturnsFailureResult()
+    {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(args =>
+                args.SequenceEqual(new[] { "instances", "save", "my-instance" }))))
+            .Returns(new KgsmResult(new ProcessResult(1, string.Empty, "Instance not running")));
+
+        // Act
+        KgsmResult result = _instanceService.Save("my-instance");
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal(1, result.ExitCode);
+    }
+
+    // SendInput tests
+
+    [Fact]
+    public void SendInput_NullInstanceName_ThrowsArgumentException()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => _instanceService.SendInput(null!, "say hello"));
+    }
+
+    [Fact]
+    public void SendInput_NullCommand_ThrowsArgumentException()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => _instanceService.SendInput("my-instance", null!));
+    }
+
+    [Fact]
+    public void SendInput_SuccessfulExecution_ReturnsSuccessResult()
+    {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(args =>
+                args.SequenceEqual(new[] { "instances", "input", "my-instance", "say hello" }))))
+            .Returns(new KgsmResult(new ProcessResult(0, "[INFO] hello", string.Empty)));
+
+        // Act
+        KgsmResult result = _instanceService.SendInput("my-instance", "say hello");
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0, result.ExitCode);
+    }
+
+    [Fact]
+    public void SendInput_ExecutionFails_ReturnsFailureResult()
+    {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(args =>
+                args.SequenceEqual(new[] { "instances", "input", "my-instance", "say hello" }))))
+            .Returns(new KgsmResult(new ProcessResult(1, string.Empty, "Instance not running")));
+
+        // Act
+        KgsmResult result = _instanceService.SendInput("my-instance", "say hello");
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal(1, result.ExitCode);
+    }
+
+    // FindConfigPath tests
+
+    [Fact]
+    public void FindConfigPath_NullInstanceName_ThrowsArgumentException()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => _instanceService.FindConfigPath(null!));
+    }
+
+    [Fact]
+    public void FindConfigPath_SuccessfulExecution_ReturnsSuccessResult()
+    {
+        // Arrange
+        const string expectedPath = "/home/kgsm/instances/my-instance/my-instance.ini";
+
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(args =>
+                args.SequenceEqual(new[] { "instances", "find", "my-instance" }))))
+            .Returns(new KgsmResult(new ProcessResult(0, expectedPath, string.Empty)));
+
+        // Act
+        KgsmResult result = _instanceService.FindConfigPath("my-instance");
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal(expectedPath, result.Stdout);
+    }
+
+    [Fact]
+    public void FindConfigPath_ExecutionFails_ReturnsFailureResult()
+    {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(args =>
+                args.SequenceEqual(new[] { "instances", "find", "unknown-instance" }))))
+            .Returns(new KgsmResult(new ProcessResult(1, string.Empty, "Instance not found")));
+
+        // Act
+        KgsmResult result = _instanceService.FindConfigPath("unknown-instance");
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal(1, result.ExitCode);
+    }
 }

@@ -16,6 +16,9 @@ public class KgsmClientTests
     private readonly Mock<IFileService> _mockFileService;
     private readonly Mock<IDirectoryService> _mockDirectoryService;
     private readonly Mock<IWatcherService> _mockWatcherService;
+    private readonly Mock<INetworkService> _mockNetworkService;
+    private readonly Mock<ISystemService> _mockSystemService;
+    private readonly Mock<IEventManagementService> _mockEventManagementService;
     private readonly Mock<ILogger<KgsmClient>> _mockLogger;
     private readonly KgsmClient _kgsmClient;
 
@@ -30,6 +33,9 @@ public class KgsmClientTests
         _mockFileService = new Mock<IFileService>();
         _mockDirectoryService = new Mock<IDirectoryService>();
         _mockWatcherService = new Mock<IWatcherService>();
+        _mockNetworkService = new Mock<INetworkService>();
+        _mockSystemService = new Mock<ISystemService>();
+        _mockEventManagementService = new Mock<IEventManagementService>();
         _mockLogger = new Mock<ILogger<KgsmClient>>();
 
         _kgsmClient = new KgsmClient(
@@ -42,6 +48,9 @@ public class KgsmClientTests
             _mockFileService.Object,
             _mockDirectoryService.Object,
             _mockWatcherService.Object,
+            _mockNetworkService.Object,
+            _mockSystemService.Object,
+            _mockEventManagementService.Object,
             _mockLogger.Object
         );
     }
@@ -60,6 +69,9 @@ public class KgsmClientTests
             _mockFileService.Object,
             _mockDirectoryService.Object,
             _mockWatcherService.Object,
+            _mockNetworkService.Object,
+            _mockSystemService.Object,
+            _mockEventManagementService.Object,
             _mockLogger.Object
         ));
     }
@@ -78,6 +90,9 @@ public class KgsmClientTests
             _mockFileService.Object,
             _mockDirectoryService.Object,
             _mockWatcherService.Object,
+            _mockNetworkService.Object,
+            _mockSystemService.Object,
+            _mockEventManagementService.Object,
             _mockLogger.Object
         ));
     }
@@ -96,6 +111,9 @@ public class KgsmClientTests
             _mockFileService.Object,
             _mockDirectoryService.Object,
             _mockWatcherService.Object,
+            _mockNetworkService.Object,
+            _mockSystemService.Object,
+            _mockEventManagementService.Object,
             _mockLogger.Object
         ));
     }
@@ -114,6 +132,9 @@ public class KgsmClientTests
             _mockFileService.Object,
             _mockDirectoryService.Object,
             _mockWatcherService.Object,
+            _mockNetworkService.Object,
+            _mockSystemService.Object,
+            _mockEventManagementService.Object,
             _mockLogger.Object
         ));
     }
@@ -132,6 +153,9 @@ public class KgsmClientTests
             _mockFileService.Object,
             _mockDirectoryService.Object,
             _mockWatcherService.Object,
+            _mockNetworkService.Object,
+            _mockSystemService.Object,
+            _mockEventManagementService.Object,
             _mockLogger.Object
         ));
     }
@@ -150,6 +174,9 @@ public class KgsmClientTests
             _mockFileService.Object,
             _mockDirectoryService.Object,
             _mockWatcherService.Object,
+            _mockNetworkService.Object,
+            _mockSystemService.Object,
+            _mockEventManagementService.Object,
             _mockLogger.Object
         ));
     }
@@ -168,6 +195,9 @@ public class KgsmClientTests
             null!,
             _mockDirectoryService.Object,
             _mockWatcherService.Object,
+            _mockNetworkService.Object,
+            _mockSystemService.Object,
+            _mockEventManagementService.Object,
             _mockLogger.Object
         ));
     }
@@ -186,6 +216,9 @@ public class KgsmClientTests
             _mockFileService.Object,
             null!,
             _mockWatcherService.Object,
+            _mockNetworkService.Object,
+            _mockSystemService.Object,
+            _mockEventManagementService.Object,
             _mockLogger.Object
         ));
     }
@@ -204,6 +237,30 @@ public class KgsmClientTests
             _mockFileService.Object,
             _mockDirectoryService.Object,
             null!,
+            _mockNetworkService.Object,
+            _mockSystemService.Object,
+            _mockEventManagementService.Object,
+            _mockLogger.Object
+        ));
+    }
+
+    [Fact]
+    public void Constructor_NullNetworkService_ThrowsArgumentNullException()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => new KgsmClient(
+            _mockCommandExecutor.Object,
+            _mockBlueprintService.Object,
+            _mockInstanceService.Object,
+            _mockEventService.Object,
+            _mockConfigService.Object,
+            _mockLifecycleService.Object,
+            _mockFileService.Object,
+            _mockDirectoryService.Object,
+            _mockWatcherService.Object,
+            null!,
+            _mockSystemService.Object,
+            _mockEventManagementService.Object,
             _mockLogger.Object
         ));
     }
@@ -222,7 +279,52 @@ public class KgsmClientTests
             _mockFileService.Object,
             _mockDirectoryService.Object,
             _mockWatcherService.Object,
+            _mockNetworkService.Object,
+            _mockSystemService.Object,
+            _mockEventManagementService.Object,
             null!
+        ));
+    }
+
+    [Fact]
+    public void Constructor_NullSystemService_ThrowsArgumentNullException()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => new KgsmClient(
+            _mockCommandExecutor.Object,
+            _mockBlueprintService.Object,
+            _mockInstanceService.Object,
+            _mockEventService.Object,
+            _mockConfigService.Object,
+            _mockLifecycleService.Object,
+            _mockFileService.Object,
+            _mockDirectoryService.Object,
+            _mockWatcherService.Object,
+            _mockNetworkService.Object,
+            null!,
+            _mockEventManagementService.Object,
+            _mockLogger.Object
+        ));
+    }
+
+    [Fact]
+    public void Constructor_NullEventManagementService_ThrowsArgumentNullException()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => new KgsmClient(
+            _mockCommandExecutor.Object,
+            _mockBlueprintService.Object,
+            _mockInstanceService.Object,
+            _mockEventService.Object,
+            _mockConfigService.Object,
+            _mockLifecycleService.Object,
+            _mockFileService.Object,
+            _mockDirectoryService.Object,
+            _mockWatcherService.Object,
+            _mockNetworkService.Object,
+            _mockSystemService.Object,
+            null!,
+            _mockLogger.Object
         ));
     }
 
@@ -255,6 +357,30 @@ public class KgsmClientTests
         // Assert
         Assert.NotNull(_kgsmClient.Events);
         Assert.Same(_mockEventService.Object, _kgsmClient.Events);
+    }
+
+    [Fact]
+    public void Network_Property_ReturnsInjectedService()
+    {
+        // Assert
+        Assert.NotNull(_kgsmClient.Network);
+        Assert.Same(_mockNetworkService.Object, _kgsmClient.Network);
+    }
+
+    [Fact]
+    public void System_Property_ReturnsInjectedService()
+    {
+        // Assert
+        Assert.NotNull(_kgsmClient.System);
+        Assert.Same(_mockSystemService.Object, _kgsmClient.System);
+    }
+
+    [Fact]
+    public void EventManagement_Property_ReturnsInjectedService()
+    {
+        // Assert
+        Assert.NotNull(_kgsmClient.EventManagement);
+        Assert.Same(_mockEventManagementService.Object, _kgsmClient.EventManagement);
     }
 
     [Fact]
@@ -295,61 +421,6 @@ public class KgsmClientTests
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(expectedOutput, result.Stdout);
         _mockCommandExecutor.Verify(x => x.Execute("--help", "--interactive"), Times.Once);
-    }
-
-    [Fact]
-    public void UpdateKgsm_SuccessfulUpdate_ReturnsSuccessResult()
-    {
-        // Arrange
-        var expectedResult = new KgsmResult(new ProcessResult(0, "KGSM updated successfully", string.Empty));
-        _mockCommandExecutor
-            .Setup(x => x.Execute("--update"))
-            .Returns(expectedResult);
-
-        // Act
-        var result = _kgsmClient.UpdateKgsm();
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(0, result.ExitCode);
-        _mockCommandExecutor.Verify(x => x.Execute("--update"), Times.Once);
-    }
-
-    [Fact]
-    public void UpdateKgsm_FailedUpdate_ReturnsErrorResult()
-    {
-        // Arrange
-        var expectedResult = new KgsmResult(new ProcessResult(1, string.Empty, "Update failed"));
-        _mockCommandExecutor
-            .Setup(x => x.Execute("--update"))
-            .Returns(expectedResult);
-
-        // Act
-        var result = _kgsmClient.UpdateKgsm();
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(1, result.ExitCode);
-    }
-
-    [Fact]
-    public void GetIp_ExecutesIpCommand_ReturnsResult()
-    {
-        // Arrange
-        var expectedIp = "192.168.1.100";
-        var expectedResult = new KgsmResult(new ProcessResult(0, expectedIp, string.Empty));
-        _mockCommandExecutor
-            .Setup(x => x.Execute("--ip"))
-            .Returns(expectedResult);
-
-        // Act
-        var result = _kgsmClient.GetIp();
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(0, result.ExitCode);
-        Assert.Equal(expectedIp, result.Stdout);
-        _mockCommandExecutor.Verify(x => x.Execute("--ip"), Times.Once);
     }
 
     [Fact]
@@ -449,53 +520,5 @@ public class KgsmClientTests
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.AtLeastOnce);
-    }
-
-    [Fact]
-    public void UpdateKgsm_LogsInformationOnSuccess()
-    {
-        // Arrange
-        var expectedResult = new KgsmResult(new ProcessResult(0, "Updated", string.Empty));
-        _mockCommandExecutor
-            .Setup(x => x.Execute("--update"))
-            .Returns(expectedResult);
-
-        // Act
-        _kgsmClient.UpdateKgsm();
-
-        // Assert
-        _mockLogger.Verify(
-            x => x.Log(
-                Microsoft.Extensions.Logging.LogLevel.Information,
-                It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("updated successfully")),
-                It.IsAny<Exception>(),
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.Once);
-    }
-
-    [Fact]
-    public void UpdateKgsm_LogsErrorOnFailure()
-    {
-        // Arrange
-        var expectedResult = new KgsmResult(new ProcessResult(1, string.Empty, "Failed"));
-        _mockCommandExecutor
-            .Setup(x => x.Execute("--update"))
-            .Returns(expectedResult);
-
-        // Act
-        _kgsmClient.UpdateKgsm();
-
-        // Assert - Note: With the new implementation, error logging is handled by KgsmCommandExecutor
-        // The KgsmClient no longer logs errors directly since it just returns the result
-        // This test may need to be removed or adjusted based on expected behavior
-        _mockLogger.Verify(
-            x => x.Log(
-                Microsoft.Extensions.Logging.LogLevel.Error,
-                It.IsAny<EventId>(),
-                It.IsAny<It.IsAnyType>(),
-                It.IsAny<Exception>(),
-                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
-            Times.Never); // KgsmClient doesn't log errors anymore
     }
 }

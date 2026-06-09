@@ -33,20 +33,7 @@ public class LifecycleService : ILifecycleService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Starting instance {InstanceName}", instanceName);
-
-        KgsmResult result = _commandExecutor.Execute("--instance", instanceName, "--start");
-
-        if (result.IsSuccess)
-        {
-            _logger.LogInformation("Successfully started instance {InstanceName}", instanceName);
-        }
-        else
-        {
-            _logger.LogError("Failed to start instance {InstanceName}: {Error}", instanceName, result.Stderr);
-        }
-
-        return result;
+        return _commandExecutor.Execute("lifecycle", "start", instanceName);
     }
 
     /// <inheritdoc/>
@@ -54,20 +41,7 @@ public class LifecycleService : ILifecycleService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Stopping instance {InstanceName}", instanceName);
-
-        KgsmResult result = _commandExecutor.Execute("--instance", instanceName, "--stop");
-
-        if (result.IsSuccess)
-        {
-            _logger.LogInformation("Successfully stopped instance {InstanceName}", instanceName);
-        }
-        else
-        {
-            _logger.LogError("Failed to stop instance {InstanceName}: {Error}", instanceName, result.Stderr);
-        }
-
-        return result;
+        return _commandExecutor.Execute("lifecycle", "stop", instanceName);
     }
 
     /// <inheritdoc/>
@@ -75,20 +49,7 @@ public class LifecycleService : ILifecycleService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Restarting instance {InstanceName}", instanceName);
-
-        KgsmResult result = _commandExecutor.Execute("--instance", instanceName, "--restart");
-
-        if (result.IsSuccess)
-        {
-            _logger.LogInformation("Successfully restarted instance {InstanceName}", instanceName);
-        }
-        else
-        {
-            _logger.LogError("Failed to restart instance {InstanceName}: {Error}", instanceName, result.Stderr);
-        }
-
-        return result;
+        return _commandExecutor.Execute("lifecycle", "restart", instanceName);
     }
 
     /// <inheritdoc/>
@@ -96,16 +57,7 @@ public class LifecycleService : ILifecycleService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Getting status for instance {InstanceName}", instanceName);
-
-        KgsmResult result = _commandExecutor.Execute("--instance", instanceName, "--status");
-
-        if (!result.IsSuccess)
-        {
-            _logger.LogError("Failed to get status for instance {InstanceName}: {Error}", instanceName, result.Stderr);
-        }
-
-        return result;
+        return _commandExecutor.Execute("lifecycle", "status", instanceName);
     }
 
     /// <inheritdoc/>
@@ -113,20 +65,9 @@ public class LifecycleService : ILifecycleService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Checking if instance {InstanceName} is active", instanceName);
-
-        KgsmResult result = _commandExecutor.Execute("--instance", instanceName, "--is-active");
-
-        if (!result.IsSuccess)
-        {
-            _logger.LogError("Failed to check if instance {InstanceName} is active: {Error}", instanceName, result.Stderr);
-            return false;
-        }
-
-        bool isActive = !result.Stdout.Contains("Inactive");
-        _logger.LogDebug("Instance {InstanceName} is {Status}", instanceName, isActive ? "active" : "inactive");
-
-        return isActive;
+        // 'is-active' signals state via exit code (0 = active, non-zero = inactive),
+        // so a non-zero result is a normal outcome, not an error.
+        return _commandExecutor.Probe("lifecycle", "is-active", instanceName).IsSuccess;
     }
 
     /// <inheritdoc/>
@@ -134,15 +75,10 @@ public class LifecycleService : ILifecycleService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Getting logs for instance {InstanceName}", instanceName);
-
-        KgsmResult result = _commandExecutor.Execute("--instance", instanceName, "--logs");
+        KgsmResult result = _commandExecutor.Execute("lifecycle", "logs", instanceName, "--tail", lines.ToString());
 
         if (!result.IsSuccess)
-        {
-            _logger.LogError("Failed to get logs for instance {InstanceName}: {Error}", instanceName, result.Stderr);
             throw new InvalidOperationException($"Failed to get logs for instance '{instanceName}': {result.Stderr}");
-        }
 
         return result.Stdout.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
     }
@@ -152,17 +88,11 @@ public class LifecycleService : ILifecycleService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        _logger.LogDebug("Getting logs asynchronously for instance {InstanceName}", instanceName);
-
-        KgsmResult result = await _commandExecutor.ExecuteAsync(["--instance", instanceName, "--logs"], cancellationToken).ConfigureAwait(false);
+        KgsmResult result = await _commandExecutor.ExecuteAsync(["lifecycle", "logs", instanceName, "--tail", lines.ToString()], cancellationToken).ConfigureAwait(false);
 
         if (!result.IsSuccess)
-        {
-            _logger.LogError("Failed to get logs for instance {InstanceName}: {Error}", instanceName, result.Stderr);
             throw new InvalidOperationException($"Failed to get logs for instance '{instanceName}': {result.Stderr}");
-        }
 
-        _logger.LogDebug("Successfully got logs for instance {InstanceName}", instanceName);
         return result.Stdout.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
     }
 }
