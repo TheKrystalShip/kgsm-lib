@@ -390,7 +390,7 @@ public class KgsmClientTests
         var expectedOutput = "KGSM Help Information";
         var expectedResult = new KgsmResult(new ProcessResult(0, expectedOutput, string.Empty));
         _mockCommandExecutor
-            .Setup(x => x.Execute("--help"))
+            .Setup(x => x.Execute("help"))
             .Returns(expectedResult);
 
         // Act
@@ -410,7 +410,7 @@ public class KgsmClientTests
         var expectedOutput = "KGSM Interactive Help";
         var expectedResult = new KgsmResult(new ProcessResult(0, expectedOutput, string.Empty));
         _mockCommandExecutor
-            .Setup(x => x.Execute("--help", "--interactive"))
+            .Setup(x => x.Execute("interactive", "help"))
             .Returns(expectedResult);
 
         // Act
@@ -420,7 +420,7 @@ public class KgsmClientTests
         Assert.NotNull(result);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(expectedOutput, result.Stdout);
-        _mockCommandExecutor.Verify(x => x.Execute("--help", "--interactive"), Times.Once);
+        _mockCommandExecutor.Verify(x => x.Execute("interactive", "help"), Times.Once);
     }
 
     [Fact]

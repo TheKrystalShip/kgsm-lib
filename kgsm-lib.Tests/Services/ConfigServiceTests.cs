@@ -58,7 +58,7 @@ public class ConfigServiceTests
 
         _mockCommandExecutor
             .Setup(x => x.Execute(It.Is<string[]>(args =>
-                args.SequenceEqual(new[] { "config", "--get", key }))))
+                args.SequenceEqual(new[] { "config", "get", key }))))
             .Returns(new KgsmResult(new ProcessResult(0, expectedValue, string.Empty)));
 
         // Act
@@ -77,7 +77,7 @@ public class ConfigServiceTests
 
         _mockCommandExecutor
             .Setup(x => x.Execute(It.Is<string[]>(args =>
-                args.SequenceEqual(new[] { "config", "--get", key }))))
+                args.SequenceEqual(new[] { "config", "get", key }))))
             .Returns(new KgsmResult(new ProcessResult(1, string.Empty, "Key not found")));
 
         // Act
@@ -95,7 +95,7 @@ public class ConfigServiceTests
 
         _mockCommandExecutor
             .Setup(x => x.Execute(It.Is<string[]>(args =>
-                args.SequenceEqual(new[] { "config", "--get", key }))))
+                args.SequenceEqual(new[] { "config", "get", key }))))
             .Returns(new KgsmResult(new ProcessResult(0, string.Empty, string.Empty)));
 
         // Act
@@ -142,7 +142,7 @@ public class ConfigServiceTests
 
         _mockCommandExecutor
             .Setup(x => x.Execute(It.Is<string[]>(args =>
-                args.SequenceEqual(new[] { "config", "--set", $"{key}={value}" }))))
+                args.SequenceEqual(new[] { "config", "set", $"{key}={value}" }))))
             .Returns(new KgsmResult(new ProcessResult(0, "Configuration updated successfully", string.Empty)));
 
         // Act
@@ -162,7 +162,7 @@ public class ConfigServiceTests
 
         _mockCommandExecutor
             .Setup(x => x.Execute(It.Is<string[]>(args =>
-                args.SequenceEqual(new[] { "config", "--set", $"{key}={value}" }))))
+                args.SequenceEqual(new[] { "config", "set", $"{key}={value}" }))))
             .Returns(new KgsmResult(new ProcessResult(1, string.Empty, "Validation failed")));
 
         // Act
@@ -186,7 +186,7 @@ public class ConfigServiceTests
 
         _mockCommandExecutor
             .Setup(x => x.ExecuteForJson<Dictionary<string, string>>(
-                It.Is<string[]>(args => args.SequenceEqual(new[] { "config", "--list", "--json" })),
+                It.Is<string[]>(args => args.SequenceEqual(new[] { "config", "list", "--json" })),
                 It.IsAny<Action<JsonSerializerOptions>?>(),
                 It.IsAny<Dictionary<string, string>?>()))
             .Returns(expectedConfig);
@@ -208,7 +208,7 @@ public class ConfigServiceTests
         // Arrange
         _mockCommandExecutor
             .Setup(x => x.ExecuteForJson<Dictionary<string, string>>(
-                It.Is<string[]>(args => args.SequenceEqual(new[] { "config", "--list", "--json" })),
+                It.Is<string[]>(args => args.SequenceEqual(new[] { "config", "list", "--json" })),
                 It.IsAny<Action<JsonSerializerOptions>?>(),
                 It.IsAny<Dictionary<string, string>?>()))
             .Returns((Dictionary<string, string>?)null);
@@ -227,7 +227,7 @@ public class ConfigServiceTests
         // Arrange
         _mockCommandExecutor
             .Setup(x => x.Execute(It.Is<string[]>(args =>
-                args.SequenceEqual(new[] { "config", "--reset" }))))
+                args.SequenceEqual(new[] { "config", "reset" }))))
             .Returns(new KgsmResult(new ProcessResult(0, "Configuration reset to defaults", string.Empty)));
 
         // Act
@@ -244,7 +244,7 @@ public class ConfigServiceTests
         // Arrange
         _mockCommandExecutor
             .Setup(x => x.Execute(It.Is<string[]>(args =>
-                args.SequenceEqual(new[] { "config", "--reset" }))))
+                args.SequenceEqual(new[] { "config", "reset" }))))
             .Returns(new KgsmResult(new ProcessResult(1, string.Empty, "Failed to reset configuration")));
 
         // Act
@@ -261,7 +261,7 @@ public class ConfigServiceTests
         // Arrange
         _mockCommandExecutor
             .Setup(x => x.Execute(It.Is<string[]>(args =>
-                args.SequenceEqual(new[] { "config", "--validate" }))))
+                args.SequenceEqual(new[] { "config", "validate" }))))
             .Returns(new KgsmResult(new ProcessResult(0, "Configuration is valid", string.Empty)));
 
         // Act
@@ -278,7 +278,7 @@ public class ConfigServiceTests
         // Arrange
         _mockCommandExecutor
             .Setup(x => x.Execute(It.Is<string[]>(args =>
-                args.SequenceEqual(new[] { "config", "--validate" }))))
+                args.SequenceEqual(new[] { "config", "validate" }))))
             .Returns(new KgsmResult(new ProcessResult(1, string.Empty, "Validation failed: invalid value for enable_logging")));
 
         // Act
