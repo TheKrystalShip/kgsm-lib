@@ -36,20 +36,33 @@ if (result.ExitCode != 0) {
 
 **Return model**: `KgsmResult` wraps `ProcessResult` (Stdout, Stderr, ExitCode)
 
-### 3. JSON Deserialization Conventions
+### 3. JSON Deserialization Conventions (source-generated — AOT/trim-safe)
 
-KGSM outputs JSON with unconventional formats. Use these converters:
+The library is `IsAotCompatible` and **must stay reflection-free**: never call a
+reflection-based `JsonSerializer.Deserialize<T>(json, options)` overload (it emits
+IL2026/IL3050 and breaks under Native AOT). All deserialization flows through the
+System.Text.Json **source generator** in `Json/KgsmJsonContext.cs`.
 
-```csharp
-var options = new JsonSerializerOptions {
-    PropertyNameCaseInsensitive = true
-};
-options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
-options.Converters.Add(new JsonStringToBoolConverter()); // "0"/"1" → bool
-options.Converters.Add(new JsonStringToIntConverter());  // "123" → int
-```
+- **Registering a new type:** add `[JsonSerializable(typeof(YourType))]` to
+  `KgsmJsonContext`. An unregistered type throws `NotSupportedException` at runtime
+  (there is no reflection fallback). `KgsmCommandExecutor.ExecuteForJson<T>` resolves
+  the contract via `KgsmJson.ExecutorOptions.GetTypeInfo(typeof(T))`.
+- **KGSM's unconventional scalars** are handled by hand-written `JsonConverter<T>`s
+  (all AOT-safe): `JsonStringToBoolConverter` ("0"/"1"/"active" → bool) and
+  `JsonStringToIntConverter` ("123" → int) are registered globally on
+  `KgsmJson.ExecutorOptions`; `JsonRecentLogsConverter` (string-or-`[]`) is applied
+  per-property. KGSM emits some `Instance` bools/ints as strings, so the global
+  converters are load-bearing, not optional.
+- **Enums** are string-valued on the wire and decorated at the type with
+  `[JsonConverter(typeof(JsonStringEnumConverter<TEnum>))]` (the generic, AOT-safe
+  converter). Read-matching is case-insensitive, so KGSM's lowercase `"systemd"`
+  binds to `LifecycleManager.Systemd`. This applies on both the executor and event
+  paths — do not rely on options-level enum converters.
 
-See `InstanceService.GetAll()` for reference implementation.
+See `Json/KgsmJsonContext.cs`, `InstanceStatusDeserializationTests` (wire-shape
+coverage), and `SystemService.GetInfo<T>()` (the one consumer-open generic — only
+works for types registered in the context; pass a `JsonTypeInfo<T>` if you need
+arbitrary `T` under AOT).
 
 ### 4. Event System Architecture
 

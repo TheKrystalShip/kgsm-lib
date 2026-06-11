@@ -1,5 +1,5 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
@@ -17,7 +17,6 @@ public class KgsmCommandExecutor : IKgsmCommandExecutor
     private readonly string _kgsmPath;
     private readonly TimeSpan _defaultTimeout;
     private readonly ILogger<KgsmCommandExecutor> _logger;
-    private readonly JsonSerializerOptions _defaultJsonOptions;
 
     /// <summary>
     /// Initializes a new instance of the KgsmCommandExecutor class.
@@ -34,15 +33,6 @@ public class KgsmCommandExecutor : IKgsmCommandExecutor
         _kgsmPath = kgsmOptions.KgsmPath ?? throw new ArgumentNullException(nameof(kgsmOptions.KgsmPath));
         _defaultTimeout = kgsmOptions.Timeouts.Default;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
-        // Setup default JSON options with KGSM-specific converters
-        _defaultJsonOptions = new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        };
-        _defaultJsonOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
-        _defaultJsonOptions.Converters.Add(new JsonStringToBoolConverter());
-        _defaultJsonOptions.Converters.Add(new JsonStringToIntConverter());
 
         _logger.LogDebug("KgsmCommandExecutor initialized with KGSM path: {KgsmPath}", _kgsmPath);
     }
@@ -64,13 +54,19 @@ public class KgsmCommandExecutor : IKgsmCommandExecutor
             return defaultValue;
         }
 
-        // Clone default options and apply customizations
-        var options = CloneJsonOptions(_defaultJsonOptions);
-        configureOptions?.Invoke(options);
+        // Resolve the contract from the source-generated context (AOT-safe). The rare
+        // per-call options tweak is honored by cloning first; callers normally pass null.
+        JsonSerializerOptions options = KgsmJson.ExecutorOptions;
+        if (configureOptions is not null)
+        {
+            options = new JsonSerializerOptions(options);
+            configureOptions(options);
+        }
 
         try
         {
-            var deserialized = JsonSerializer.Deserialize<T>(result.Stdout, options);
+            var typeInfo = (JsonTypeInfo<T>)options.GetTypeInfo(typeof(T));
+            var deserialized = JsonSerializer.Deserialize(result.Stdout, typeInfo);
 
             if (deserialized == null)
             {
@@ -111,13 +107,19 @@ public class KgsmCommandExecutor : IKgsmCommandExecutor
             return defaultValue;
         }
 
-        // Clone default options and apply customizations
-        var options = CloneJsonOptions(_defaultJsonOptions);
-        configureOptions?.Invoke(options);
+        // Resolve the contract from the source-generated context (AOT-safe). The rare
+        // per-call options tweak is honored by cloning first; callers normally pass null.
+        JsonSerializerOptions options = KgsmJson.ExecutorOptions;
+        if (configureOptions is not null)
+        {
+            options = new JsonSerializerOptions(options);
+            configureOptions(options);
+        }
 
         try
         {
-            var deserialized = JsonSerializer.Deserialize<T>(result.Stdout, options);
+            var typeInfo = (JsonTypeInfo<T>)options.GetTypeInfo(typeof(T));
+            var deserialized = JsonSerializer.Deserialize(result.Stdout, typeInfo);
 
             if (deserialized == null)
             {
@@ -199,29 +201,4 @@ public class KgsmCommandExecutor : IKgsmCommandExecutor
         return new KgsmResult(result);
     }
 
-    /// <summary>
-    /// Clones JsonSerializerOptions to allow per-call customization without modifying the default options.
-    /// </summary>
-    /// <param name="source">The source options to clone.</param>
-    /// <returns>A new JsonSerializerOptions instance with the same configuration.</returns>
-    private static JsonSerializerOptions CloneJsonOptions(JsonSerializerOptions source)
-    {
-        var clone = new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = source.PropertyNameCaseInsensitive,
-            PropertyNamingPolicy = source.PropertyNamingPolicy,
-            DefaultIgnoreCondition = source.DefaultIgnoreCondition,
-            WriteIndented = source.WriteIndented,
-            AllowTrailingCommas = source.AllowTrailingCommas,
-            ReadCommentHandling = source.ReadCommentHandling,
-            NumberHandling = source.NumberHandling
-        };
-
-        foreach (var converter in source.Converters)
-        {
-            clone.Converters.Add(converter);
-        }
-
-        return clone;
-    }
 }

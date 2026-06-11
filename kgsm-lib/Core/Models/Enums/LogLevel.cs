@@ -1,8 +1,11 @@
+using System.Text.Json.Serialization;
+
 namespace TheKrystalShip.KGSM.Core.Models.Enums;
 
 /// <summary>
 /// Represents the severity level of a log entry.
 /// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<LogLevel>))]
 public enum LogLevel
 {
     /// <summary>

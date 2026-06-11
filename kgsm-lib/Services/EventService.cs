@@ -233,7 +233,7 @@ public class EventService : IEventService, IAsyncDisposable
 
         try
         {
-            EventWrapper? eventWrapper = JsonSerializer.Deserialize<EventWrapper>(message);
+            EventWrapper? eventWrapper = JsonSerializer.Deserialize(message, KgsmJsonContext.Default.EventWrapper);
 
             if (eventWrapper == null || string.IsNullOrWhiteSpace(eventWrapper.EventType))
             {
@@ -289,7 +289,7 @@ public class EventService : IEventService, IAsyncDisposable
 
         _logger.LogTrace("Deserializing JSON: {Json}", json);
 
-        var result = JsonSerializer.Deserialize(json, targetType) as EventDataBase;
+        var result = JsonSerializer.Deserialize(json, targetType, KgsmJsonContext.Default) as EventDataBase;
 
         _logger.LogDebug("Successfully deserialized event data to {TargetType}", targetType.Name);
 
