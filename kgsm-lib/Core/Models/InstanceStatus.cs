@@ -38,16 +38,25 @@ public record class VersionInfo
     public string Current { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the latest version.
+    /// Gets or sets the latest version. Null when KGSM did not check
+    /// (fast mode, or current version unknown).
     /// </summary>
     [JsonPropertyName("latest")]
-    public string Latest { get; set; } = string.Empty;
+    public string? Latest { get; set; }
 
     /// <summary>
-    /// Gets or sets whether updates are available.
+    /// Gets or sets whether KGSM actually performed an update check.
+    /// False in fast mode or when the current version is unknown.
     /// </summary>
-    [JsonPropertyName("updated_available")]
-    public bool UpdatesAvailable { get; set; } = false;
+    [JsonPropertyName("checked")]
+    public bool Checked { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets whether updates are available. Null when not checked
+    /// (<see cref="Checked"/> is false) — KGSM never fabricates a value.
+    /// </summary>
+    [JsonPropertyName("updates_available")]
+    public bool? UpdatesAvailable { get; set; }
 }
 
 /// <summary>
