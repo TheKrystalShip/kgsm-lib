@@ -8,7 +8,8 @@
 
     <PackageId>TheKrystalShip.KGSM.Lib</PackageId>
     <Authors>Heisenberg</Authors>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
+    <PackageReleaseNotes>1.1.0 — Bulk fleet status read (GetAllStatuses, with --fast); restart and *-failed event types aligned with kgsm's event vocabulary; Instance.SystemdUnit cgroup anchor; reflection-free source-generated JSON for Native AOT/trim safety; InstanceService facade now validates instance names uniformly. Backward compatible with 1.0.0.</PackageReleaseNotes>
     <PackageProjectUrl>https://github.com/TheKrystalShip/KGSM-Lib</PackageProjectUrl>
     <RepositoryUrl>https://github.com/TheKrystalShip/KGSM-Lib</RepositoryUrl>
     <RepositoryType>GitHub</RepositoryType>

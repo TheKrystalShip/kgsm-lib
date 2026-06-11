@@ -114,18 +114,24 @@ public class InstanceService : IInstanceService
     /// <inheritdoc/>
     public ICollection<string> GetLogs(string instanceName, int lines = 10)
     {
+        ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
+
         return _lifecycleService.GetLogs(instanceName, lines);
     }
 
     /// <inheritdoc/>
     public async Task<ICollection<string>> GetLogsAsync(string instanceName, int lines = 10, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
+
         return await _lifecycleService.GetLogsAsync(instanceName, lines, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
     public KgsmResult GetStatus(string instanceName)
     {
+        ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
+
         return _lifecycleService.GetStatus(instanceName);
     }
 
@@ -140,24 +146,32 @@ public class InstanceService : IInstanceService
     /// <inheritdoc/>
     public bool IsActive(string instanceName)
     {
+        ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
+
         return _lifecycleService.IsActive(instanceName);
     }
 
     /// <inheritdoc/>
     public KgsmResult Start(string instanceName)
     {
+        ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
+
         return _lifecycleService.Start(instanceName);
     }
 
     /// <inheritdoc/>
     public KgsmResult Stop(string instanceName)
     {
+        ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
+
         return _lifecycleService.Stop(instanceName);
     }
 
     /// <inheritdoc/>
     public KgsmResult Restart(string instanceName)
     {
+        ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
+
         return _lifecycleService.Restart(instanceName);
     }
 

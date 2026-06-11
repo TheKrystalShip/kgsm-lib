@@ -32,6 +32,9 @@ public interface IFileService
     /// </summary>
     /// <param name="instanceName">Instance name to copy configuration for.</param>
     /// <returns>Result of the create operation.</returns>
+    [Obsolete("kgsm removed the standalone 'files config' component (it deleted files.config.sh); " +
+        "the instance config file is now created automatically by Create(). This method issues a " +
+        "command kgsm no longer routes and will always fail. Scheduled for removal in the next major version.")]
     KgsmResult CreateConfig(string instanceName);
 
     /// <summary>
@@ -102,6 +105,9 @@ public interface IFileService
     /// </summary>
     /// <param name="instanceName">Instance name to remove configuration for.</param>
     /// <returns>Result of the remove operation.</returns>
+    [Obsolete("kgsm removed the standalone 'files config' component (it deleted files.config.sh); " +
+        "config-file cleanup is now handled by Remove(). This method issues a command kgsm no longer " +
+        "routes and will always fail. Scheduled for removal in the next major version.")]
     KgsmResult RemoveConfig(string instanceName);
 
     /// <summary>

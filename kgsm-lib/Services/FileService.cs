@@ -37,6 +37,8 @@ public class FileService : IFileService
         ExecuteFileOperation(instanceName, "management", "create");
 
     /// <inheritdoc/>
+    [Obsolete("kgsm removed the standalone 'files config' component; the config file is created by Create(). "
+        + "Issues a command kgsm no longer routes. Scheduled for removal in the next major version.")]
     public KgsmResult CreateConfig(string instanceName) =>
         ExecuteFileOperation(instanceName, "config", "install");
 
@@ -77,6 +79,8 @@ public class FileService : IFileService
         ExecuteFileOperation(instanceName, "upnp", "disable");
 
     /// <inheritdoc/>
+    [Obsolete("kgsm removed the standalone 'files config' component; config-file cleanup is handled by Remove(). "
+        + "Issues a command kgsm no longer routes. Scheduled for removal in the next major version.")]
     public KgsmResult RemoveConfig(string instanceName) =>
         ExecuteFileOperation(instanceName, "config", "uninstall");
 

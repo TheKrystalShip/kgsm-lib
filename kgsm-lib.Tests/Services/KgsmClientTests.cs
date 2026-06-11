@@ -400,7 +400,8 @@ public class KgsmClientTests
         Assert.NotNull(result);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(expectedOutput, result.Stdout);
-        _mockCommandExecutor.Verify(x => x.Execute("--help"), Times.Once);
+        // KgsmClient.Help() invokes the bare "help" subcommand (see KgsmClient.cs).
+        _mockCommandExecutor.Verify(x => x.Execute("help"), Times.Once);
     }
 
     [Fact]
@@ -505,7 +506,7 @@ public class KgsmClientTests
         // Arrange
         var expectedResult = new KgsmResult(new ProcessResult(0, "Help", string.Empty));
         _mockCommandExecutor
-            .Setup(x => x.Execute("--help"))
+            .Setup(x => x.Execute("help"))
             .Returns(expectedResult);
 
         // Act

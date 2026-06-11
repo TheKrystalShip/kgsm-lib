@@ -119,10 +119,16 @@ dotnet build -c Release kgsm-lib.sln         # Release (generates NuGet package)
 **Output**: `bin/$(Configuration)/net9.0/` contains `TheKrystalShip.KGSM.dll`
 
 ### Testing
-No test project currently in repo, but `docs/testing.md` describes planned xUnit architecture with:
-- Unit tests with Moq/NSubstitute
-- Integration tests (require actual KGSM installation)
-- Performance benchmarks with BenchmarkDotNet
+xUnit (v2) suite in `kgsm-lib.Tests/` — run with `dotnet test kgsm-lib.sln`. All green,
+no skips. Unit tests mock the collaborator the class under test actually depends on:
+service tests mock `IKgsmCommandExecutor` (and `ILifecycleService` for the operational
+verbs InstanceService forwards), `EventService` tests mock `IUnixSocketClient` and raise
+its `EventReceived` event to drive the full wire→dispatch route.
+
+**Process/socket-bound classes are intentionally not in the unit suite** —
+`LogSubscriptionService` (spawns a real `kgsm --follow` `Process`) and `UnixSocketClient`
+(raw socket I/O) need a live KGSM and belong in an integration category, not here. Their
+one unit-testable dependency, `LogParser`, is covered (`Utilities/LogParserTests.cs`).
 
 ### NuGet Packaging
 `<GeneratePackageOnBuild>true</GeneratePackageOnBuild>` auto-generates package on Release builds.
@@ -170,7 +176,8 @@ All public APIs require XML doc comments with:
 
 ## Current Development Status
 
-Tracked in `docs/production-readiness-plan.md`:
-- Phase 1: Critical fixes (ConfigureAwait ✅, test failures 🔄)
-- Target: v1.0.0 production release
-- Blockers: Integration test failures, help text assertions
+Tracked in `docs/production-readiness-plan.md`. Test suite is green with no skips
+(the prior ~20-failure / 11-skip degraded baseline — stale `IProcessRunner` mocks,
+inverted assertions, dead tests for removed APIs — was cleaned up). Remaining work toward
+publish is operational (CI / publish-on-tag), not product: see the ecosystem-level
+`../architecture-review-findings.md` (findings #1 stranded-lib-distribution, #3 no-CI).

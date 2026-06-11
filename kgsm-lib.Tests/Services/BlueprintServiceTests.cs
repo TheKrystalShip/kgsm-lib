@@ -112,59 +112,66 @@ public class BlueprintServiceTests
         Assert.Empty(result);
     }
 
-    [Fact(Skip = "Needs update for IKgsmCommandExecutor - see TEST_UPDATE_NOTES.md")]
-    public void ListDetailed_EmptyJson_ReturnsEmptyDictionary()
+    [Fact]
+    public void ListDetailed_EmptyResult_ReturnsEmptyDictionary()
     {
-        // TODO: Update to use _mockCommandExecutor.ExecuteForJson
-        throw new NotImplementedException("Test needs updating for new command executor pattern");
+        // Executor returns a non-null but empty map (KGSM reports no blueprints).
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteForJson<Dictionary<string, Blueprint>>(
+                It.Is<string[]>(args => args.SequenceEqual(new[] { "blueprints", "list", "detailed", "--json" })),
+                It.IsAny<Action<JsonSerializerOptions>?>(),
+                It.IsAny<Dictionary<string, Blueprint>?>()))
+            .Returns(new Dictionary<string, Blueprint>());
+
+        Dictionary<string, Blueprint> result = _blueprintService.ListDetailed();
+
+        Assert.NotNull(result);
+        Assert.Empty(result);
     }
 
-    [Fact(Skip = "Needs update for IKgsmCommandExecutor - see TEST_UPDATE_NOTES.md")]
+    [Fact]
     public void ListDetailed_MultipleBlueprints_ReturnsAllBlueprints()
     {
-        // TODO: Update to use _mockCommandExecutor.ExecuteForJson  
-        throw new NotImplementedException("Test needs updating for new command executor pattern");
+        var expected = new Dictionary<string, Blueprint>
+        {
+            ["valheim"] = new Blueprint { Name = "valheim", Ports = "2456-2458" },
+            ["factorio"] = new Blueprint { Name = "factorio", Ports = "34197" },
+            ["7dtd"] = new Blueprint { Name = "7dtd", Ports = "26900" },
+        };
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteForJson<Dictionary<string, Blueprint>>(
+                It.Is<string[]>(args => args.SequenceEqual(new[] { "blueprints", "list", "detailed", "--json" })),
+                It.IsAny<Action<JsonSerializerOptions>?>(),
+                It.IsAny<Dictionary<string, Blueprint>?>()))
+            .Returns(expected);
+
+        Dictionary<string, Blueprint> result = _blueprintService.ListDetailed();
+
+        Assert.Equal(3, result.Count);
+        Assert.Equal("34197", result["factorio"].Ports);
+        Assert.True(result.ContainsKey("valheim"));
+        Assert.True(result.ContainsKey("7dtd"));
     }
 
-    [Fact(Skip = "Needs update for IKgsmCommandExecutor - see TEST_UPDATE_NOTES.md")]
-    public void ListDetailed_FiltersEmptyKeys_ReturnsOnlyValidBlueprints()
-    {
-        // TODO: Update to use _mockCommandExecutor.ExecuteForJson
-        throw new NotImplementedException("Test needs updating for new command executor pattern");
-    }
-
-    [Fact(Skip = "Create method no longer exists in BlueprintService")]
-    public void Create_NullBlueprint_ThrowsArgumentNullException()
-    {
-        // TODO: Remove test or wait for Create method implementation
-        throw new NotImplementedException("Create method not implemented");
-    }
-
-    [Fact(Skip = "Create method no longer exists in BlueprintService")]
-    public void Create_EmptyBlueprintName_ThrowsArgumentException()
-    {
-        // TODO: Remove test or wait for Create method implementation
-        throw new NotImplementedException("Create method not implemented");
-    }
-
-    [Fact(Skip = "Create method no longer exists in BlueprintService")]
-    public void Create_NullBlueprintName_ThrowsArgumentException()
-    {
-        // TODO: Remove test or wait for Create method implementation
-        throw new NotImplementedException("Create method not implemented");
-    }
-
-    [Fact(Skip = "Create method no longer exists in BlueprintService")]
-    public void Create_ValidBlueprint_ReturnsSuccessResult()
-    {
-        // TODO: Remove test or wait for Create method implementation
-        throw new NotImplementedException("Create method not implemented");
-    }
-
-    [Fact(Skip = "Needs update for IKgsmCommandExecutor - see TEST_UPDATE_NOTES.md")]
+    [Fact]
     public void ListDetailed_LogsDebugInformation()
     {
-        // TODO: Update to use _mockCommandExecutor.ExecuteForJson
-        throw new NotImplementedException("Test needs updating for new command executor pattern");
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteForJson<Dictionary<string, Blueprint>>(
+                It.IsAny<string[]>(),
+                It.IsAny<Action<JsonSerializerOptions>?>(),
+                It.IsAny<Dictionary<string, Blueprint>?>()))
+            .Returns(new Dictionary<string, Blueprint> { ["valheim"] = new Blueprint { Name = "valheim" } });
+
+        _blueprintService.ListDetailed();
+
+        _mockLogger.Verify(
+            x => x.Log(
+                Microsoft.Extensions.Logging.LogLevel.Debug,
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.AtLeastOnce);
     }
 }

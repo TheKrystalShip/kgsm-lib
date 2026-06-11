@@ -106,10 +106,12 @@ public class ConfigServiceTests
     }
 
     [Fact]
-    public void Set_NullKey_ThrowsArgumentException()
+    public void Set_NullKey_ThrowsArgumentNullException()
     {
-        // Act & Assert
-        Assert.Throws<ArgumentException>(() => _configService.Set(null!, "value"));
+        // ArgumentException.ThrowIfNullOrWhiteSpace throws ArgumentNullException for
+        // null (a subclass), and Assert.Throws<T> is exact-type — so assert the
+        // concrete type, matching Get_NullKey above.
+        Assert.Throws<ArgumentNullException>(() => _configService.Set(null!, "value"));
     }
 
     [Fact]
@@ -120,10 +122,10 @@ public class ConfigServiceTests
     }
 
     [Fact]
-    public void Set_NullValue_ThrowsArgumentException()
+    public void Set_NullValue_ThrowsArgumentNullException()
     {
-        // Act & Assert
-        Assert.Throws<ArgumentException>(() => _configService.Set("key", null!));
+        // null value → ArgumentNullException (exact type), same as the key case.
+        Assert.Throws<ArgumentNullException>(() => _configService.Set("key", null!));
     }
 
     [Fact]

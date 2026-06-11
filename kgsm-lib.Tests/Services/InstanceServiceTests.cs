@@ -1,19 +1,20 @@
-#pragma warning disable CS0618 // Type or member is obsolete
-#pragma warning disable CS1729 // Does not contain a constructor that takes N arguments
-#pragma warning disable CS7036 // No argument given
-#pragma warning disable CS0649 // Field is never assigned to
-#pragma warning disable CS8602 // Dereference of a possibly null reference
-
-// NOTE: These tests require significant refactoring to work with the new IKgsmCommandExecutor pattern
-// See TEST_UPDATE_NOTES.md for details on how to update these tests
-// Tests are temporarily disabled to allow build to succeed while refactoring is completed
-
 using System.Text.Json;
 
 namespace TheKrystalShip.KGSM.Tests.Services;
 
 /// <summary>
 /// Tests for the InstanceService class.
+///
+/// InstanceService is a facade over two collaborators: <see cref="IKgsmCommandExecutor"/>
+/// (for direct <c>instances</c> commands and JSON reads) and <see cref="ILifecycleService"/>
+/// (for operational verbs — start/stop/restart/status/is-active/logs). Tests here assert
+/// the facade's own responsibilities: input validation, the exact command it issues, and
+/// that it forwards lifecycle calls. The behavioral contract of the lifecycle verbs
+/// (failure channels, log splitting) is covered in <see cref="LifecycleServiceTests"/>.
+///
+/// Failure-channel convention asserted below: methods returning <see cref="KgsmResult"/>
+/// encode failure in the result (<c>IsSuccess == false</c>) and never throw on a non-zero
+/// exit; methods returning a nullable type return null on failure.
 /// </summary>
 public class InstanceServiceTests
 {
@@ -22,12 +23,8 @@ public class InstanceServiceTests
     private readonly Mock<ILifecycleService> _mockLifecycleService;
     private readonly Mock<ILogger<InstanceService>> _mockLogger;
     private readonly InstanceService _instanceService;
-    
-    // Kept for backward compatibility with existing skipped tests
-#pragma warning disable CS0169 // Field is never used
-    private readonly Mock<IProcessRunner>? _mockProcessRunner;
-#pragma warning restore CS0169
-    private const string KgsmPath = "/home/heisen/kgsm/kgsm.sh";
+
+    private const string Instance = "my-server";
 
     public InstanceServiceTests()
     {
@@ -35,7 +32,6 @@ public class InstanceServiceTests
         _mockLogSubscriptionService = new Mock<ILogSubscriptionService>();
         _mockLifecycleService = new Mock<ILifecycleService>();
         _mockLogger = new Mock<ILogger<InstanceService>>();
-        _mockProcessRunner = new Mock<IProcessRunner>();
         _instanceService = new InstanceService(
             _mockCommandExecutor.Object,
             _mockLogSubscriptionService.Object,
@@ -43,194 +39,172 @@ public class InstanceServiceTests
             _mockLogger.Object);
     }
 
-    [Fact(Skip = "Needs update for IKgsmCommandExecutor - see TEST_UPDATE_NOTES.md")]
-    public void Constructor_NullProcessRunner_ThrowsArgumentNullException()
+    private static bool ArgsAre(string[] actual, params string[] expected)
+        => actual.SequenceEqual(expected);
+
+    // --- Constructor guards ---
+
+    [Fact]
+    public void Constructor_NullCommandExecutor_ThrowsArgumentNullException()
     {
-        throw new NotImplementedException("Test needs updating for new command executor pattern");
+        Assert.Throws<ArgumentNullException>(() => new InstanceService(
+            null!, _mockLogSubscriptionService.Object, _mockLifecycleService.Object, _mockLogger.Object));
     }
 
-    [Fact(Skip = "Needs update for IKgsmCommandExecutor - see TEST_UPDATE_NOTES.md")]
-    public void Constructor_NullKgsmPath_ThrowsArgumentNullException()
+    [Fact]
+    public void Constructor_NullLogSubscriptionService_ThrowsArgumentNullException()
     {
-        throw new NotImplementedException("Test needs updating for new command executor pattern");
+        Assert.Throws<ArgumentNullException>(() => new InstanceService(
+            _mockCommandExecutor.Object, null!, _mockLifecycleService.Object, _mockLogger.Object));
     }
 
-    [Fact(Skip = "Needs update for IKgsmCommandExecutor - see TEST_UPDATE_NOTES.md")]
+    [Fact]
+    public void Constructor_NullLifecycleService_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => new InstanceService(
+            _mockCommandExecutor.Object, _mockLogSubscriptionService.Object, null!, _mockLogger.Object));
+    }
+
+    [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
-        throw new NotImplementedException("Test needs updating for new command executor pattern");
+        Assert.Throws<ArgumentNullException>(() => new InstanceService(
+            _mockCommandExecutor.Object, _mockLogSubscriptionService.Object, _mockLifecycleService.Object, null!));
     }
+
+    // --- GetAll : ExecuteForJson<Dictionary<string, Instance>>("instances list --detailed --json") ---
 
     [Fact]
     public void GetAll_SuccessfulExecution_ReturnsInstances()
     {
-        // Arrange
-        var jsonResponse = @"{
-            ""my-server"": {
-                ""name"": ""my-server"",
-                ""blueprint_file"": ""valheim.sh"",
-                ""install_datetime"": ""2024-01-15T10:30:45Z"",
-                ""working_dir"": ""/home/kgsm/instances/my-server"",
-                ""backups_dir"": ""/home/kgsm/backups/my-server"",
-                ""install_dir"": ""/home/kgsm/instances/my-server/install"",
-                ""saves_dir"": ""/home/kgsm/instances/my-server/saves""
-            }
-        }";
+        var expected = new Dictionary<string, Instance>
+        {
+            [Instance] = new Instance { Name = Instance }
+        };
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteForJson<Dictionary<string, Instance>>(
+                It.Is<string[]>(a => ArgsAre(a, "instances", "list", "--detailed", "--json")),
+                It.IsAny<Action<JsonSerializerOptions>?>(),
+                It.IsAny<Dictionary<string, Instance>?>()))
+            .Returns(expected);
 
-        _mockProcessRunner
-            .Setup(x => x.Execute(KgsmPath, "instances", "--detailed", "--json"))
-            .Returns(new ProcessResult(ProcessResult.SuccessExitCode, jsonResponse, string.Empty));
+        Dictionary<string, Instance> result = _instanceService.GetAll();
 
-        // Act
-        var result = _instanceService.GetAll();
-
-        // Assert
-        Assert.NotNull(result);
         Assert.Single(result);
-        Assert.True(result.ContainsKey("my-server"));
-        Assert.Equal("my-server", result["my-server"].Name);
+        Assert.Equal(Instance, result[Instance].Name);
     }
 
     [Fact]
-    public void GetAll_ProcessExecutionFails_ReturnsEmptyDictionary()
+    public void GetAll_CommandReturnsNull_ReturnsEmptyDictionary()
     {
-        // Arrange
-        _mockProcessRunner
-            .Setup(x => x.Execute(KgsmPath, "instances", "--detailed", "--json"))
-            .Returns(new ProcessResult(ProcessResult.FailureExitCode, string.Empty, "Error executing command"));
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteForJson<Dictionary<string, Instance>>(
+                It.IsAny<string[]>(),
+                It.IsAny<Action<JsonSerializerOptions>?>(),
+                It.IsAny<Dictionary<string, Instance>?>()))
+            .Returns((Dictionary<string, Instance>?)null);
 
-        // Act
-        var result = _instanceService.GetAll();
+        Dictionary<string, Instance> result = _instanceService.GetAll();
 
-        // Assert
         Assert.NotNull(result);
         Assert.Empty(result);
     }
 
-    [Fact]
-    public void GetAll_InvalidJson_ReturnsEmptyDictionary()
-    {
-        // Arrange
-        _mockProcessRunner
-            .Setup(x => x.Execute(KgsmPath, "instances", "--detailed", "--json"))
-            .Returns(new ProcessResult(ProcessResult.SuccessExitCode, "invalid json {{{", string.Empty));
-
-        // Act
-        var result = _instanceService.GetAll();
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Empty(result);
-    }
+    // --- GetInstanceInfo : ExecuteForJson<Instance>("instances info <name> --json") ---
 
     [Fact]
     public void GetInstanceInfo_NullInstanceName_ThrowsArgumentNullException()
     {
-        // Act & Assert
         Assert.Throws<ArgumentNullException>(() => _instanceService.GetInstanceInfo(null!));
     }
 
     [Fact]
     public void GetInstanceInfo_SuccessfulExecution_ReturnsInstance()
     {
-        // Arrange
-        var jsonResponse = @"{
-            ""name"": ""my-server"",
-            ""blueprint_file"": ""valheim.sh"",
-            ""install_datetime"": ""2024-01-15T10:30:45Z"",
-            ""working_dir"": ""/home/kgsm/instances/my-server"",
-            ""backups_dir"": ""/home/kgsm/backups/my-server"",
-            ""install_dir"": ""/home/kgsm/instances/my-server/install"",
-            ""saves_dir"": ""/home/kgsm/instances/my-server/saves""
-        }";
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteForJson<Instance>(
+                It.Is<string[]>(a => ArgsAre(a, "instances", "info", Instance, "--json")),
+                It.IsAny<Action<JsonSerializerOptions>?>(),
+                It.IsAny<Instance?>()))
+            .Returns(new Instance { Name = Instance });
 
-        _mockProcessRunner
-            .Setup(x => x.Execute(KgsmPath, "instance", "my-server", "info", "--json"))
-            .Returns(new ProcessResult(ProcessResult.SuccessExitCode, jsonResponse, string.Empty));
+        Instance? result = _instanceService.GetInstanceInfo(Instance);
 
-        // Act
-        var result = _instanceService.GetInstanceInfo("my-server");
-
-        // Assert
         Assert.NotNull(result);
-        Assert.Equal("my-server", result.Name);
+        Assert.Equal(Instance, result!.Name);
     }
 
     [Fact]
-    public void GetInstanceInfo_ProcessExecutionFails_ThrowsKgsmException()
+    public void GetInstanceInfo_ExecutionFails_ReturnsNull()
     {
-        // Arrange
-        _mockProcessRunner
-            .Setup(x => x.Execute(KgsmPath, "instance", "my-server", "info", "--json"))
-            .Returns(new ProcessResult(ProcessResult.FailureExitCode, string.Empty, "Instance not found"));
+        // Instance? return type: failure is signalled by null, not an exception.
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteForJson<Instance>(
+                It.IsAny<string[]>(),
+                It.IsAny<Action<JsonSerializerOptions>?>(),
+                It.IsAny<Instance?>()))
+            .Returns((Instance?)null);
 
-        // Act & Assert
-        var instance = _instanceService.GetInstanceInfo("my-server");
-        Assert.Null(instance);
+        Assert.Null(_instanceService.GetInstanceInfo(Instance));
     }
+
+    // --- GetInstanceStatus : ExecuteForJson<InstanceRuntimeStatus>("instances status <name> --json") ---
 
     [Fact]
     public void GetInstanceStatus_NullInstanceName_ThrowsArgumentNullException()
     {
-        // Act & Assert
         Assert.Throws<ArgumentNullException>(() => _instanceService.GetInstanceStatus(null!));
     }
 
     [Fact]
     public void GetInstanceStatus_SuccessfulExecution_ReturnsStatus()
     {
-        // Arrange
-        var jsonResponse = @"{
-            ""status"": ""active"",
-            ""pid"": ""12345"",
-            ""uptime"": ""1d 2h 3m""
-        }";
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteForJson<InstanceRuntimeStatus>(
+                It.Is<string[]>(a => ArgsAre(a, "instances", "status", Instance, "--json")),
+                It.IsAny<Action<JsonSerializerOptions>?>(),
+                It.IsAny<InstanceRuntimeStatus?>()))
+            .Returns(new InstanceRuntimeStatus { InstanceName = Instance, Status = true });
 
-        _mockProcessRunner
-            .Setup(x => x.Execute(KgsmPath, "instance", "my-server", "--status", "--json"))
-            .Returns(new ProcessResult(ProcessResult.SuccessExitCode, jsonResponse, string.Empty));
+        InstanceRuntimeStatus? result = _instanceService.GetInstanceStatus(Instance);
 
-        // Act
-        InstanceRuntimeStatus? result = _instanceService.GetInstanceStatus("my-server");
-
-        // Assert
         Assert.NotNull(result);
+        Assert.Equal(Instance, result!.InstanceName);
+        Assert.True(result.Status);
     }
 
     [Fact]
-    public void GetInstanceStatus_ProcessExecutionFails_ThrowsKgsmException()
+    public void GetInstanceStatus_ExecutionFails_ReturnsNull()
     {
-        // Arrange
-        _mockProcessRunner
-            .Setup(x => x.Execute(KgsmPath, "instance", "my-server", "--status", "--json"))
-            .Returns(new ProcessResult(ProcessResult.FailureExitCode, string.Empty, "Instance not found"));
+        // InstanceRuntimeStatus? return type: failure is null, not a KgsmException.
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteForJson<InstanceRuntimeStatus>(
+                It.IsAny<string[]>(),
+                It.IsAny<Action<JsonSerializerOptions>?>(),
+                It.IsAny<InstanceRuntimeStatus?>()))
+            .Returns((InstanceRuntimeStatus?)null);
 
-        // Act & Assert
-        var exception = Assert.Throws<KgsmException>(() => _instanceService.GetInstanceStatus("my-server"));
-        Assert.Contains("my-server", exception.Message);
+        Assert.Null(_instanceService.GetInstanceStatus(Instance));
     }
 
-    // GetAllStatuses (bulk fleet read) — uses the injected command executor.
+    // --- GetAllStatuses (bulk fleet read) : uses the injected command executor directly ---
 
     [Fact]
     public void GetAllStatuses_Default_RequestsNonFastBulkStatus()
     {
-        // Arrange
         var expected = new Dictionary<string, InstanceRuntimeStatus>
         {
             ["7dtd"] = new() { InstanceName = "7dtd", Status = true }
         };
         _mockCommandExecutor
             .Setup(x => x.ExecuteForJson<Dictionary<string, InstanceRuntimeStatus>>(
-                It.Is<string[]>(a => a.SequenceEqual(new[] { "instances", "list", "--status", "--json" })),
+                It.Is<string[]>(a => ArgsAre(a, "instances", "list", "--status", "--json")),
                 It.IsAny<Action<JsonSerializerOptions>>(),
                 It.IsAny<Dictionary<string, InstanceRuntimeStatus>>()))
             .Returns(expected);
 
-        // Act
         var result = _instanceService.GetAllStatuses();
 
-        // Assert
         Assert.Same(expected, result);
         Assert.True(result["7dtd"].Status);
     }
@@ -238,18 +212,15 @@ public class InstanceServiceTests
     [Fact]
     public void GetAllStatuses_Fast_AppendsFastFlag()
     {
-        // Arrange
         _mockCommandExecutor
             .Setup(x => x.ExecuteForJson<Dictionary<string, InstanceRuntimeStatus>>(
-                It.Is<string[]>(a => a.SequenceEqual(new[] { "instances", "list", "--status", "--json", "--fast" })),
+                It.Is<string[]>(a => ArgsAre(a, "instances", "list", "--status", "--json", "--fast")),
                 It.IsAny<Action<JsonSerializerOptions>>(),
                 It.IsAny<Dictionary<string, InstanceRuntimeStatus>>()))
             .Returns(new Dictionary<string, InstanceRuntimeStatus>());
 
-        // Act
         var result = _instanceService.GetAllStatuses(fast: true);
 
-        // Assert
         Assert.NotNull(result);
         _mockCommandExecutor.Verify(x => x.ExecuteForJson<Dictionary<string, InstanceRuntimeStatus>>(
             It.Is<string[]>(a => a.Contains("--fast")),
@@ -260,7 +231,6 @@ public class InstanceServiceTests
     [Fact]
     public void GetAllStatuses_CommandReturnsNull_ReturnsEmptyDictionary()
     {
-        // Arrange — a failed/empty command surfaces as null from the executor.
         _mockCommandExecutor
             .Setup(x => x.ExecuteForJson<Dictionary<string, InstanceRuntimeStatus>>(
                 It.IsAny<string[]>(),
@@ -268,316 +238,253 @@ public class InstanceServiceTests
                 It.IsAny<Dictionary<string, InstanceRuntimeStatus>>()))
             .Returns((Dictionary<string, InstanceRuntimeStatus>?)null);
 
-        // Act
         var result = _instanceService.GetAllStatuses();
 
-        // Assert
         Assert.NotNull(result);
         Assert.Empty(result);
     }
 
+    // --- Install : Execute(timeout, "install", blueprint, [--install-dir, --version, --name]) ---
+
     [Fact]
     public void Install_NullBlueprintName_ThrowsArgumentNullException()
     {
-        // Act & Assert
         Assert.Throws<ArgumentNullException>(() => _instanceService.Install(null!));
     }
 
     [Fact]
-    public void Install_ValidBlueprint_ExecutesWithCorrectArguments()
+    public void Install_ValidBlueprint_IssuesInstallCommand()
     {
-        // Arrange
-        _mockProcessRunner
-            .Setup(x => x.Execute(KgsmPath, It.Is<string[]>(args => 
-                args.Contains("create") && args.Contains("valheim"))))
-            .Returns(new ProcessResult(ProcessResult.SuccessExitCode, "Installation successful", string.Empty));
+        _mockCommandExecutor
+            .Setup(x => x.Execute(
+                It.IsAny<TimeSpan>(),
+                It.Is<string[]>(a => ArgsAre(a, "install", "valheim"))))
+            .Returns(new KgsmResult(new ProcessResult(0, "installed", string.Empty)));
 
-        // Act
-        var result = _instanceService.Install("valheim");
+        KgsmResult result = _instanceService.Install("valheim");
 
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(0, result.ExitCode);
-        _mockProcessRunner.Verify(x => x.Execute(KgsmPath, "create", "valheim"), Times.Once);
+        Assert.True(result.IsSuccess);
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.IsAny<TimeSpan>(),
+            It.Is<string[]>(a => ArgsAre(a, "install", "valheim"))), Times.Once);
     }
 
     [Fact]
-    public void Install_WithAllParameters_ExecutesWithCorrectArguments()
+    public void Install_WithAllParameters_PassesEveryFlag()
     {
-        // Arrange
-        _mockProcessRunner
-            .Setup(x => x.Execute(KgsmPath, It.Is<string[]>(args => 
-                args.Contains("create") && 
-                args.Contains("valheim") &&
-                args.Contains("--install-dir") &&
-                args.Contains("/custom/path") &&
-                args.Contains("--version") &&
-                args.Contains("1.0.0") &&
-                args.Contains("--name") &&
-                args.Contains("my-server"))))
-            .Returns(new ProcessResult(ProcessResult.SuccessExitCode, "Installation successful", string.Empty));
+        _mockCommandExecutor
+            .Setup(x => x.Execute(
+                It.IsAny<TimeSpan>(),
+                It.Is<string[]>(a => ArgsAre(a,
+                    "install", "valheim",
+                    "--install-dir", "/custom/path",
+                    "--version", "1.0.0",
+                    "--name", "my-server"))))
+            .Returns(new KgsmResult(new ProcessResult(0, "installed", string.Empty)));
 
-        // Act
-        var result = _instanceService.Install("valheim", "/custom/path", "1.0.0", "my-server");
+        KgsmResult result = _instanceService.Install("valheim", "/custom/path", "1.0.0", "my-server");
 
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(0, result.ExitCode);
+        Assert.True(result.IsSuccess);
     }
+
+    // --- Uninstall : Execute(timeout, "uninstall", name) ---
 
     [Fact]
     public void Uninstall_NullInstanceName_ThrowsArgumentNullException()
     {
-        // Act & Assert
         Assert.Throws<ArgumentNullException>(() => _instanceService.Uninstall(null!));
     }
 
     [Fact]
-    public void Uninstall_ValidInstance_ExecutesCorrectly()
+    public void Uninstall_ValidInstance_IssuesUninstallCommand()
     {
-        // Arrange
-        _mockProcessRunner
-            .Setup(x => x.Execute(KgsmPath, "uninstall", "my-server"))
-            .Returns(new ProcessResult(ProcessResult.SuccessExitCode, "Uninstalled successfully", string.Empty));
+        _mockCommandExecutor
+            .Setup(x => x.Execute(
+                It.IsAny<TimeSpan>(),
+                It.Is<string[]>(a => ArgsAre(a, "uninstall", Instance))))
+            .Returns(new KgsmResult(new ProcessResult(0, "uninstalled", string.Empty)));
 
-        // Act
-        var result = _instanceService.Uninstall("my-server");
+        KgsmResult result = _instanceService.Uninstall(Instance);
 
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(0, result.ExitCode);
-        _mockProcessRunner.Verify(x => x.Execute(KgsmPath, "uninstall", "my-server"), Times.Once);
+        Assert.True(result.IsSuccess);
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.IsAny<TimeSpan>(),
+            It.Is<string[]>(a => ArgsAre(a, "uninstall", Instance))), Times.Once);
     }
 
-    [Fact]
-    public void GetLogs_NullInstanceName_ThrowsArgumentNullException()
-    {
-        // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => _instanceService.GetLogs(null!));
-    }
-
-    [Fact]
-    public void GetLogs_ValidInstance_ReturnsLogs()
-    {
-        // Arrange
-        var logOutput = "Log line 1\nLog line 2\nLog line 3";
-        _mockProcessRunner
-            .Setup(x => x.Execute(KgsmPath, "instance", "my-server", "--logs"))
-            .Returns(new ProcessResult(ProcessResult.SuccessExitCode, logOutput, string.Empty));
-
-        // Act
-        ICollection<string> result = _instanceService.GetLogs("my-server");
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Contains("Log line", result);
-    }
-
-    [Fact]
-    public async Task GetLogsAsync_NullInstanceName_ThrowsArgumentNullException()
-    {
-        // Act & Assert
-        await Assert.ThrowsAsync<ArgumentNullException>(() => _instanceService.GetLogsAsync(null!));
-    }
-
-    [Fact]
-    public async Task GetLogsAsync_ValidInstance_ReturnsLogs()
-    {
-        // Arrange
-        var logOutput = "Log line 1\nLog line 2\nLog line 3";
-        _mockProcessRunner
-            .Setup(x => x.ExecuteAsync(KgsmPath, It.Is<string[]>(args => 
-                args.Length == 3 && 
-                args[0] == "instance" && 
-                args[1] == "my-server" && 
-                args[2] == "--logs"), 
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ProcessResult(ProcessResult.SuccessExitCode, logOutput, string.Empty));
-
-        // Act
-        var result = await _instanceService.GetLogsAsync("my-server");
-
-        // Assert
-        Assert.Null(result);
-    }
-
-    [Fact]
-    public async Task GetLogsAsync_ProcessFails_ThrowsInvalidOperationException()
-    {
-        // Arrange
-        _mockProcessRunner
-            .Setup(x => x.ExecuteAsync(KgsmPath, It.Is<string[]>(args => 
-                args.Length == 3 && 
-                args[0] == "instance" && 
-                args[1] == "my-server" && 
-                args[2] == "--logs"), 
-                It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ProcessResult(ProcessResult.FailureExitCode, string.Empty, "Failed to read logs"));
-
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => 
-            _instanceService.GetLogsAsync("my-server"));
-        Assert.Contains("my-server", exception.Message);
-    }
-
-    [Fact]
-    public void GetStatus_NullInstanceName_ThrowsArgumentNullException()
-    {
-        // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => _instanceService.GetStatus(null!));
-    }
-
-    [Fact]
-    public void GetStatus_ValidInstance_ReturnsStatus()
-    {
-        // Arrange
-        _mockProcessRunner
-            .Setup(x => x.Execute(KgsmPath, "instance", "my-server", "--status"))
-            .Returns(new ProcessResult(ProcessResult.SuccessExitCode, "Active", string.Empty));
-
-        // Act
-        var result = _instanceService.GetStatus("my-server");
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(0, result.ExitCode);
-    }
-
-    [Fact]
-    public void GetStatus_ProcessFails_ThrowsKgsmException()
-    {
-        // Arrange
-        _mockProcessRunner
-            .Setup(x => x.Execute(KgsmPath, "instance", "my-server", "--status"))
-            .Returns(new ProcessResult(1, string.Empty, "Instance not found"));
-
-        // Act & Assert
-        var exception = Assert.Throws<KgsmException>(() => _instanceService.GetStatus("my-server"));
-        Assert.Contains("my-server", exception.Message);
-    }
+    // --- GetInfo : Execute("instances", "info", name) (raw, not JSON) ---
 
     [Fact]
     public void GetInfo_NullInstanceName_ThrowsArgumentNullException()
     {
-        // Act & Assert
         Assert.Throws<ArgumentNullException>(() => _instanceService.GetInfo(null!));
     }
 
     [Fact]
-    public void GetInfo_ValidInstance_ReturnsInfo()
+    public void GetInfo_ValidInstance_IssuesInfoCommand()
     {
-        // Arrange
-        _mockProcessRunner
-            .Setup(x => x.Execute(KgsmPath, "instance", "my-server", "--info"))
-            .Returns(new ProcessResult(0, "Instance info...", string.Empty));
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", "info", Instance))))
+            .Returns(new KgsmResult(new ProcessResult(0, "info...", string.Empty)));
 
-        // Act
-        var result = _instanceService.GetInfo("my-server");
+        KgsmResult result = _instanceService.GetInfo(Instance);
 
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(0, result.ExitCode);
+        Assert.True(result.IsSuccess);
+    }
+
+    // --- Delegation to ILifecycleService (thin forwarding; behavior lives in LifecycleServiceTests) ---
+
+    [Fact]
+    public void GetStatus_NullInstanceName_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _instanceService.GetStatus(null!));
+    }
+
+    [Fact]
+    public void GetStatus_ValidInstance_ForwardsToLifecycle()
+    {
+        var expected = new KgsmResult(new ProcessResult(0, "status", string.Empty));
+        _mockLifecycleService.Setup(x => x.GetStatus(Instance)).Returns(expected);
+
+        KgsmResult result = _instanceService.GetStatus(Instance);
+
+        Assert.Same(expected, result);
+        _mockLifecycleService.Verify(x => x.GetStatus(Instance), Times.Once);
     }
 
     [Fact]
     public void IsActive_NullInstanceName_ThrowsArgumentNullException()
     {
-        // Act & Assert
         Assert.Throws<ArgumentNullException>(() => _instanceService.IsActive(null!));
     }
 
     [Fact]
-    public void IsActive_ActiveInstance_ReturnsTrue()
+    public void IsActive_ValidInstance_ForwardsLifecycleResult()
     {
-        // Arrange
-        _mockProcessRunner
-            .Setup(x => x.Execute(KgsmPath, "instance", "my-server", "--is-active"))
-            .Returns(new ProcessResult(0, "Active", string.Empty));
+        _mockLifecycleService.Setup(x => x.IsActive(Instance)).Returns(true);
 
-        // Act
-        var result = _instanceService.IsActive("my-server");
-
-        // Assert
-        Assert.True(result);
+        Assert.True(_instanceService.IsActive(Instance));
+        _mockLifecycleService.Verify(x => x.IsActive(Instance), Times.Once);
     }
 
     [Fact]
-    public void IsActive_InactiveInstance_ReturnsFalse()
+    public void GetLogs_NullInstanceName_ThrowsArgumentNullException()
     {
-        // Arrange
-        _mockProcessRunner
-            .Setup(x => x.Execute(KgsmPath, "instance", "my-server", "--is-active"))
-            .Returns(new ProcessResult(ProcessResult.SuccessExitCode, "Inactive", string.Empty));
-
-        // Act
-        var result = _instanceService.IsActive("my-server");
-
-        // Assert
-        Assert.False(result);
+        Assert.Throws<ArgumentNullException>(() => _instanceService.GetLogs(null!));
     }
 
     [Fact]
-    public void IsActive_ProcessFails_ReturnsFalse()
+    public void GetLogs_ValidInstance_ForwardsToLifecycle()
     {
-        // Arrange
-        _mockProcessRunner
-            .Setup(x => x.Execute(KgsmPath, "instance", "my-server", "--is-active"))
-            .Returns(new ProcessResult(ProcessResult.FailureExitCode, string.Empty, "Instance not found"));
+        ICollection<string> expected = new[] { "line 1", "line 2" };
+        _mockLifecycleService.Setup(x => x.GetLogs(Instance, It.IsAny<int>())).Returns(expected);
 
-        // Act
-        var result = _instanceService.IsActive("my-server");
+        ICollection<string> result = _instanceService.GetLogs(Instance);
 
-        // Assert
-        Assert.False(result);
+        Assert.Same(expected, result);
+        _mockLifecycleService.Verify(x => x.GetLogs(Instance, It.IsAny<int>()), Times.Once);
     }
 
-    // GenerateId tests
+    [Fact]
+    public async Task GetLogsAsync_NullInstanceName_ThrowsArgumentNullException()
+    {
+        await Assert.ThrowsAsync<ArgumentNullException>(() => _instanceService.GetLogsAsync(null!));
+    }
+
+    [Fact]
+    public async Task GetLogsAsync_ValidInstance_ForwardsToLifecycle()
+    {
+        ICollection<string> expected = new[] { "line 1" };
+        _mockLifecycleService
+            .Setup(x => x.GetLogsAsync(Instance, It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        ICollection<string> result = await _instanceService.GetLogsAsync(Instance);
+
+        Assert.Same(expected, result);
+    }
+
+    [Theory]
+    [InlineData("start")]
+    [InlineData("stop")]
+    [InlineData("restart")]
+    public void LifecycleVerb_NullInstanceName_ThrowsArgumentNullException(string verb)
+    {
+        Func<KgsmResult> act = verb switch
+        {
+            "start" => () => _instanceService.Start(null!),
+            "stop" => () => _instanceService.Stop(null!),
+            _ => () => _instanceService.Restart(null!),
+        };
+
+        Assert.Throws<ArgumentNullException>(() => act());
+    }
+
+    [Fact]
+    public void Start_ValidInstance_ForwardsToLifecycle()
+    {
+        var expected = new KgsmResult(new ProcessResult(0, "started", string.Empty));
+        _mockLifecycleService.Setup(x => x.Start(Instance)).Returns(expected);
+
+        Assert.Same(expected, _instanceService.Start(Instance));
+        _mockLifecycleService.Verify(x => x.Start(Instance), Times.Once);
+    }
+
+    [Fact]
+    public void Stop_ValidInstance_ForwardsToLifecycle()
+    {
+        var expected = new KgsmResult(new ProcessResult(0, "stopped", string.Empty));
+        _mockLifecycleService.Setup(x => x.Stop(Instance)).Returns(expected);
+
+        Assert.Same(expected, _instanceService.Stop(Instance));
+    }
+
+    [Fact]
+    public void Restart_ValidInstance_ForwardsToLifecycle()
+    {
+        var expected = new KgsmResult(new ProcessResult(0, "restarted", string.Empty));
+        _mockLifecycleService.Setup(x => x.Restart(Instance)).Returns(expected);
+
+        Assert.Same(expected, _instanceService.Restart(Instance));
+    }
+
+    // --- GenerateId : Execute("instances", "generate-id", blueprint, [--name, custom]) ---
 
     [Fact]
     public void GenerateId_NullBlueprintName_ThrowsArgumentException()
     {
-        // Act & Assert
         Assert.Throws<ArgumentNullException>(() => _instanceService.GenerateId(null!));
     }
 
     [Fact]
     public void GenerateId_WhitespaceBlueprintName_ThrowsArgumentException()
     {
-        // Act & Assert
         Assert.Throws<ArgumentException>(() => _instanceService.GenerateId("   "));
     }
 
     [Fact]
     public void GenerateId_SuccessfulExecution_ReturnsSuccessResult()
     {
-        // Arrange
         _mockCommandExecutor
-            .Setup(x => x.Execute(It.Is<string[]>(args =>
-                args.SequenceEqual(new[] { "instances", "generate-id", "valheim" }))))
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", "generate-id", "valheim"))))
             .Returns(new KgsmResult(new ProcessResult(0, "valheim-abc", string.Empty)));
 
-        // Act
         KgsmResult result = _instanceService.GenerateId("valheim");
 
-        // Assert
         Assert.True(result.IsSuccess);
-        Assert.Equal(0, result.ExitCode);
         Assert.Equal("valheim-abc", result.Stdout);
     }
 
     [Fact]
-    public void GenerateId_WithCustomName_SuccessfulExecution_ReturnsSuccessResult()
+    public void GenerateId_WithCustomName_PassesNameFlag()
     {
-        // Arrange
         _mockCommandExecutor
-            .Setup(x => x.Execute(It.Is<string[]>(args =>
-                args.SequenceEqual(new[] { "instances", "generate-id", "valheim", "--name", "my-valheim" }))))
+            .Setup(x => x.Execute(It.Is<string[]>(a =>
+                ArgsAre(a, "instances", "generate-id", "valheim", "--name", "my-valheim"))))
             .Returns(new KgsmResult(new ProcessResult(0, "my-valheim", string.Empty)));
 
-        // Act
         KgsmResult result = _instanceService.GenerateId("valheim", "my-valheim");
 
-        // Assert
         Assert.True(result.IsSuccess);
         Assert.Equal("my-valheim", result.Stdout);
     }
@@ -585,155 +492,119 @@ public class InstanceServiceTests
     [Fact]
     public void GenerateId_ExecutionFails_ReturnsFailureResult()
     {
-        // Arrange
         _mockCommandExecutor
-            .Setup(x => x.Execute(It.Is<string[]>(args =>
-                args.SequenceEqual(new[] { "instances", "generate-id", "unknown-blueprint" }))))
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", "generate-id", "unknown-blueprint"))))
             .Returns(new KgsmResult(new ProcessResult(1, string.Empty, "Blueprint not found")));
 
-        // Act
         KgsmResult result = _instanceService.GenerateId("unknown-blueprint");
 
-        // Assert
         Assert.False(result.IsSuccess);
         Assert.Equal(1, result.ExitCode);
     }
 
-    // Save tests
+    // --- Save : Execute("instances", "save", name) ---
 
     [Fact]
     public void Save_NullInstanceName_ThrowsArgumentException()
     {
-        // Act & Assert
         Assert.Throws<ArgumentNullException>(() => _instanceService.Save(null!));
     }
 
     [Fact]
     public void Save_SuccessfulExecution_ReturnsSuccessResult()
     {
-        // Arrange
         _mockCommandExecutor
-            .Setup(x => x.Execute(It.Is<string[]>(args =>
-                args.SequenceEqual(new[] { "instances", "save", "my-instance" }))))
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", "save", "my-instance"))))
             .Returns(new KgsmResult(new ProcessResult(0, "Saved", string.Empty)));
 
-        // Act
         KgsmResult result = _instanceService.Save("my-instance");
 
-        // Assert
         Assert.True(result.IsSuccess);
-        Assert.Equal(0, result.ExitCode);
     }
 
     [Fact]
     public void Save_ExecutionFails_ReturnsFailureResult()
     {
-        // Arrange
         _mockCommandExecutor
-            .Setup(x => x.Execute(It.Is<string[]>(args =>
-                args.SequenceEqual(new[] { "instances", "save", "my-instance" }))))
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", "save", "my-instance"))))
             .Returns(new KgsmResult(new ProcessResult(1, string.Empty, "Instance not running")));
 
-        // Act
         KgsmResult result = _instanceService.Save("my-instance");
 
-        // Assert
         Assert.False(result.IsSuccess);
         Assert.Equal(1, result.ExitCode);
     }
 
-    // SendInput tests
+    // --- SendInput : Execute("instances", "input", name, command) ---
 
     [Fact]
     public void SendInput_NullInstanceName_ThrowsArgumentException()
     {
-        // Act & Assert
         Assert.Throws<ArgumentNullException>(() => _instanceService.SendInput(null!, "say hello"));
     }
 
     [Fact]
     public void SendInput_NullCommand_ThrowsArgumentException()
     {
-        // Act & Assert
         Assert.Throws<ArgumentNullException>(() => _instanceService.SendInput("my-instance", null!));
     }
 
     [Fact]
     public void SendInput_SuccessfulExecution_ReturnsSuccessResult()
     {
-        // Arrange
         _mockCommandExecutor
-            .Setup(x => x.Execute(It.Is<string[]>(args =>
-                args.SequenceEqual(new[] { "instances", "input", "my-instance", "say hello" }))))
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", "input", "my-instance", "say hello"))))
             .Returns(new KgsmResult(new ProcessResult(0, "[INFO] hello", string.Empty)));
 
-        // Act
         KgsmResult result = _instanceService.SendInput("my-instance", "say hello");
 
-        // Assert
         Assert.True(result.IsSuccess);
-        Assert.Equal(0, result.ExitCode);
     }
 
     [Fact]
     public void SendInput_ExecutionFails_ReturnsFailureResult()
     {
-        // Arrange
         _mockCommandExecutor
-            .Setup(x => x.Execute(It.Is<string[]>(args =>
-                args.SequenceEqual(new[] { "instances", "input", "my-instance", "say hello" }))))
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", "input", "my-instance", "say hello"))))
             .Returns(new KgsmResult(new ProcessResult(1, string.Empty, "Instance not running")));
 
-        // Act
         KgsmResult result = _instanceService.SendInput("my-instance", "say hello");
 
-        // Assert
         Assert.False(result.IsSuccess);
         Assert.Equal(1, result.ExitCode);
     }
 
-    // FindConfigPath tests
+    // --- FindConfigPath : Execute("instances", "find", name) ---
 
     [Fact]
     public void FindConfigPath_NullInstanceName_ThrowsArgumentException()
     {
-        // Act & Assert
         Assert.Throws<ArgumentNullException>(() => _instanceService.FindConfigPath(null!));
     }
 
     [Fact]
     public void FindConfigPath_SuccessfulExecution_ReturnsSuccessResult()
     {
-        // Arrange
         const string expectedPath = "/home/kgsm/instances/my-instance/my-instance.ini";
-
         _mockCommandExecutor
-            .Setup(x => x.Execute(It.Is<string[]>(args =>
-                args.SequenceEqual(new[] { "instances", "find", "my-instance" }))))
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", "find", "my-instance"))))
             .Returns(new KgsmResult(new ProcessResult(0, expectedPath, string.Empty)));
 
-        // Act
         KgsmResult result = _instanceService.FindConfigPath("my-instance");
 
-        // Assert
         Assert.True(result.IsSuccess);
-        Assert.Equal(0, result.ExitCode);
         Assert.Equal(expectedPath, result.Stdout);
     }
 
     [Fact]
     public void FindConfigPath_ExecutionFails_ReturnsFailureResult()
     {
-        // Arrange
         _mockCommandExecutor
-            .Setup(x => x.Execute(It.Is<string[]>(args =>
-                args.SequenceEqual(new[] { "instances", "find", "unknown-instance" }))))
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", "find", "unknown-instance"))))
             .Returns(new KgsmResult(new ProcessResult(1, string.Empty, "Instance not found")));
 
-        // Act
         KgsmResult result = _instanceService.FindConfigPath("unknown-instance");
 
-        // Assert
         Assert.False(result.IsSuccess);
         Assert.Equal(1, result.ExitCode);
     }

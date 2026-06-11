@@ -6,6 +6,13 @@ namespace TheKrystalShip.KGSM.Core.Interfaces;
 /// <summary>
 /// Interface for managing instances in KGSM.
 /// </summary>
+/// <remarks>
+/// Failure-channel convention: a method returning <see cref="KgsmResult"/> reports a
+/// failed command in the result itself (<see cref="KgsmResult.IsSuccess"/> is false) and
+/// does not throw on a non-zero exit; a method returning a nullable type returns null on
+/// failure. Argument validation (e.g. a null instance name) always throws, regardless of
+/// return type.
+/// </remarks>
 public interface IInstanceService
 {
     /// <summary>
@@ -77,6 +84,8 @@ public interface IInstanceService
     /// <param name="instanceName">Instance name to get logs for.</param>
     /// <param name="maxLines">Maximum number of log lines to retrieve. Default is 10.</param>
     /// <returns>Result containing the instance logs.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the logs cannot be retrieved.</exception>
     ICollection<string> GetLogs(string instanceName, int maxLines = 10);
 
     /// <summary>
@@ -86,6 +95,8 @@ public interface IInstanceService
     /// <param name="maxLines">Maximum number of log lines to retrieve. Default is 10.</param>
     /// <param name="cancellationToken">Cancellation token for the async operation.</param>
     /// <returns>Result containing the instance logs.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when the logs cannot be retrieved.</exception>
     Task<ICollection<string>> GetLogsAsync(string instanceName, int maxLines = 10, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -93,6 +104,7 @@ public interface IInstanceService
     /// </summary>
     /// <param name="instanceName">Instance name to get status for.</param>
     /// <returns>Result containing the instance status.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
     KgsmResult GetStatus(string instanceName);
 
     /// <summary>
@@ -100,6 +112,7 @@ public interface IInstanceService
     /// </summary>
     /// <param name="instanceName">Instance name to get information for.</param>
     /// <returns>Result containing the instance information.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
     KgsmResult GetInfo(string instanceName);
 
     /// <summary>
@@ -107,6 +120,7 @@ public interface IInstanceService
     /// </summary>
     /// <param name="instanceName">Instance name to check.</param>
     /// <returns>True if the instance is active, false otherwise.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
     bool IsActive(string instanceName);
 
     /// <summary>
@@ -114,6 +128,7 @@ public interface IInstanceService
     /// </summary>
     /// <param name="instanceName">Instance name to start.</param>
     /// <returns>Result of the start operation.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
     KgsmResult Start(string instanceName);
 
     /// <summary>
@@ -121,6 +136,7 @@ public interface IInstanceService
     /// </summary>
     /// <param name="instanceName">Instance name to stop.</param>
     /// <returns>Result of the stop operation.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
     KgsmResult Stop(string instanceName);
 
     /// <summary>
@@ -128,6 +144,7 @@ public interface IInstanceService
     /// </summary>
     /// <param name="instanceName">Instance name to restart.</param>
     /// <returns>Result of the restart operation.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
     KgsmResult Restart(string instanceName);
 
     /// <summary>
