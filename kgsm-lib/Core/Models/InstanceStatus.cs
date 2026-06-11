@@ -156,8 +156,31 @@ public record class InstanceRuntimeStatus
     public IReadOnlyList<string> Backups { get; set; } = new List<string>();
 
     /// <summary>
-    /// Gets or sets the recent logs.
+    /// Gets or sets the recent logs — a short newline-joined tail of the
+    /// instance log. KGSM emits this as a string when a log exists and as an
+    /// empty array (<c>[]</c>) when it does not; <see cref="JsonRecentLogsConverter"/>
+    /// normalizes both to a string (empty for the no-log case).
     /// </summary>
     [JsonPropertyName("recent_logs")]
-    public IReadOnlyList<string> RecentLogs { get; set; } = new List<string>();
+    [JsonConverter(typeof(JsonRecentLogsConverter))]
+    public string RecentLogs { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the error message for an instance whose status could not be
+    /// read. Non-null only for a failed element in a bulk read
+    /// (<c>instances list --status --json</c>), where KGSM emits
+    /// <c>{"error":…, "instance":…, "requires_regeneration":true}</c> as the
+    /// map value instead of a status object — so one bad instance never sinks
+    /// the whole fleet read. Null on a successful read.
+    /// </summary>
+    [JsonPropertyName("error")]
+    public string? Error { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the instance's management file must be regenerated
+    /// to answer status queries. Set (true) only on a failed bulk-read element;
+    /// null on a successful read. See <see cref="Error"/>.
+    /// </summary>
+    [JsonPropertyName("requires_regeneration")]
+    public bool? RequiresRegeneration { get; set; }
 }
