@@ -72,6 +72,13 @@ public class InstanceDownloadFinishedData : EventDataBase
 }
 
 /// <summary>
+/// Event data for when an instance download fails.
+/// </summary>
+public class InstanceDownloadFailedData : EventDataBase
+{
+}
+
+/// <summary>
 /// Event data for when an instance is downloaded.
 /// </summary>
 public class InstanceDownloadedData : EventDataBase
@@ -89,6 +96,13 @@ public class InstanceDeployStartedData : EventDataBase
 /// Event data for when an instance deployment finishes.
 /// </summary>
 public class InstanceDeployFinishedData : EventDataBase
+{
+}
+
+/// <summary>
+/// Event data for when an instance deployment fails.
+/// </summary>
+public class InstanceDeployFailedData : EventDataBase
 {
 }
 
@@ -200,6 +214,17 @@ public class InstanceStoppedData : EventDataBase
 }
 
 /// <summary>
+/// Event data for when an instance is restarted.
+/// </summary>
+public class InstanceRestartedData : EventDataBase
+{
+    /// <summary>
+    /// Gets or sets the lifecycle manager that restarted the instance.
+    /// </summary>
+    public LifecycleManager LifecycleManager { get; set; }
+}
+
+/// <summary>
 /// Event data for when an instance backup is created.
 /// </summary>
 public class InstanceBackupCreatedData : EventDataBase
@@ -263,6 +288,13 @@ public class InstanceUninstallStartedData : EventDataBase
 /// Event data for when an instance uninstall finishes.
 /// </summary>
 public class InstanceUninstallFinishedData : EventDataBase
+{
+}
+
+/// <summary>
+/// Event data for when an instance uninstall fails.
+/// </summary>
+public class InstanceUninstallFailedData : EventDataBase
 {
 }
 

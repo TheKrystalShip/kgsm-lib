@@ -1,0 +1,188 @@
+using System.Reflection;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using TheKrystalShip.KGSM.Core.Models.Enums;
+using TheKrystalShip.KGSM.Events;
+
+namespace TheKrystalShip.KGSM.Tests.Services;
+
+/// <summary>
+/// Guards the kgsm → kgsm-lib event contract at the wire boundary.
+///
+/// Event names and payload shapes are maintained by hand in two places that
+/// must agree: kgsm's <c>EVENT_CONFIGS</c> registry (bash) and the C#
+/// <c>_eventTypeMapping</c> + <see cref="EventDataBase"/> types. They had drifted
+/// — <c>instance-restarted</c> and the <c>*-failed</c> events were emitted by
+/// kgsm but had no C# type, so they were dropped as "Unknown event type". These
+/// tests pin (1) the real wire payloads for the newly-aligned events, captured
+/// verbatim from <c>_build_event_payload</c>, and (2) the AOT invariant that
+/// every event type is registered in <see cref="KgsmJsonContext"/> — an
+/// unregistered type throws at runtime on the reflection-free deserialize path.
+/// </summary>
+public class EventDeserializationTests
+{
+    // Mirrors EventService's deserialize path: EventWrapper first, then the
+    // typed Data payload, both through the source-generated context.
+    private static (string EventType, EventDataBase? Data) Deserialize(
+        string wireJson, Type targetType)
+    {
+        EventWrapper? wrapper =
+            JsonSerializer.Deserialize(wireJson, KgsmJsonContext.Default.EventWrapper);
+        Assert.NotNull(wrapper);
+
+        var data = JsonSerializer.Deserialize(
+            wrapper!.Data.GetRawText(), targetType, KgsmJsonContext.Default)
+            as EventDataBase;
+
+        return (wrapper.EventType, data);
+    }
+
+    // Captured verbatim from kgsm `_build_event_payload instance_restarted 7dtd standalone`.
+    private const string RestartedWireJson = """
+        {"EventType":"instance_restarted","Data":{"InstanceName":"7dtd","LifecycleManager":"standalone"},"Timestamp":"2026-06-11T21:00:43Z","Hostname":"hotrod","KGSMVersion":"unknown"}
+        """;
+
+    // Captured verbatim from kgsm `_build_event_payload instance_download_failed 7dtd`.
+    private const string DownloadFailedWireJson = """
+        {"EventType":"instance_download_failed","Data":{"InstanceName":"7dtd"},"Timestamp":"2026-06-11T21:00:43Z","Hostname":"hotrod","KGSMVersion":"unknown"}
+        """;
+
+    [Fact]
+    public void RestartedEvent_DeserializesWithLifecycleManager()
+    {
+        (string eventType, EventDataBase? data) = Deserialize(
+            RestartedWireJson, typeof(InstanceRestartedData));
+
+        Assert.Equal("instance_restarted", eventType);
+        var restarted = Assert.IsType<InstanceRestartedData>(data);
+        Assert.Equal("7dtd", restarted.InstanceName);
+        // KGSM emits the lifecycle manager lowercase; the enum binds case-insensitively.
+        Assert.Equal(LifecycleManager.Standalone, restarted.LifecycleManager);
+    }
+
+    [Fact]
+    public void DownloadFailedEvent_DeserializesWithInstanceNameOnly()
+    {
+        (string eventType, EventDataBase? data) = Deserialize(
+            DownloadFailedWireJson, typeof(InstanceDownloadFailedData));
+
+        Assert.Equal("instance_download_failed", eventType);
+        var failed = Assert.IsType<InstanceDownloadFailedData>(data);
+        Assert.Equal("7dtd", failed.InstanceName);
+    }
+
+    [Fact]
+    public void EveryEventDataType_IsRegisteredInJsonContext()
+    {
+        // The reflection-free deserialize path throws on an unregistered type, so
+        // a mapping/type added without a matching [JsonSerializable] would only
+        // surface at runtime. This auto-discovers every concrete EventDataBase
+        // subclass and asserts each resolves through the source-gen context.
+        static bool IsRegistered(Type t)
+        {
+            try { return KgsmJsonContext.Default.GetTypeInfo(t) is not null; }
+            catch { return false; }
+        }
+
+        var unregistered = typeof(EventDataBase).Assembly.GetTypes()
+            .Where(t => t.IsSubclassOf(typeof(EventDataBase)) && !t.IsAbstract)
+            .Where(t => !IsRegistered(t))
+            .Select(t => t.Name)
+            .ToList();
+
+        Assert.True(unregistered.Count == 0,
+            "Event types missing [JsonSerializable] in KgsmJsonContext: "
+            + string.Join(", ", unregistered));
+    }
+
+    // Reflects EventService's private name→type dispatch table. The ctor only
+    // assigns fields (the listener starts in Initialize(), not here), so a
+    // mock-constructed instance is safe and side-effect free.
+    private static Dictionary<string, Type> GetEventTypeMapping()
+    {
+        var svc = new EventService(
+            new Mock<IUnixSocketClient>().Object,
+            new Mock<ILogger<EventService>>().Object);
+        FieldInfo field = typeof(EventService).GetField(
+            "_eventTypeMapping", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        return (Dictionary<string, Type>)field.GetValue(svc)!;
+    }
+
+    [Fact]
+    public void EveryEventDataType_HasAMappingEntry()
+    {
+        // Guards the (c)-direction the original incident was in: a type + its
+        // [JsonSerializable] can exist while the _eventTypeMapping entry is missing,
+        // in which case the event is dropped at runtime as "Unknown event type" and
+        // every other test still passes. This catches the omission with no external
+        // dependency.
+        var mapped = new HashSet<Type>(GetEventTypeMapping().Values);
+        var missing = typeof(EventDataBase).Assembly.GetTypes()
+            .Where(t => t.IsSubclassOf(typeof(EventDataBase)) && !t.IsAbstract)
+            .Where(t => !mapped.Contains(t))
+            .Select(t => t.Name)
+            .ToList();
+
+        Assert.True(missing.Count == 0,
+            "Event types absent from EventService._eventTypeMapping (would be dropped "
+            + "as 'Unknown event type'): " + string.Join(", ", missing));
+    }
+
+    [Fact]
+    public void BashEventRegistry_IsSubsetOf_CSharpMapping()
+    {
+        // The true bash↔C# conformance: every event kgsm can emit (its EVENT_CONFIGS
+        // registry) must have a C# mapping entry — catches both a missing entry and a
+        // key typo. Reads the sibling kgsm repo when colocated (the tks workspace).
+        // xUnit v2 has no dynamic skip, so this no-ops in a standalone kgsm-lib
+        // checkout; the always-on EveryEventDataType_HasAMappingEntry covers the same
+        // missing-entry incident class without the sibling.
+        string? handler = FindKgsmEventsHandler();
+        if (handler is null) return;
+
+        HashSet<string> bashEvents = ParseRegisteredBashEvents(handler!);
+        Assert.NotEmpty(bashEvents);
+
+        HashSet<string> mappingKeys = GetEventTypeMapping().Keys.ToHashSet();
+        var missing = bashEvents.Where(e => !mappingKeys.Contains(e)).OrderBy(e => e).ToList();
+
+        Assert.True(missing.Count == 0,
+            "kgsm EVENT_CONFIGS events with no C# _eventTypeMapping entry "
+            + "(would be dropped as 'Unknown event type'): " + string.Join(", ", missing));
+    }
+
+    private static string? FindKgsmEventsHandler()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory);
+             dir is not null; dir = dir.Parent)
+        {
+            string candidate = Path.Combine(
+                dir.FullName, "kgsm", "commands", "handlers", "events.sh");
+            if (File.Exists(candidate)) return candidate;
+        }
+        return null;
+    }
+
+    // Parses the kgsm event registry: resolves the EVENT_INSTANCE_* constants used as
+    // EVENT_CONFIGS keys to their underscore wire names (the form C# matches on).
+    private static HashSet<string> ParseRegisteredBashEvents(string handlerPath)
+    {
+        string src = File.ReadAllText(handlerPath);
+
+        var constToValue = new Dictionary<string, string>();
+        foreach (System.Text.RegularExpressions.Match m in Regex.Matches(src,
+            @"(EVENT_[A-Z_]+)=""([a-z_]+)"""))
+        {
+            constToValue[m.Groups[1].Value] = m.Groups[2].Value;
+        }
+
+        var registered = new HashSet<string>();
+        foreach (System.Text.RegularExpressions.Match m in
+            Regex.Matches(src, @"\[""\$(EVENT_[A-Z_]+)""\]"))
+        {
+            if (constToValue.TryGetValue(m.Groups[1].Value, out string? wireName))
+                registered.Add(wireName);
+        }
+        return registered;
+    }
+}

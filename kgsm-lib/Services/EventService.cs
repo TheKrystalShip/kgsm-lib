@@ -29,10 +29,12 @@ public class EventService : IEventService, IAsyncDisposable
 
         { "instance_download_started", typeof(InstanceDownloadStartedData) },
         { "instance_download_finished", typeof(InstanceDownloadFinishedData) },
+        { "instance_download_failed", typeof(InstanceDownloadFailedData) },
         { "instance_downloaded", typeof(InstanceDownloadedData) },
 
         { "instance_deploy_started", typeof(InstanceDeployStartedData) },
         { "instance_deploy_finished", typeof(InstanceDeployFinishedData) },
+        { "instance_deploy_failed", typeof(InstanceDeployFailedData) },
         { "instance_deployed", typeof(InstanceDeployedData) },
 
         { "instance_update_started", typeof(InstanceUpdateStartedData) },
@@ -47,6 +49,7 @@ public class EventService : IEventService, IAsyncDisposable
 
         { "instance_started", typeof(InstanceStartedData) },
         { "instance_stopped", typeof(InstanceStoppedData) },
+        { "instance_restarted", typeof(InstanceRestartedData) },
         { "instance_ready", typeof(InstanceReadyData) },
 
         { "instance_backup_created", typeof(InstanceBackupCreatedData) },
@@ -59,6 +62,7 @@ public class EventService : IEventService, IAsyncDisposable
 
         { "instance_uninstall_started", typeof(InstanceUninstallStartedData) },
         { "instance_uninstall_finished", typeof(InstanceUninstallFinishedData) },
+        { "instance_uninstall_failed", typeof(InstanceUninstallFailedData) },
         { "instance_uninstalled", typeof(InstanceUninstalledData) }
     };
 

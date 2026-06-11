@@ -40,9 +40,11 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(InstanceFilesCreatedData))]
 [JsonSerializable(typeof(InstanceDownloadStartedData))]
 [JsonSerializable(typeof(InstanceDownloadFinishedData))]
+[JsonSerializable(typeof(InstanceDownloadFailedData))]
 [JsonSerializable(typeof(InstanceDownloadedData))]
 [JsonSerializable(typeof(InstanceDeployStartedData))]
 [JsonSerializable(typeof(InstanceDeployFinishedData))]
+[JsonSerializable(typeof(InstanceDeployFailedData))]
 [JsonSerializable(typeof(InstanceDeployedData))]
 [JsonSerializable(typeof(InstanceUpdateStartedData))]
 [JsonSerializable(typeof(InstanceUpdateFinishedData))]
@@ -53,6 +55,7 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(InstanceInstalledData))]
 [JsonSerializable(typeof(InstanceStartedData))]
 [JsonSerializable(typeof(InstanceStoppedData))]
+[JsonSerializable(typeof(InstanceRestartedData))]
 [JsonSerializable(typeof(InstanceReadyData))]
 [JsonSerializable(typeof(InstanceBackupCreatedData))]
 [JsonSerializable(typeof(InstanceBackupRestoredData))]
@@ -61,6 +64,7 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(InstanceRemovedData))]
 [JsonSerializable(typeof(InstanceUninstallStartedData))]
 [JsonSerializable(typeof(InstanceUninstallFinishedData))]
+[JsonSerializable(typeof(InstanceUninstallFailedData))]
 [JsonSerializable(typeof(InstanceUninstalledData))]
 public partial class KgsmJsonContext : JsonSerializerContext
 {
