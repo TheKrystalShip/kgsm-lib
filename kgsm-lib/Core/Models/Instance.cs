@@ -272,6 +272,17 @@ public record class Instance
     public string Blueprint => Path.GetFileNameWithoutExtension(BlueprintFile);
 
     /// <summary>
+    /// Gets the systemd unit name for the instance (e.g. <c>7dtd.service</c>),
+    /// derived from <see cref="SystemdServiceFile"/>. Empty when the instance has
+    /// no systemd integration (<see cref="LifecycleManager"/> is not
+    /// <see cref="Enums.LifecycleManager.Systemd"/>). KGSM names the unit after
+    /// the instance; a host monitor can use this to locate the instance's cgroup
+    /// (e.g. <c>/sys/fs/cgroup/system.slice/&lt;unit&gt;</c>) for accurate,
+    /// child-inclusive CPU/memory accounting.
+    /// </summary>
+    public string SystemdUnit => Path.GetFileName(SystemdServiceFile);
+
+    /// <summary>
     /// Returns a string that represents the current object.
     /// </summary>
     /// <returns>A string that represents the current object.</returns>
