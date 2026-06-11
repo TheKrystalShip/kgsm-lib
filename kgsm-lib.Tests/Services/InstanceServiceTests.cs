@@ -8,7 +8,7 @@
 // See TEST_UPDATE_NOTES.md for details on how to update these tests
 // Tests are temporarily disabled to allow build to succeed while refactoring is completed
 
-using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace TheKrystalShip.KGSM.Tests.Services;
 
@@ -208,6 +208,72 @@ public class InstanceServiceTests
         // Act & Assert
         var exception = Assert.Throws<KgsmException>(() => _instanceService.GetInstanceStatus("my-server"));
         Assert.Contains("my-server", exception.Message);
+    }
+
+    // GetAllStatuses (bulk fleet read) — uses the injected command executor.
+
+    [Fact]
+    public void GetAllStatuses_Default_RequestsNonFastBulkStatus()
+    {
+        // Arrange
+        var expected = new Dictionary<string, InstanceRuntimeStatus>
+        {
+            ["7dtd"] = new() { InstanceName = "7dtd", Status = true }
+        };
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteForJson<Dictionary<string, InstanceRuntimeStatus>>(
+                It.Is<string[]>(a => a.SequenceEqual(new[] { "instances", "list", "--status", "--json" })),
+                It.IsAny<Action<JsonSerializerOptions>>(),
+                It.IsAny<Dictionary<string, InstanceRuntimeStatus>>()))
+            .Returns(expected);
+
+        // Act
+        var result = _instanceService.GetAllStatuses();
+
+        // Assert
+        Assert.Same(expected, result);
+        Assert.True(result["7dtd"].Status);
+    }
+
+    [Fact]
+    public void GetAllStatuses_Fast_AppendsFastFlag()
+    {
+        // Arrange
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteForJson<Dictionary<string, InstanceRuntimeStatus>>(
+                It.Is<string[]>(a => a.SequenceEqual(new[] { "instances", "list", "--status", "--json", "--fast" })),
+                It.IsAny<Action<JsonSerializerOptions>>(),
+                It.IsAny<Dictionary<string, InstanceRuntimeStatus>>()))
+            .Returns(new Dictionary<string, InstanceRuntimeStatus>());
+
+        // Act
+        var result = _instanceService.GetAllStatuses(fast: true);
+
+        // Assert
+        Assert.NotNull(result);
+        _mockCommandExecutor.Verify(x => x.ExecuteForJson<Dictionary<string, InstanceRuntimeStatus>>(
+            It.Is<string[]>(a => a.Contains("--fast")),
+            It.IsAny<Action<JsonSerializerOptions>>(),
+            It.IsAny<Dictionary<string, InstanceRuntimeStatus>>()), Times.Once);
+    }
+
+    [Fact]
+    public void GetAllStatuses_CommandReturnsNull_ReturnsEmptyDictionary()
+    {
+        // Arrange — a failed/empty command surfaces as null from the executor.
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteForJson<Dictionary<string, InstanceRuntimeStatus>>(
+                It.IsAny<string[]>(),
+                It.IsAny<Action<JsonSerializerOptions>>(),
+                It.IsAny<Dictionary<string, InstanceRuntimeStatus>>()))
+            .Returns((Dictionary<string, InstanceRuntimeStatus>?)null);
+
+        // Act
+        var result = _instanceService.GetAllStatuses();
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Empty(result);
     }
 
     [Fact]

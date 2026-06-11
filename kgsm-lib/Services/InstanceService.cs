@@ -66,6 +66,16 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
+    public Dictionary<string, InstanceRuntimeStatus> GetAllStatuses(bool fast = false)
+    {
+        string[] args = fast
+            ? ["instances", "list", "--status", "--json", "--fast"]
+            : ["instances", "list", "--status", "--json"];
+
+        return _commandExecutor.ExecuteForJson<Dictionary<string, InstanceRuntimeStatus>>(args) ?? [];
+    }
+
+    /// <inheritdoc/>
     public KgsmResult Install(string blueprintName, string? installDir = null, string? version = null, string? name = null)
     {
         ArgumentNullException.ThrowIfNull(blueprintName, nameof(blueprintName));

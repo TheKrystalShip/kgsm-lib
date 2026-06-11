@@ -29,6 +29,32 @@ public interface IInstanceService
     InstanceRuntimeStatus? GetInstanceStatus(string instanceName);
 
     /// <summary>
+    /// Gets the runtime status of every instance in a single KGSM invocation.
+    /// </summary>
+    /// <param name="fast">
+    /// When true, passes <c>--fast</c> so KGSM skips the per-instance network
+    /// update-check (roughly a 20x speed-up on the fleet). In fast mode each
+    /// instance's <see cref="VersionInfo.Latest"/> and
+    /// <see cref="VersionInfo.UpdatesAvailable"/> are null and
+    /// <see cref="VersionInfo.Checked"/> is false — KGSM reports "unchecked"
+    /// rather than fabricating an answer.
+    /// </param>
+    /// <returns>
+    /// A map of instance name to runtime status. An instance whose status could
+    /// not be read appears with <see cref="InstanceRuntimeStatus.Error"/> set
+    /// instead of sinking the whole call. Empty if the command itself fails.
+    /// </returns>
+    /// <remarks>
+    /// This is the bulk counterpart to <see cref="GetInstanceStatus(string)"/>:
+    /// it bootstraps KGSM once instead of once per instance, which is the
+    /// intended replacement for fanning a per-instance status loop out across
+    /// the fleet. The <see cref="InstanceRuntimeStatus.Status"/> here is the
+    /// instance management script's own status report; dedicated liveness
+    /// routing (systemd vs standalone) is a separate lifecycle-layer concern.
+    /// </remarks>
+    Dictionary<string, InstanceRuntimeStatus> GetAllStatuses(bool fast = false);
+
+    /// <summary>
     /// Installs an instance of a blueprint.
     /// </summary>
     /// <param name="blueprintName">Name of the blueprint to install.</param>
