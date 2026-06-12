@@ -33,6 +33,11 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(Dictionary<string, Blueprint>))]
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
+// --- kgsm-watchdog control-surface DTOs (typed client over the unix socket) ---
+[JsonSerializable(typeof(WatchdogActionResult))]
+[JsonSerializable(typeof(WatchdogInstanceState))]
+[JsonSerializable(typeof(WatchdogInstanceState[]))]
+[JsonSerializable(typeof(WatchdogReadyState))]
 // --- Event envelope + every event data payload (the Type-keyed dispatch in EventService) ---
 [JsonSerializable(typeof(EventWrapper))]
 [JsonSerializable(typeof(InstanceCreatedData))]

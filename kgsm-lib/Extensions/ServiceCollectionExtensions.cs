@@ -92,4 +92,46 @@ public static class ServiceCollectionExtensions
 
         return AddKgsmServices(services, options.KgsmPath, options.SocketPath);
     }
+
+    /// <summary>
+    /// Adds the kgsm-watchdog control client (<see cref="IWatchdogClient"/>) to the
+    /// service collection. Independent of <see cref="AddKgsmServices(IServiceCollection, string, string)"/> —
+    /// a surface can take the watchdog client alone, the full KGSM services, or both.
+    /// </summary>
+    /// <param name="services">The IServiceCollection to add services to.</param>
+    /// <param name="socketPath">Path to the watchdog control unix socket.</param>
+    /// <returns>The IServiceCollection so that additional calls can be chained.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when services is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when socketPath is null, empty, or whitespace.</exception>
+    public static IServiceCollection AddKgsmWatchdogClient(this IServiceCollection services, string socketPath)
+    {
+        ArgumentNullException.ThrowIfNull(services, nameof(services));
+
+        if (string.IsNullOrWhiteSpace(socketPath))
+            throw new ArgumentException("Watchdog socket path cannot be null, empty, or whitespace.", nameof(socketPath));
+
+        return AddKgsmWatchdogClient(services, options => options.SocketPath = socketPath);
+    }
+
+    /// <summary>
+    /// Adds the kgsm-watchdog control client with a configuration action.
+    /// </summary>
+    /// <param name="services">The IServiceCollection to add services to.</param>
+    /// <param name="configureOptions">Action to configure the watchdog client options.</param>
+    /// <returns>The IServiceCollection so that additional calls can be chained.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when services or configureOptions is null.</exception>
+    public static IServiceCollection AddKgsmWatchdogClient(this IServiceCollection services, Action<WatchdogClientOptions> configureOptions)
+    {
+        ArgumentNullException.ThrowIfNull(services, nameof(services));
+        ArgumentNullException.ThrowIfNull(configureOptions, nameof(configureOptions));
+
+        var options = new WatchdogClientOptions();
+        configureOptions(options);
+
+        // Singleton: the client owns a pooled HttpClient/handler, like IUnixSocketClient.
+        services.AddSingleton(options);
+        services.AddSingleton<IWatchdogClient, WatchdogClient>();
+
+        return services;
+    }
 }
