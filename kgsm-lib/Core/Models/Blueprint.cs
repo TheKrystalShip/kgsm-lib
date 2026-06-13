@@ -63,6 +63,12 @@ public class Blueprint
     public string? SaveCommand { get; set; } = null;
 
     /// <summary>
+    /// Gets or sets the advisory presentation metadata for the blueprint's game
+    /// (display name, requirements). Null when the blueprint declares no metadata.
+    /// </summary>
+    public BlueprintMetadata? Metadata { get; set; } = null;
+
+    /// <summary>
     /// Returns a string that represents the current object.
     /// </summary>
     /// <returns>A string that represents the current object.</returns>

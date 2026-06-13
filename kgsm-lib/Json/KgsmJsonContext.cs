@@ -30,6 +30,7 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(InstanceRuntimeStatus))]
 [JsonSerializable(typeof(Dictionary<string, InstanceRuntimeStatus>))]
 [JsonSerializable(typeof(Blueprint))]
+[JsonSerializable(typeof(BlueprintMetadata))]
 [JsonSerializable(typeof(Dictionary<string, Blueprint>))]
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
