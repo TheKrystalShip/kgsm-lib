@@ -1,5 +1,4 @@
 using System.Text.Json;
-using TheKrystalShip.KGSM.Core.Models.Enums;
 
 namespace TheKrystalShip.KGSM.Events;
 
@@ -188,10 +187,6 @@ public class InstanceInstalledData : EventDataBase
 /// </summary>
 public class InstanceStartedData : EventDataBase
 {
-    /// <summary>
-    /// Gets or sets the lifecycle manager that started the instance.
-    /// </summary>
-    public LifecycleManager LifecycleManager { get; set; }
 }
 
 /// <summary>
@@ -207,10 +202,6 @@ public class InstanceReadyData : EventDataBase
 /// </summary>
 public class InstanceStoppedData : EventDataBase
 {
-    /// <summary>
-    /// Gets or sets the lifecycle manager that stopped the instance.
-    /// </summary>
-    public LifecycleManager LifecycleManager { get; set; }
 }
 
 /// <summary>
@@ -218,10 +209,6 @@ public class InstanceStoppedData : EventDataBase
 /// </summary>
 public class InstanceRestartedData : EventDataBase
 {
-    /// <summary>
-    /// Gets or sets the lifecycle manager that restarted the instance.
-    /// </summary>
-    public LifecycleManager LifecycleManager { get; set; }
 }
 
 /// <summary>

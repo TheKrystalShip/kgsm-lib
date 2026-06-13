@@ -1,7 +1,6 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using TheKrystalShip.KGSM.Core.Models.Enums;
 using TheKrystalShip.KGSM.Events;
 
 namespace TheKrystalShip.KGSM.Tests.Services;
@@ -37,7 +36,9 @@ public class EventDeserializationTests
         return (wrapper.EventType, data);
     }
 
-    // Captured verbatim from kgsm `_build_event_payload instance_restarted 7dtd standalone`.
+    // Captured from an older kgsm `_build_event_payload instance_restarted 7dtd standalone`. The
+    // `LifecycleManager` field has since been removed from KGSM's payloads; it is retained here on
+    // purpose to prove the lib tolerates (ignores) the legacy field rather than throwing on it.
     private const string RestartedWireJson = """
         {"EventType":"instance_restarted","Data":{"InstanceName":"7dtd","LifecycleManager":"standalone"},"Timestamp":"2026-06-11T21:00:43Z","Hostname":"hotrod","KGSMVersion":"unknown"}
         """;
@@ -48,7 +49,7 @@ public class EventDeserializationTests
         """;
 
     [Fact]
-    public void RestartedEvent_DeserializesWithLifecycleManager()
+    public void RestartedEvent_Deserializes_IgnoringLegacyLifecycleManager()
     {
         (string eventType, EventDataBase? data) = Deserialize(
             RestartedWireJson, typeof(InstanceRestartedData));
@@ -56,8 +57,8 @@ public class EventDeserializationTests
         Assert.Equal("instance_restarted", eventType);
         var restarted = Assert.IsType<InstanceRestartedData>(data);
         Assert.Equal("7dtd", restarted.InstanceName);
-        // KGSM emits the lifecycle manager lowercase; the enum binds case-insensitively.
-        Assert.Equal(LifecycleManager.Standalone, restarted.LifecycleManager);
+        // The legacy `LifecycleManager` field in the payload is unmapped and silently ignored
+        // (the property was removed) — deserialization must not throw on it.
     }
 
     [Fact]

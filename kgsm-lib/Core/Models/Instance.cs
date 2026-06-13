@@ -110,14 +110,11 @@ public record class Instance
     [JsonPropertyName("socket_file")]
     public string SocketFile { get; set; } = string.Empty;
 
-        /// <summary>
-    /// Gets or sets the lifecycle manager for the instance.
-    /// </summary>
-    [JsonPropertyName("lifecycle_manager")]
-    public LifecycleManager LifecycleManager { get; set; } = LifecycleManager.Standalone;
-
     /// <summary>
-    /// Gets or sets the runtime environment for the instance.
+    /// Gets or sets the runtime environment for the instance. This is the sole
+    /// supervision discriminator: native instances are supervised by kgsm-watchdog,
+    /// container instances by Docker. Binds case-insensitively from KGSM's lowercase
+    /// <c>runtime</c> field (no <c>[JsonPropertyName]</c> needed).
     /// </summary>
     public InstanceRuntime Runtime { get; set; } = InstanceRuntime.Native;
 
@@ -237,24 +234,6 @@ public record class Instance
     public bool CompressBackups { get; set; } = false;
 
     /// <summary>
-    /// Gets or sets whether systemd is enabled for the instance.
-    /// </summary>
-    [JsonPropertyName("enable_systemd")]
-    public bool EnableSystemd { get; set; } = false;
-
-    /// <summary>
-    /// Gets or sets the systemd service file for the instance.
-    /// </summary>
-    [JsonPropertyName("systemd_service_file")]
-    public string SystemdServiceFile { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Gets or sets the systemd socket file for the instance.
-    /// </summary>
-    [JsonPropertyName("systemd_socket_file")]
-    public string SystemdSocketFile { get; set; } = string.Empty;
-
-    /// <summary>
     /// Gets or sets whether command shortcuts are enabled for the instance.
     /// </summary>
     [JsonPropertyName("enable_command_shortcuts")]
@@ -272,24 +251,12 @@ public record class Instance
     public string Blueprint => Path.GetFileNameWithoutExtension(BlueprintFile);
 
     /// <summary>
-    /// Gets the systemd unit name for the instance (e.g. <c>7dtd.service</c>),
-    /// derived from <see cref="SystemdServiceFile"/>. Empty when the instance has
-    /// no systemd integration (<see cref="LifecycleManager"/> is not
-    /// <see cref="Enums.LifecycleManager.Systemd"/>). KGSM names the unit after
-    /// the instance; a host monitor can use this to locate the instance's cgroup
-    /// (e.g. <c>/sys/fs/cgroup/system.slice/&lt;unit&gt;</c>) for accurate,
-    /// child-inclusive CPU/memory accounting.
-    /// </summary>
-    public string SystemdUnit => Path.GetFileName(SystemdServiceFile);
-
-    /// <summary>
     /// Returns a string that represents the current object.
     /// </summary>
     /// <returns>A string that represents the current object.</returns>
     public override string ToString()
     {
         return $"Instance: {Name}, " +
-               $"LifecycleManager: {LifecycleManager}, " +
                $"Runtime: {Runtime}, " +
                $"Platform: {Platform}, " +
                $"WorkingDir: {WorkingDir}, " +

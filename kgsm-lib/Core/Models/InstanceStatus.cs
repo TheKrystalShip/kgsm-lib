@@ -77,12 +77,6 @@ public record class ConfigurationInfo
     public string Runtime { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the lifecycle manager.
-    /// </summary>
-    [JsonPropertyName("lifecycle_manager")]
-    public string LifecycleManager { get; set; } = string.Empty;
-
-    /// <summary>
     /// Gets or sets the directory.
     /// </summary>
     [JsonPropertyName("directory")]

@@ -35,8 +35,8 @@ of one process per instance (it exists specifically to avoid that fan-out).
 |---|---|---|
 | List of instances | `GetAll()` keys (or `GetAllStatuses()` keys) | name-keyed |
 | Is it running? | `GetAllStatuses()[name].Status` (bool) | management-script status (see liveness caveat) |
-| Main PID | `GetAllStatuses()[name].Process.Pid` (`int?`) | null when stopped |
-| PID file path | `GetAll()[name].PidFile` | standalone-native fallback source for the PID |
+| Main PID | `GetAllStatuses()[name].Process.Pid` (`int?`) | null when stopped; a real PID for **native** instances (containers key off a container id — see anchors) |
+| PID file path | `GetAll()[name].PidFile` | **overloaded** — a real **host PID** for native, a **Docker container id** for containers; disambiguate via `isContainer` below, don't assume it's a PID |
 | Runtime kind | `GetAll()[name].Runtime` / `…Configuration.Runtime` | `Native` \| `Container` |
 | Lifecycle manager | `GetAll()[name].LifecycleManager` / `…Configuration.LifecycleManager` | `Standalone` \| `Systemd` |
 | systemd unit (→ cgroup) | `GetAll()[name].SystemdUnit` | e.g. `7dtd.service`; empty if not systemd |
@@ -47,26 +47,30 @@ of one process per instance (it exists specifically to avoid that fan-out).
 
 ## Per-instance metric anchor, by type
 
-How you actually measure an instance differs by type — kgsm-lib tells you which:
+The correct discriminator is **`(LifecycleManager, isContainer)`**, where
+`LifecycleManager ∈ {Systemd, Standalone}` and `isContainer` = the instance has a
+non-empty `ComposeFile`. **Containers always run under `Standalone`** — there is
+no systemd+container case. The `.pid` file is **overloaded** accordingly (verified
+from KGSM source: `templates/manage.container.d/03-lifecycle.sh` checks container
+liveness with `docker ps --filter id=$(cat <pid_file>)`):
 
-- **Native + standalone** → start from `Process.Pid`, walk the process tree
-  yourself for child-inclusive CPU/memory (`/proc/<pid>/stat`, `/proc/<pid>/status`).
-- **Systemd** → use `Instance.SystemdUnit` to find the cgroup
-  (`/sys/fs/cgroup/system.slice/<unit>/…`). cgroup accounting already includes
-  child processes — prefer it over the bare PID.
-- **Container** → use `Instance.ComposeFile`; resolve the running container via
-  the Docker API/CLI and read *its* cgroup. kgsm-lib deliberately does **not**
-  expose a "container name" — Docker derives it from the compose project + service,
-  and any string we synthesized would be a guess. Resolving it is the monitor's job.
+| Kind | Discriminator | Metric anchor |
+|---|---|---|
+| **Native, systemd** | `LifecycleManager == Systemd` | `Instance.SystemdUnit` → cgroup `/sys/fs/cgroup/system.slice/<unit>` — child-inclusive; prefer over the bare PID |
+| **Native, standalone** | `Standalone`, no `ComposeFile` | `.pid` / `Process.Pid` = a **real host PID** → walk the `/proc` process tree (`stat` / `status` / `io`) for child-inclusive totals |
+| **Container** | `Standalone`, has `ComposeFile` | `.pid` holds a **Docker container id** (not a PID) → resolve the container's cgroup / `docker` scope from it |
 
-**Verification status (be honest about it):** the live probes here were run
-against a native-standalone instance (`7dtd`), where `SystemdServiceFile` and
-`ComposeFile` are empty. The systemd and container anchors are confirmed from
-KGSM source (`commands/handlers/files.systemd.sh` populates
-`systemd_service_file=<dir>/<name>.service`; `commands/handlers/instances.sh`
-populates `compose_file=<wd>/<name>.docker-compose.yml`), **not** exercised live
-on this box. Validate against a real systemd and a real container instance before
-relying on those two paths.
+kgsm-lib deliberately does **not** expose a synthesized "container name" — Docker
+derives the running container from the compose project + service, so any string we
+invented would be a guess; resolving it from the container-id / compose file is the
+monitor's job.
+
+**Verification status:** native-standalone live-verified on `7dtd`. The systemd
+and container anchors are confirmed **from KGSM source**, not exercised on a real
+systemd/container instance here: `files.systemd.sh:61` →
+`systemd_service_file=<dir>/<name>.service`; `instances.sh:209` →
+`compose_file=<wd>/<name>.docker-compose.yml`; `manage.container.d/03-lifecycle.sh`
+→ the `.pid` file carries the container id. Validate both before relying on them.
 
 ## What kgsm-lib does NOT give you (the monitor's own job)
 

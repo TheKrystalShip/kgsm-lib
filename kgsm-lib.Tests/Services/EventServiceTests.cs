@@ -76,12 +76,13 @@ public class EventServiceTests
         });
         svc.Initialize();
 
+        // The payload still carries a legacy `LifecycleManager` field; the lib must ignore it
+        // (the property was removed) and still dispatch on InstanceName.
         _mockClient.Raise(c => c.EventReceived += null,
             Wire("instance_started", """{"InstanceName":"7dtd","LifecycleManager":"standalone"}"""));
 
         InstanceStartedData received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal("7dtd", received.InstanceName);
-        Assert.Equal(LifecycleManager.Standalone, received.LifecycleManager);
     }
 
     [Fact]
