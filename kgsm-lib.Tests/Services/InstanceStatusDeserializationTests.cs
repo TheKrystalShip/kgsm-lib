@@ -4,16 +4,19 @@ namespace TheKrystalShip.KGSM.Tests.Services;
 /// Verifies the real KGSM bulk-status wire shape
 /// (<c>instances list --status --json</c>) deserializes correctly through
 /// <see cref="KgsmCommandExecutor"/> into a keyed
-/// <see cref="InstanceRuntimeStatus"/> dictionary.
+/// <see cref="Reading{T}"/>-of-<see cref="InstanceRuntimeStatus"/> dictionary
+/// (via <see cref="KgsmBulkStatusReadingConverter"/>).
 ///
-/// The JSON below is captured verbatim from a live instance. It guards two
+/// The JSON below is captured verbatim from a live instance. It guards three
 /// things that previously broke (or would break) the whole fleet read:
 /// (1) <c>recent_logs</c> is a newline-joined <em>string</em>, not an array —
 /// a single mistyped field throws in the one <c>Deserialize&lt;Dictionary&gt;</c>
 /// call and collapses every instance to an empty result; (2) the tri-state
 /// <c>version</c> block, where fast mode reports "unchecked" (nulls) instead of
-/// fabricating an answer. A third test pins the failed-element shape KGSM emits
-/// for an instance whose management file can't answer <c>--status</c>.
+/// fabricating an answer; (3) the failed-element shape KGSM emits for an instance
+/// whose management file can't answer <c>--status</c> maps to a
+/// <see cref="ReadingState.Unavailable"/> reading carrying the cause, instead of
+/// a masquerading "stopped" status.
 /// </summary>
 public class InstanceStatusDeserializationTests
 {
@@ -59,14 +62,18 @@ public class InstanceStatusDeserializationTests
     {
         StubProcessOutput(LiveBulkFastJson);
 
-        Dictionary<string, InstanceRuntimeStatus>? result =
-            Create().ExecuteForJson<Dictionary<string, InstanceRuntimeStatus>>(
+        Dictionary<string, Reading<InstanceRuntimeStatus>>? result =
+            Create().ExecuteForJson<Dictionary<string, Reading<InstanceRuntimeStatus>>>(
                 ["instances", "list", "--status", "--json", "--fast"]);
 
         Assert.NotNull(result);
         Assert.True(result!.ContainsKey("7dtd"));
 
-        InstanceRuntimeStatus s = result["7dtd"];
+        // a healthy element is a measured reading carrying the status value.
+        Reading<InstanceRuntimeStatus> reading = result["7dtd"];
+        Assert.Equal(ReadingState.Measured, reading.State);
+        Assert.Null(reading.Code);
+        InstanceRuntimeStatus s = reading.Value!;
         Assert.Equal("7dtd", s.InstanceName);
         Assert.False(s.Status);
 
@@ -78,10 +85,6 @@ public class InstanceStatusDeserializationTests
         Assert.False(s.Version.Checked);
         Assert.Null(s.Version.Latest);
         Assert.Null(s.Version.UpdatesAvailable);
-
-        // a healthy element carries no error flags.
-        Assert.Null(s.Error);
-        Assert.Null(s.RequiresRegeneration);
     }
 
     [Fact]
@@ -107,17 +110,18 @@ public class InstanceStatusDeserializationTests
             """;
         StubProcessOutput(json);
 
-        Dictionary<string, InstanceRuntimeStatus>? result =
-            Create().ExecuteForJson<Dictionary<string, InstanceRuntimeStatus>>(
+        Dictionary<string, Reading<InstanceRuntimeStatus>>? result =
+            Create().ExecuteForJson<Dictionary<string, Reading<InstanceRuntimeStatus>>>(
                 ["instances", "list", "--status", "--json", "--fast"]);
 
         Assert.NotNull(result);
         Assert.Single(result!);
-        Assert.Equal(string.Empty, result["fresh"].RecentLogs);
+        Assert.Equal(ReadingState.Measured, result["fresh"].State);
+        Assert.Equal(string.Empty, result["fresh"].Value!.RecentLogs);
     }
 
     [Fact]
-    public void BulkStatus_FailedElement_DeserializesWithErrorFlags_WithoutSinkingDictionary()
+    public void BulkStatus_FailedElement_BecomesUnavailableReading_WithoutSinkingDictionary()
     {
         // Exact shape from commands/instances.sh `_get_instance_status_json`
         // for an instance whose management file predates `--status`.
@@ -138,19 +142,21 @@ public class InstanceStatusDeserializationTests
             """;
         StubProcessOutput(json);
 
-        Dictionary<string, InstanceRuntimeStatus>? result =
-            Create().ExecuteForJson<Dictionary<string, InstanceRuntimeStatus>>(
+        Dictionary<string, Reading<InstanceRuntimeStatus>>? result =
+            Create().ExecuteForJson<Dictionary<string, Reading<InstanceRuntimeStatus>>>(
                 ["instances", "list", "--status", "--json"]);
 
         Assert.NotNull(result);
         // The bad element does not sink the good one.
         Assert.Equal(2, result!.Count);
-        Assert.True(result["ok"].Status);
-        Assert.Null(result["ok"].Error);
+        Assert.Equal(ReadingState.Measured, result["ok"].State);
+        Assert.True(result["ok"].Value!.Status);
 
-        InstanceRuntimeStatus broken = result["broken"];
-        Assert.Equal("Management file does not support --status command", broken.Error);
-        Assert.True(broken.RequiresRegeneration);
-        Assert.False(broken.Status); // degenerate but safe — detectable via Error
+        // The failed element is a typed Unavailable reading, not a fake status.
+        Reading<InstanceRuntimeStatus> broken = result["broken"];
+        Assert.Equal(ReadingState.Unavailable, broken.State);
+        Assert.Equal(ReadingCode.RequiresRegeneration, broken.Code);
+        Assert.Equal("Management file does not support --status command", broken.Reason);
+        Assert.Null(broken.Value); // no masquerading status object
     }
 }

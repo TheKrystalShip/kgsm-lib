@@ -192,51 +192,52 @@ public class InstanceServiceTests
     [Fact]
     public void GetAllStatuses_Default_RequestsNonFastBulkStatus()
     {
-        var expected = new Dictionary<string, InstanceRuntimeStatus>
+        var expected = new Dictionary<string, Reading<InstanceRuntimeStatus>>
         {
-            ["7dtd"] = new() { InstanceName = "7dtd", Status = true }
+            ["7dtd"] = Reading<InstanceRuntimeStatus>.Measured(new() { InstanceName = "7dtd", Status = true })
         };
         _mockCommandExecutor
-            .Setup(x => x.ExecuteForJson<Dictionary<string, InstanceRuntimeStatus>>(
+            .Setup(x => x.ExecuteForJson<Dictionary<string, Reading<InstanceRuntimeStatus>>>(
                 It.Is<string[]>(a => ArgsAre(a, "instances", "list", "--status", "--json")),
                 It.IsAny<Action<JsonSerializerOptions>>(),
-                It.IsAny<Dictionary<string, InstanceRuntimeStatus>>()))
+                It.IsAny<Dictionary<string, Reading<InstanceRuntimeStatus>>>()))
             .Returns(expected);
 
         var result = _instanceService.GetAllStatuses();
 
         Assert.Same(expected, result);
-        Assert.True(result["7dtd"].Status);
+        Assert.Equal(ReadingState.Measured, result["7dtd"].State);
+        Assert.True(result["7dtd"].Value!.Status);
     }
 
     [Fact]
     public void GetAllStatuses_Fast_AppendsFastFlag()
     {
         _mockCommandExecutor
-            .Setup(x => x.ExecuteForJson<Dictionary<string, InstanceRuntimeStatus>>(
+            .Setup(x => x.ExecuteForJson<Dictionary<string, Reading<InstanceRuntimeStatus>>>(
                 It.Is<string[]>(a => ArgsAre(a, "instances", "list", "--status", "--json", "--fast")),
                 It.IsAny<Action<JsonSerializerOptions>>(),
-                It.IsAny<Dictionary<string, InstanceRuntimeStatus>>()))
-            .Returns(new Dictionary<string, InstanceRuntimeStatus>());
+                It.IsAny<Dictionary<string, Reading<InstanceRuntimeStatus>>>()))
+            .Returns(new Dictionary<string, Reading<InstanceRuntimeStatus>>());
 
         var result = _instanceService.GetAllStatuses(fast: true);
 
         Assert.NotNull(result);
-        _mockCommandExecutor.Verify(x => x.ExecuteForJson<Dictionary<string, InstanceRuntimeStatus>>(
+        _mockCommandExecutor.Verify(x => x.ExecuteForJson<Dictionary<string, Reading<InstanceRuntimeStatus>>>(
             It.Is<string[]>(a => a.Contains("--fast")),
             It.IsAny<Action<JsonSerializerOptions>>(),
-            It.IsAny<Dictionary<string, InstanceRuntimeStatus>>()), Times.Once);
+            It.IsAny<Dictionary<string, Reading<InstanceRuntimeStatus>>>()), Times.Once);
     }
 
     [Fact]
     public void GetAllStatuses_CommandReturnsNull_ReturnsEmptyDictionary()
     {
         _mockCommandExecutor
-            .Setup(x => x.ExecuteForJson<Dictionary<string, InstanceRuntimeStatus>>(
+            .Setup(x => x.ExecuteForJson<Dictionary<string, Reading<InstanceRuntimeStatus>>>(
                 It.IsAny<string[]>(),
                 It.IsAny<Action<JsonSerializerOptions>>(),
-                It.IsAny<Dictionary<string, InstanceRuntimeStatus>>()))
-            .Returns((Dictionary<string, InstanceRuntimeStatus>?)null);
+                It.IsAny<Dictionary<string, Reading<InstanceRuntimeStatus>>>()))
+            .Returns((Dictionary<string, Reading<InstanceRuntimeStatus>>?)null);
 
         var result = _instanceService.GetAllStatuses();
 

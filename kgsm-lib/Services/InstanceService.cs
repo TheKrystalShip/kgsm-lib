@@ -66,13 +66,13 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
-    public Dictionary<string, InstanceRuntimeStatus> GetAllStatuses(bool fast = false)
+    public Dictionary<string, Reading<InstanceRuntimeStatus>> GetAllStatuses(bool fast = false)
     {
         string[] args = fast
             ? ["instances", "list", "--status", "--json", "--fast"]
             : ["instances", "list", "--status", "--json"];
 
-        return _commandExecutor.ExecuteForJson<Dictionary<string, InstanceRuntimeStatus>>(args) ?? [];
+        return _commandExecutor.ExecuteForJson<Dictionary<string, Reading<InstanceRuntimeStatus>>>(args) ?? [];
     }
 
     /// <inheritdoc/>

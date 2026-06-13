@@ -28,7 +28,8 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(Instance))]
 [JsonSerializable(typeof(Dictionary<string, Instance>))]
 [JsonSerializable(typeof(InstanceRuntimeStatus))]
-[JsonSerializable(typeof(Dictionary<string, InstanceRuntimeStatus>))]
+[JsonSerializable(typeof(Reading<InstanceRuntimeStatus>))]
+[JsonSerializable(typeof(Dictionary<string, Reading<InstanceRuntimeStatus>>))]
 [JsonSerializable(typeof(Blueprint))]
 [JsonSerializable(typeof(BlueprintMetadata))]
 [JsonSerializable(typeof(Dictionary<string, Blueprint>))]
@@ -101,6 +102,11 @@ internal static class KgsmJson
         // Per-property [JsonConverter] attributes still take precedence where set.
         options.Converters.Add(new JsonStringToBoolConverter());
         options.Converters.Add(new JsonStringToIntConverter());
+
+        // Maps KGSM's polymorphic bulk-status element (status object | error
+        // object) to a Reading<InstanceRuntimeStatus>; CanConvert matches only
+        // that one closed type, so ordering vs the scalar converters is moot.
+        options.Converters.Add(new KgsmBulkStatusReadingConverter());
 
         return options;
     }

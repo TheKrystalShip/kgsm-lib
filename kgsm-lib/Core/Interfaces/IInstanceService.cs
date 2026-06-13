@@ -47,9 +47,14 @@ public interface IInstanceService
     /// rather than fabricating an answer.
     /// </param>
     /// <returns>
-    /// A map of instance name to runtime status. An instance whose status could
-    /// not be read appears with <see cref="InstanceRuntimeStatus.Error"/> set
-    /// instead of sinking the whole call. Empty if the command itself fails.
+    /// A map of instance name to a <see cref="Reading{T}"/> of its runtime
+    /// status. A successfully-read instance is <see cref="ReadingState.Measured"/>
+    /// with its status in <see cref="Reading{T}.Value"/>; an instance whose status
+    /// could not be read (e.g. a management file that cannot answer
+    /// <c>--status</c>) is <see cref="ReadingState.Unavailable"/> with a
+    /// <see cref="ReadingCode"/> (typically <see cref="ReadingCode.RequiresRegeneration"/>),
+    /// so one bad instance never sinks the whole call. Empty if the command itself
+    /// fails.
     /// </returns>
     /// <remarks>
     /// This is the bulk counterpart to <see cref="GetInstanceStatus(string)"/>:
@@ -59,7 +64,7 @@ public interface IInstanceService
     /// instance management script's own status report; dedicated liveness
     /// routing (systemd vs standalone) is a separate lifecycle-layer concern.
     /// </remarks>
-    Dictionary<string, InstanceRuntimeStatus> GetAllStatuses(bool fast = false);
+    Dictionary<string, Reading<InstanceRuntimeStatus>> GetAllStatuses(bool fast = false);
 
     /// <summary>
     /// Installs an instance of a blueprint.

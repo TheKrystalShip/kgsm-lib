@@ -159,22 +159,12 @@ public record class InstanceRuntimeStatus
     [JsonConverter(typeof(JsonRecentLogsConverter))]
     public string RecentLogs { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Gets or sets the error message for an instance whose status could not be
-    /// read. Non-null only for a failed element in a bulk read
-    /// (<c>instances list --status --json</c>), where KGSM emits
-    /// <c>{"error":…, "instance":…, "requires_regeneration":true}</c> as the
-    /// map value instead of a status object — so one bad instance never sinks
-    /// the whole fleet read. Null on a successful read.
-    /// </summary>
-    [JsonPropertyName("error")]
-    public string? Error { get; set; }
-
-    /// <summary>
-    /// Gets or sets whether the instance's management file must be regenerated
-    /// to answer status queries. Set (true) only on a failed bulk-read element;
-    /// null on a successful read. See <see cref="Error"/>.
-    /// </summary>
-    [JsonPropertyName("requires_regeneration")]
-    public bool? RequiresRegeneration { get; set; }
+    // NOTE: a failed element in a bulk read (an instance whose management file
+    // cannot answer --status) is no longer carried as nullable Error/
+    // RequiresRegeneration fields on this status object. KGSM still emits the
+    // wire shape {"error":…, "instance":…, "requires_regeneration":true}, but
+    // KgsmBulkStatusReadingConverter maps it to a Reading<InstanceRuntimeStatus>
+    // at state=Unavailable (code=RequiresRegeneration) — see Reading{T} and the
+    // bulk return of IInstanceService.GetAllStatuses. This keeps "measured vs
+    // could-not-read" a typed distinction instead of a masquerading default.
 }
