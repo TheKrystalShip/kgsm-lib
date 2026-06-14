@@ -74,4 +74,8 @@ public class SystemService : ISystemService
     /// <inheritdoc/>
     public T? GetInfo<T>()
         => _commandExecutor.ExecuteForJson<T>(["system", "info", "--json"]);
+
+    /// <inheritdoc/>
+    public SystemInfo? GetSystemInfo()
+        => _commandExecutor.ExecuteForJson<SystemInfo>(["system", "info", "--json"]);
 }

@@ -79,4 +79,16 @@ public interface ISystemService
     /// The deserialized system info, or <c>null</c> if execution or deserialization fails.
     /// </returns>
     T? GetInfo<T>();
+
+    /// <summary>
+    /// Gets comprehensive host system information as a typed <see cref="SystemInfo"/>
+    /// (uptime / load / memory / disk / network), deserialized from
+    /// <c>system info --json</c>. Disk/memory/load values are human-readable strings
+    /// (see <see cref="DiskInfo"/>), not byte counts.
+    /// </summary>
+    /// <returns>
+    /// The deserialized <see cref="SystemInfo"/>, or <c>null</c> if execution or
+    /// deserialization fails.
+    /// </returns>
+    SystemInfo? GetSystemInfo();
 }

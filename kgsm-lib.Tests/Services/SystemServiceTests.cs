@@ -371,4 +371,92 @@ public class SystemServiceTests
 
         Assert.Null(result);
     }
+
+    // --- GetSystemInfo (typed) ---
+
+    [Fact]
+    public void GetSystemInfo_SuccessfulExecution_ReturnsDeserializedObject()
+    {
+        var expected = new SystemInfo { Disk = new DiskInfo { UsePercent = "26%" } };
+
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteForJson<SystemInfo>(
+                It.Is<string[]>(args => args.SequenceEqual(new[] { "system", "info", "--json" })),
+                It.IsAny<Action<JsonSerializerOptions>?>(),
+                It.IsAny<SystemInfo?>()))
+            .Returns(expected);
+
+        SystemInfo? result = _systemService.GetSystemInfo();
+
+        Assert.NotNull(result);
+        Assert.Equal("26%", result!.Disk.UsePercent);
+    }
+
+    [Fact]
+    public void GetSystemInfo_ExecutionFails_ReturnsNull()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteForJson<SystemInfo>(
+                It.Is<string[]>(args => args.SequenceEqual(new[] { "system", "info", "--json" })),
+                It.IsAny<Action<JsonSerializerOptions>?>(),
+                It.IsAny<SystemInfo?>()))
+            .Returns((SystemInfo?)null);
+
+        SystemInfo? result = _systemService.GetSystemInfo();
+
+        Assert.Null(result);
+    }
+
+    // --- SystemInfo wire-shape deserialization (real source-gen path) ---
+
+    // Captured verbatim from `bash kgsm.sh system info --json` on a live host.
+    // Guards the load-bearing fact that disk/memory/load arrive as df/free human
+    // strings ("916G", "26%") — NOT byte counts — and that reboot_required is a
+    // real JSON bool. If this shape drifts, the disk health check breaks.
+    private const string LiveSystemInfoJson = """
+        {
+          "uptime": "up 5 days, 56 minutes",
+          "load": { "1min": "0.09", "5min": "0.25", "15min": "0.25" },
+          "memory": { "total": "31Gi", "used": "12Gi", "free": "2.1Gi", "available": "18Gi" },
+          "disk": {
+            "filesystem": "/dev/nvme0n1p2",
+            "size": "916G",
+            "used": "221G",
+            "available": "649G",
+            "use_percent": "26%",
+            "mount": "/"
+          },
+          "network": { "external_ip": "95.19.50.122", "local_ips": ["192.168.1.128"] },
+          "reboot_required": false
+        }
+        """;
+
+    [Fact]
+    public void SystemInfo_DeserializesDiskAsHumanStrings_ThroughSourceGenContext()
+    {
+        var processRunner = new Mock<IProcessRunner>();
+        var executorLogger = new Mock<ILogger<KgsmCommandExecutor>>();
+        processRunner
+            .Setup(r => r.Execute(It.IsAny<string>(), It.IsAny<TimeSpan>(), It.IsAny<string[]>()))
+            .Returns(new ProcessResult(0, LiveSystemInfoJson, string.Empty));
+
+        var executor = new KgsmCommandExecutor(
+            processRunner.Object,
+            new KgsmOptions { KgsmPath = "/opt/kgsm/kgsm.sh", Timeouts = new KgsmTimeoutOptions() },
+            executorLogger.Object);
+
+        SystemInfo? info = executor.ExecuteForJson<SystemInfo>(["system", "info", "--json"]);
+
+        Assert.NotNull(info);
+        Assert.Equal("/dev/nvme0n1p2", info!.Disk.Filesystem);
+        Assert.Equal("916G", info.Disk.Size);
+        Assert.Equal("221G", info.Disk.Used);
+        Assert.Equal("649G", info.Disk.Available);
+        Assert.Equal("26%", info.Disk.UsePercent);
+        Assert.Equal("/", info.Disk.Mount);
+        Assert.Equal("31Gi", info.Memory.Total);
+        Assert.Equal("0.09", info.Load.OneMin);
+        Assert.Equal("95.19.50.122", info.Network.ExternalIp);
+        Assert.False(info.RebootRequired);
+    }
 }
