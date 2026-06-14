@@ -259,6 +259,12 @@ public class EventService : IEventService, IAsyncDisposable
                     return;
                 }
 
+                // Carry the envelope's audit metadata (who/when) onto the data object so
+                // handlers see it without a signature change. These live at the top level
+                // of the wrapper, not inside Data, so DeserializeEventData never sets them.
+                eventData.Timestamp = eventWrapper.Timestamp;
+                eventData.Actor = eventWrapper.Actor;
+
                 await InvokeHandlerAsync(eventData).ConfigureAwait(false);
             }
             else

@@ -107,6 +107,59 @@ public class EventServiceTests
     }
 
     [Fact]
+    public async Task ReceivedEvent_CopiesEnvelopeActorAndTimestampOntoData()
+    {
+        using EventService svc = CreateService();
+        var tcs = new TaskCompletionSource<InstanceStartedData>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        svc.RegisterHandler<InstanceStartedData>(data =>
+        {
+            tcs.TrySetResult(data);
+            return Task.CompletedTask;
+        });
+        svc.Initialize();
+
+        // Actor/Timestamp live at the top level of the envelope, not inside Data; the
+        // service must copy them onto the data object so the handler sees who+when.
+        const string wire = """
+            {"EventType":"instance_started","Data":{"InstanceName":"7dtd"},"Timestamp":"2026-06-14T15:39:58Z","Actor":"discord:tester","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+            """;
+        _mockClient.Raise(c => c.EventReceived += null, wire);
+
+        InstanceStartedData received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("7dtd", received.InstanceName);
+        Assert.Equal("discord:tester", received.Actor);
+        Assert.Equal(
+            new DateTimeOffset(2026, 6, 14, 15, 39, 58, TimeSpan.Zero),
+            received.Timestamp);
+    }
+
+    [Fact]
+    public async Task ReceivedEvent_NoActorOnWire_LeavesActorNull()
+    {
+        using EventService svc = CreateService();
+        var tcs = new TaskCompletionSource<InstanceStartedData>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        svc.RegisterHandler<InstanceStartedData>(data =>
+        {
+            tcs.TrySetResult(data);
+            return Task.CompletedTask;
+        });
+        svc.Initialize();
+
+        // Wire() carries Timestamp but no Actor — the absent actor stays null (never
+        // a fabricated identity), while the present timestamp is still copied through.
+        _mockClient.Raise(c => c.EventReceived += null,
+            Wire("instance_started", """{"InstanceName":"7dtd"}"""));
+
+        InstanceStartedData received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Null(received.Actor);
+        Assert.NotNull(received.Timestamp);
+    }
+
+    [Fact]
     public void ReceivedEvent_UnknownEventType_DoesNotInvokeHandlerOrThrow()
     {
         using EventService svc = CreateService();

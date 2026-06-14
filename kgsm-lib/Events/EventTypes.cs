@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace TheKrystalShip.KGSM.Events;
 
@@ -13,10 +14,29 @@ public abstract class EventDataBase
     /// Gets or sets the name of the instance associated with the event.
     /// </summary>
     public string InstanceName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets when the event was emitted (UTC). Populated from the event
+    /// envelope's top-level <c>Timestamp</c> by <c>EventService</c>, not from the
+    /// per-event <c>Data</c> payload. <see langword="null"/> means the emitter did
+    /// not supply one (a pre-enrichment KGSM) — never a fabricated time.
+    /// </summary>
+    public DateTimeOffset? Timestamp { get; set; }
+
+    /// <summary>
+    /// Gets or sets who triggered the event (the audit principal). Populated from
+    /// the envelope's top-level <c>Actor</c> by <c>EventService</c>. KGSM takes it
+    /// from <c>$KGSM_EVENT_ACTOR</c> (caller-supplied) or falls back to the invoking
+    /// OS user; <see langword="null"/> means the emitter did not supply one.
+    /// </summary>
+    public string? Actor { get; set; }
 }
 
 /// <summary>
-/// Represents the wrapper for events received from KGSM.
+/// Represents the wrapper for events received from KGSM — the top-level envelope
+/// around each event's <see cref="Data"/> payload. Mirrors the wire shape emitted
+/// by KGSM's <c>_build_event_payload</c>: <c>EventType</c>, <c>Data</c>, and the
+/// emission metadata (<c>Timestamp</c>, <c>Actor</c>, <c>Hostname</c>, <c>KGSMVersion</c>).
 /// </summary>
 public class EventWrapper
 {
@@ -24,11 +44,34 @@ public class EventWrapper
     /// Gets or sets the type of the event.
     /// </summary>
     public string EventType { get; set; } = string.Empty;
-    
+
     /// <summary>
     /// Gets or sets the data associated with the event.
     /// </summary>
     public JsonElement Data { get; set; }
+
+    /// <summary>
+    /// Gets or sets when the event was emitted (UTC). <see langword="null"/> if the
+    /// emitter did not include it.
+    /// </summary>
+    public DateTimeOffset? Timestamp { get; set; }
+
+    /// <summary>
+    /// Gets or sets who triggered the event (the audit principal). <see langword="null"/>
+    /// if the emitter did not include it.
+    /// </summary>
+    public string? Actor { get; set; }
+
+    /// <summary>
+    /// Gets or sets the host KGSM emitted the event from. <see langword="null"/> if absent.
+    /// </summary>
+    public string? Hostname { get; set; }
+
+    /// <summary>
+    /// Gets or sets the KGSM version that emitted the event. <see langword="null"/> if absent.
+    /// </summary>
+    [JsonPropertyName("KGSMVersion")]
+    public string? KgsmVersion { get; set; }
 }
 
 /// <summary>

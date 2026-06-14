@@ -72,6 +72,48 @@ public class EventDeserializationTests
         Assert.Equal("7dtd", failed.InstanceName);
     }
 
+    // Models the kgsm `_build_event_payload` wire shape after the actor/timestamp
+    // enrichment (reconstructed from a captured emit; JSON is whitespace/order-
+    // insensitive): the envelope now carries a top-level Actor alongside Timestamp.
+    private const string EnrichedWireJson = """
+        {"EventType":"instance_started","Data":{"InstanceName":"factorio-01"},"Timestamp":"2026-06-14T15:39:58Z","Actor":"discord:tester","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+        """;
+
+    [Fact]
+    public void EventWrapper_SurfacesEnvelopeMetadata_FromEnrichedWireJson()
+    {
+        EventWrapper? wrapper =
+            JsonSerializer.Deserialize(EnrichedWireJson, KgsmJsonContext.Default.EventWrapper);
+
+        Assert.NotNull(wrapper);
+        Assert.Equal("instance_started", wrapper!.EventType);
+        Assert.Equal("discord:tester", wrapper.Actor);
+        Assert.Equal(
+            new DateTimeOffset(2026, 6, 14, 15, 39, 58, TimeSpan.Zero),
+            wrapper.Timestamp);
+        Assert.Equal("hotrod", wrapper.Hostname);
+        // KgsmVersion binds via [JsonPropertyName("KGSMVersion")] despite the casing.
+        Assert.Equal("3.0.0", wrapper.KgsmVersion);
+    }
+
+    [Fact]
+    public void EventWrapper_MissingEnvelopeMetadata_IsNull()
+    {
+        // A pre-enrichment / minimal payload: the new envelope fields are honestly
+        // absent (null), never a fabricated default.
+        const string minimalWire =
+            """{"EventType":"instance_started","Data":{"InstanceName":"x"}}""";
+
+        EventWrapper? wrapper =
+            JsonSerializer.Deserialize(minimalWire, KgsmJsonContext.Default.EventWrapper);
+
+        Assert.NotNull(wrapper);
+        Assert.Null(wrapper!.Actor);
+        Assert.Null(wrapper.Timestamp);
+        Assert.Null(wrapper.Hostname);
+        Assert.Null(wrapper.KgsmVersion);
+    }
+
     [Fact]
     public void EveryEventDataType_IsRegisteredInJsonContext()
     {
