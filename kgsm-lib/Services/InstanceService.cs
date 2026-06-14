@@ -274,6 +274,29 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
+    public KgsmResult GetInstanceConfigValue(string instanceName, string key)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+        ArgumentException.ThrowIfNullOrWhiteSpace(key, nameof(key));
+
+        return _commandExecutor.Execute("instances", "config-get", instanceName, key);
+    }
+
+    /// <inheritdoc/>
+    public KgsmResult SetInstanceConfigValue(string instanceName, string key, string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+        ArgumentException.ThrowIfNullOrWhiteSpace(key, nameof(key));
+        // The value may legitimately be the empty string (e.g. clearing
+        // executable_arguments), so only null is rejected.
+        ArgumentNullException.ThrowIfNull(value, nameof(value));
+
+        // The whole assignment rides as a single argv element; kgsm splits it on
+        // the first '=' only, so a value containing '=' is preserved.
+        return _commandExecutor.Execute("instances", "config-set", instanceName, $"{key}={value}");
+    }
+
+    /// <inheritdoc/>
     public Task<LogSubscription> SubscribeToLogsAsync(string instanceName, CancellationToken cancellationToken = default)
     {
         return _logSubscriptionService

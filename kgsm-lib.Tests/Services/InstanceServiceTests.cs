@@ -609,4 +609,119 @@ public class InstanceServiceTests
         Assert.False(result.IsSuccess);
         Assert.Equal(1, result.ExitCode);
     }
+
+    // --- GetInstanceConfigValue : Execute("instances", "config-get", name, key) ---
+
+    [Fact]
+    public void GetInstanceConfigValue_NullInstanceName_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _instanceService.GetInstanceConfigValue(null!, "auto_update"));
+    }
+
+    [Fact]
+    public void GetInstanceConfigValue_NullKey_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _instanceService.GetInstanceConfigValue("my-instance", null!));
+    }
+
+    [Fact]
+    public void GetInstanceConfigValue_SuccessfulExecution_ReturnsValue()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", "config-get", "my-instance", "auto_update"))))
+            .Returns(new KgsmResult(new ProcessResult(0, "true", string.Empty)));
+
+        KgsmResult result = _instanceService.GetInstanceConfigValue("my-instance", "auto_update");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("true", result.Stdout);
+    }
+
+    [Fact]
+    public void GetInstanceConfigValue_ExecutionFails_ReturnsFailureResult()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", "config-get", "unknown-instance", "auto_update"))))
+            .Returns(new KgsmResult(new ProcessResult(1, string.Empty, "Instance not found")));
+
+        KgsmResult result = _instanceService.GetInstanceConfigValue("unknown-instance", "auto_update");
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(1, result.ExitCode);
+    }
+
+    // --- SetInstanceConfigValue : Execute("instances", "config-set", name, "key=value") ---
+
+    [Fact]
+    public void SetInstanceConfigValue_NullInstanceName_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _instanceService.SetInstanceConfigValue(null!, "auto_update", "true"));
+    }
+
+    [Fact]
+    public void SetInstanceConfigValue_NullKey_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _instanceService.SetInstanceConfigValue("my-instance", null!, "true"));
+    }
+
+    [Fact]
+    public void SetInstanceConfigValue_NullValue_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _instanceService.SetInstanceConfigValue("my-instance", "auto_update", null!));
+    }
+
+    [Fact]
+    public void SetInstanceConfigValue_SuccessfulExecution_ReturnsSuccessResult()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", "config-set", "my-instance", "auto_update=true"))))
+            .Returns(new KgsmResult(new ProcessResult(0, "[SUCCESS] Set 'auto_update'", string.Empty)));
+
+        KgsmResult result = _instanceService.SetInstanceConfigValue("my-instance", "auto_update", "true");
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void SetInstanceConfigValue_ValueWithEqualsAndSpaces_PassedAsSingleArgvElement()
+    {
+        // The value contains spaces and an embedded '='; it must be joined to the
+        // key as one argv element so kgsm can split it on the first '=' only.
+        const string value = "--foo=bar baz";
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", "config-set", "my-instance", "executable_arguments=--foo=bar baz"))))
+            .Returns(new KgsmResult(new ProcessResult(0, string.Empty, string.Empty)));
+
+        KgsmResult result = _instanceService.SetInstanceConfigValue("my-instance", "executable_arguments", value);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void SetInstanceConfigValue_EmptyValue_IsAllowedAndProducesTrailingEquals()
+    {
+        // Clearing a value is valid: key= with nothing after the '='.
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", "config-set", "my-instance", "executable_arguments="))))
+            .Returns(new KgsmResult(new ProcessResult(0, string.Empty, string.Empty)));
+
+        KgsmResult result = _instanceService.SetInstanceConfigValue("my-instance", "executable_arguments", string.Empty);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void SetInstanceConfigValue_RefusedKey_ReturnsFailureResultNotException()
+    {
+        // A protected key is refused by kgsm with a non-zero exit code; the library
+        // surfaces that as a failed result rather than throwing.
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", "config-set", "my-instance", "name=hacked"))))
+            .Returns(new KgsmResult(new ProcessResult(8, string.Empty, "'name' is a protected key")));
+
+        KgsmResult result = _instanceService.SetInstanceConfigValue("my-instance", "name", "hacked");
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(8, result.ExitCode);
+    }
 }

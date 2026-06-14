@@ -241,6 +241,33 @@ public interface IInstanceService
     KgsmResult FindConfigPath(string instanceName);
 
     /// <summary>
+    /// Reads a single value from an instance's configuration file.
+    /// </summary>
+    /// <param name="instanceName">The instance whose config to read.</param>
+    /// <param name="key">The configuration key to read.</param>
+    /// <returns>Result whose standard output holds the value (empty if the key is absent).</returns>
+    /// <exception cref="ArgumentException">Thrown when instanceName or key is null or whitespace.</exception>
+    KgsmResult GetInstanceConfigValue(string instanceName, string key);
+
+    /// <summary>
+    /// Sets a single key=value in an instance's configuration file.
+    /// </summary>
+    /// <remarks>
+    /// Only plain runtime values are settable. KGSM refuses identity/structural keys,
+    /// the filesystem paths it manages (every *_dir/*_file), and the integration toggles
+    /// (enable_firewall_management, enable_port_forwarding, enable_command_shortcuts) —
+    /// those have dedicated flows. A refused key surfaces as a non-zero
+    /// <see cref="KgsmResult"/> rather than an exception.
+    /// </remarks>
+    /// <param name="instanceName">The instance whose config to modify.</param>
+    /// <param name="key">The configuration key to set.</param>
+    /// <param name="value">The value to write; may be the empty string, but not null.</param>
+    /// <returns>Result of the operation.</returns>
+    /// <exception cref="ArgumentException">Thrown when instanceName or key is null or whitespace.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when value is null.</exception>
+    KgsmResult SetInstanceConfigValue(string instanceName, string key, string value);
+
+    /// <summary>
     /// Subscribes to continuous log streaming for an instance.
     /// This method starts a background process that continuously streams logs from the specified instance
     /// using the KGSM "--follow" flag. The returned LogSubscription object provides events for
