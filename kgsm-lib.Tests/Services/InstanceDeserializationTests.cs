@@ -55,6 +55,32 @@ public class InstanceDeserializationTests
     }
 
     [Fact]
+    public void CgroupPath_binds_from_the_wire_field()
+    {
+        // KGSM emits the derived native cgroup directory; the monitor reads it to sample
+        // cgroup counters directly. Binds via [JsonPropertyName("cgroup_path")].
+        StubProcessOutput("""{"name":"7dtd","runtime":"native","cgroup_path":"/sys/fs/cgroup/kgsm.slice/7dtd"}""");
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        Assert.Equal("/sys/fs/cgroup/kgsm.slice/7dtd", result!.CgroupPath);
+    }
+
+    [Fact]
+    public void CgroupPath_defaults_to_empty_when_absent()
+    {
+        // Older KGSM (and container instances) emit no cgroup_path — it must deserialize to
+        // empty, the signal the monitor uses to fall back to its /proc-tree probe.
+        StubProcessOutput("""{"name":"7dtd","runtime":"native"}""");
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        Assert.Equal(string.Empty, result!.CgroupPath);
+    }
+
+    [Fact]
     public void Legacy_systemd_and_lifecycle_manager_fields_are_ignored_not_thrown_on()
     {
         // Older KGSM still emits lifecycle_manager / enable_systemd / systemd_* — their properties were

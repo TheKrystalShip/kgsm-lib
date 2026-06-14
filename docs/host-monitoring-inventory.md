@@ -38,6 +38,7 @@ of one process per instance (it exists specifically to avoid that fan-out).
 | PID file path | `GetAll()[name].PidFile` | **overloaded** — a real **host PID** for native, a **Docker container id** for containers; disambiguate via `isContainer` below, don't assume it's a PID |
 | Runtime kind | `GetAll()[name].Runtime` / `…Configuration.Runtime` | `Native` \| `Container` — the sole supervision discriminator |
 | Container compose file | `GetAll()[name].ComposeFile` | e.g. `<wd>/<name>.docker-compose.yml`; empty if native |
+| Native cgroup path | `GetAll()[name].CgroupPath` | `/sys/fs/cgroup/kgsm.slice/<name>` for natives (the per-instance cgroup kgsm-watchdog creates); empty for containers and for a KGSM too old to emit it (< 1.5.0 lib). Prefer it over the `/proc` walk; check the dir exists and fall back when it doesn't. |
 | Working / install / logs / saves dirs | `GetAll()[name].WorkingDir` / `InstallDir` / `LogsDir` / `SavesDir` | disk-usage targets |
 | Ports | `GetAll()[name].Ports` / `…Configuration.Ports` | pipe-separated `26900:26903/tcp\|…` |
 | Instance disk usage (snapshot) | `GetAllStatuses()[name].Resources.DiskUsage` | human string (`"16G"`) from `du -sh`; for byte time-series, measure the dirs yourself |
@@ -53,7 +54,7 @@ liveness with `docker ps --filter id=$(cat <pid_file>)`):
 
 | Kind | Discriminator | Metric anchor |
 |---|---|---|
-| **Native** | no `ComposeFile` | `.pid` / `Process.Pid` = a **real host PID** → walk the `/proc` process tree (`stat` / `status` / `io`) for child-inclusive totals. (Watchdog-supervised natives also live in a per-instance cgroup under `/sys/fs/cgroup/kgsm.slice/<name>` — a future, child-inclusive anchor the resolver does not yet key on.) |
+| **Native** | no `ComposeFile` | **cgroup-first:** watchdog-supervised natives live in a per-instance cgroup at `GetAll()[name].CgroupPath` (`/sys/fs/cgroup/kgsm.slice/<name>`); read its `cpu.stat` / `memory.current` / `pids.current` / `io.stat` for child-inclusive, kernel-aggregated totals. **`/proc` fallback:** when `CgroupPath` is empty (cgroups disabled, pre-1.5.0 KGSM) or the directory does not exist yet, walk the `/proc` process tree from `.pid` / `Process.Pid` (a **real host PID**) — child-inclusive but biased-low on child churn and overcounting shared RSS. The single arbiter between the two is whether the cgroup dir exists, so a server is sampled by exactly one path. |
 | **Container** | has `ComposeFile` | `.pid` holds a **Docker container id** (not a PID) → resolve the container's cgroup / `docker` scope from it |
 
 kgsm-lib deliberately does **not** expose a synthesized "container name" — Docker

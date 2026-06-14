@@ -119,6 +119,19 @@ public record class Instance
     public InstanceRuntime Runtime { get; set; } = InstanceRuntime.Native;
 
     /// <summary>
+    /// Gets or sets the per-instance cgroup v2 directory KGSM derives for a native
+    /// instance (e.g. <c>/sys/fs/cgroup/kgsm.slice/&lt;name&gt;</c>) — the exact path
+    /// kgsm-watchdog (re)creates on every native start. <see cref="string.Empty"/> for
+    /// container instances (Docker owns their cgroup) and when KGSM omits it. This is the
+    /// engine-owned cgroup-path contract: a consumer reading per-instance cgroup counters
+    /// (kgsm-monitor) uses this rather than re-deriving the layout or opening the watchdog
+    /// socket, and falls back to its own probe (the <c>/proc</c> tree) when the directory
+    /// is absent. Bound case-insensitively from KGSM's <c>cgroup_path</c> field.
+    /// </summary>
+    [JsonPropertyName("cgroup_path")]
+    public string CgroupPath { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the platform for the instance.
     /// </summary>
     public string Platform { get; set; } = string.Empty;
