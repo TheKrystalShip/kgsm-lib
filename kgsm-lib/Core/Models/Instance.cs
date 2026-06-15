@@ -185,22 +185,20 @@ public record class Instance
     public bool IsSteamAccountRequired { get; set; } = false;
 
     /// <summary>
-    /// Gets or sets the ports for the instance.
+    /// Gets or sets the instance's ports as the canonical range-preserving structured form
+    /// (<c>[{start,end,protocol}]</c>). KGSM derives this from the UFW-style port spec and emits
+    /// it on <c>instances info --json</c>; it replaces the old opaque <c>ports</c> string AND the
+    /// pre-expanded <c>upnp_ports</c> bash-array. Consumers expand it (<see cref="PortMappingExtensions.Expand"/>)
+    /// or render it (<see cref="PortMappingExtensions.ToUfwSpec"/>) rather than re-parsing a string.
     /// </summary>
     [JsonPropertyName("ports")]
-    public string Ports { get; set; } = string.Empty;
+    public List<PortMapping> Ports { get; set; } = [];
 
     /// <summary>
     /// Gets or sets whether port forwarding is enabled for the instance.
     /// </summary>
     [JsonPropertyName("enable_port_forwarding")]
     public bool EnablePortForwarding { get; set; } = false;
-
-    /// <summary>
-    /// Gets or sets the UPnP ports for the instance.
-    /// </summary>
-    [JsonPropertyName("upnp_ports")]
-    public string UpnpPorts { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets whether firewall management is enabled for the instance.

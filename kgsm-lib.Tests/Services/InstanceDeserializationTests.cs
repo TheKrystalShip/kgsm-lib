@@ -95,4 +95,70 @@ public class InstanceDeserializationTests
         Assert.Equal("7dtd", result!.Name);
         Assert.Equal(InstanceRuntime.Native, result.Runtime);
     }
+
+    [Fact]
+    public void Ports_bind_from_the_structured_array_real_factorio_shape()
+    {
+        // Captured verbatim from `kgsm instances info factorio-test --json | jq -c .ports`:
+        // a proto-less single port expands to one tcp + one udp mapping, each start==end.
+        StubProcessOutput("""
+            {"name":"7dtd","runtime":"native","ports":[{"start":34197,"end":34197,"protocol":"tcp"},{"start":34197,"end":34197,"protocol":"udp"}]}
+            """);
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        Assert.Equal(
+            [new PortMapping { Start = 34197, End = 34197, Protocol = "tcp" },
+             new PortMapping { Start = 34197, End = 34197, Protocol = "udp" }],
+            result!.Ports);
+    }
+
+    [Fact]
+    public void Ports_preserve_ranges_as_a_single_mapping()
+    {
+        // A UFW range stays ONE {start,end} mapping (range-preserving) — not unrolled on the wire.
+        StubProcessOutput("""
+            {"name":"7dtd","runtime":"native","ports":[{"start":27015,"end":27020,"protocol":"udp"}]}
+            """);
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        PortMapping only = Assert.Single(result!.Ports);
+        Assert.Equal(27015, only.Start);
+        Assert.Equal(27020, only.End);
+        Assert.Equal("udp", only.Protocol);
+    }
+
+    [Fact]
+    public void Ports_default_to_empty_list_when_absent()
+    {
+        // Containers (Docker owns ports) and older KGSM emit no `ports` — must be an empty list,
+        // never null, so consumers can enumerate without a null check.
+        StubProcessOutput("""{"name":"7dtd","runtime":"native"}""");
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        Assert.NotNull(result!.Ports);
+        Assert.Empty(result.Ports);
+    }
+
+    [Fact]
+    public void Ports_start_end_also_bind_from_stringly_numbers()
+    {
+        // Defensive: even if start/end arrive as KGSM's stringly scalars, the global
+        // string->int coercion binds them — either wire shape works.
+        StubProcessOutput("""
+            {"name":"7dtd","runtime":"native","ports":[{"start":"80","end":"80","protocol":"tcp"}]}
+            """);
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        PortMapping only = Assert.Single(result!.Ports);
+        Assert.Equal(80, only.Start);
+        Assert.Equal(80, only.End);
+    }
 }

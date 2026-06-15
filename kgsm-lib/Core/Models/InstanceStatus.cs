@@ -82,11 +82,11 @@ public record class ConfigurationInfo
     [JsonPropertyName("directory")]
     public string Directory { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Gets or sets the ports.
-    /// </summary>
-    [JsonPropertyName("ports")]
-    public string Ports { get; set; } = string.Empty;
+    // NB: no Ports here. The status surface (`status --json`) still echoes a `ports` string from
+    // the management script, but nothing read it, and the canonical structured port form lives on
+    // Instance.Ports (the config/info surface). The leftover wire field is harmlessly ignored
+    // (System.Text.Json skips unmapped members). If a status consumer ever needs ports, add it
+    // back as List<PortMapping> AND switch the mgmt-script status template to emit the array.
 }
 
 /// <summary>

@@ -27,6 +27,8 @@ namespace TheKrystalShip.KGSM;
 // --- Command-executor result types ---
 [JsonSerializable(typeof(Instance))]
 [JsonSerializable(typeof(Dictionary<string, Instance>))]
+[JsonSerializable(typeof(PortMapping))]
+[JsonSerializable(typeof(List<PortMapping>))]
 [JsonSerializable(typeof(InstanceRuntimeStatus))]
 [JsonSerializable(typeof(Reading<InstanceRuntimeStatus>))]
 [JsonSerializable(typeof(Dictionary<string, Reading<InstanceRuntimeStatus>>))]
