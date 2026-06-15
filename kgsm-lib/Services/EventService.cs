@@ -65,7 +65,10 @@ public class EventService : IEventService, IAsyncDisposable
         { "instance_uninstall_started", typeof(InstanceUninstallStartedData) },
         { "instance_uninstall_finished", typeof(InstanceUninstallFinishedData) },
         { "instance_uninstall_failed", typeof(InstanceUninstallFailedData) },
-        { "instance_uninstalled", typeof(InstanceUninstalledData) }
+        { "instance_uninstalled", typeof(InstanceUninstalledData) },
+
+        { "instance_ports_opened", typeof(InstancePortsOpenedData) },
+        { "instance_ports_closed", typeof(InstancePortsClosedData) }
     };
 
     /// <summary>

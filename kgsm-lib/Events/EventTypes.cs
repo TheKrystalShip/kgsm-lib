@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using TheKrystalShip.KGSM.Core.Models;
 
 namespace TheKrystalShip.KGSM.Events;
 
@@ -398,4 +399,34 @@ public class InstanceUninstallFailedData : EventDataBase
 /// </summary>
 public class InstanceUninstalledData : EventDataBase
 {
+}
+
+/// <summary>
+/// Event data for when an instance's host-firewall ports were opened via the
+/// kgsm-firewall authority (firewall enable, or an install with firewall
+/// management on). Only a confirmed open emits this — a down authority hard-fails
+/// the action and emits nothing, so the event is never a fabricated outcome.
+/// </summary>
+public class InstancePortsOpenedData : EventDataBase
+{
+    /// <summary>
+    /// Gets or sets the ports that were opened, as the canonical range-preserving
+    /// <see cref="PortMapping"/> array (the same shape <c>instances info --json</c>
+    /// emits) — never an opaque UFW string.
+    /// </summary>
+    public List<PortMapping> Ports { get; set; } = [];
+}
+
+/// <summary>
+/// Event data for when an instance's host-firewall ports were closed via the
+/// kgsm-firewall authority (firewall disable, or uninstall). Only a confirmed
+/// removal emits this — a down authority warns and emits nothing.
+/// </summary>
+public class InstancePortsClosedData : EventDataBase
+{
+    /// <summary>
+    /// Gets or sets the ports that were closed, as the canonical range-preserving
+    /// <see cref="PortMapping"/> array — never an opaque UFW string.
+    /// </summary>
+    public List<PortMapping> Ports { get; set; } = [];
 }

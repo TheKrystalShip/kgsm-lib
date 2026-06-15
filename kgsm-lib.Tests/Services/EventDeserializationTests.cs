@@ -121,6 +121,51 @@ public class EventDeserializationTests
         Assert.Equal("5", failed.Restarts);
     }
 
+    // Models the kgsm `_build_event_payload instance_ports_opened factorio-01
+    // '34197/udp|27015:27020/tcp'` wire shape: the firewall audit event the kgsm
+    // command layer emits after the kgsm-firewall authority opens the ports. Data.Ports
+    // is the canonical STRUCTURED array (range-preserving [{start,end,protocol}], the
+    // same shape `instances info --json` emits), built via jq --argjson — never an
+    // opaque UFW string. Stamped with the caller's actor/origin (here a kgsm-api emit).
+    private const string PortsOpenedWireJson = """
+        {"EventType":"instance_ports_opened","Data":{"InstanceName":"factorio-01","Ports":[{"start":34197,"end":34197,"protocol":"udp"},{"start":27015,"end":27020,"protocol":"tcp"}]},"Timestamp":"2026-06-16T08:00:00Z","Actor":"discord:tester","Origin":"api","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+        """;
+
+    // The close event with a single proto-less-expanded port (one entry here for variety).
+    private const string PortsClosedWireJson = """
+        {"EventType":"instance_ports_closed","Data":{"InstanceName":"factorio-01","Ports":[{"start":7777,"end":7777,"protocol":"tcp"}]},"Timestamp":"2026-06-16T08:00:00Z","Actor":"system","Origin":"api","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+        """;
+
+    [Fact]
+    public void PortsOpenedEvent_DeserializesStructuredRangePreservingPorts()
+    {
+        (string eventType, EventDataBase? data) =
+            Deserialize(PortsOpenedWireJson, typeof(InstancePortsOpenedData));
+
+        Assert.Equal("instance_ports_opened", eventType);
+        var opened = Assert.IsType<InstancePortsOpenedData>(data);
+        Assert.Equal("factorio-01", opened.InstanceName);
+
+        // Ports bind from the structured wire array, NOT an opaque string — and the
+        // tcp range is preserved (start != end), never expanded.
+        Assert.Equal(2, opened.Ports.Count);
+        Assert.Equal(new PortMapping { Start = 34197, End = 34197, Protocol = "udp" }, opened.Ports[0]);
+        Assert.Equal(new PortMapping { Start = 27015, End = 27020, Protocol = "tcp" }, opened.Ports[1]);
+    }
+
+    [Fact]
+    public void PortsClosedEvent_DeserializesStructuredPorts()
+    {
+        (string eventType, EventDataBase? data) =
+            Deserialize(PortsClosedWireJson, typeof(InstancePortsClosedData));
+
+        Assert.Equal("instance_ports_closed", eventType);
+        var closed = Assert.IsType<InstancePortsClosedData>(data);
+        Assert.Equal("factorio-01", closed.InstanceName);
+        Assert.Single(closed.Ports);
+        Assert.Equal(new PortMapping { Start = 7777, End = 7777, Protocol = "tcp" }, closed.Ports[0]);
+    }
+
     // Models the kgsm `_build_event_payload` wire shape after the actor/timestamp
     // enrichment (reconstructed from a captured emit; JSON is whitespace/order-
     // insensitive): the envelope now carries a top-level Actor alongside Timestamp.
