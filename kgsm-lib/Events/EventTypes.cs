@@ -30,13 +30,24 @@ public abstract class EventDataBase
     /// OS user; <see langword="null"/> means the emitter did not supply one.
     /// </summary>
     public string? Actor { get; set; }
+
+    /// <summary>
+    /// Gets or sets the surface that drove the event (<c>ui</c>, <c>assistant</c>,
+    /// <c>discord</c>, <c>system</c>, <c>api</c>) — the companion to <see cref="Actor"/>
+    /// (who) answering "through which surface". Populated from the envelope's top-level
+    /// <c>Origin</c> by <c>EventService</c>. KGSM takes it from <c>$KGSM_EVENT_ORIGIN</c>
+    /// (caller-supplied); unlike the actor there is no honest fallback for a bare CLI
+    /// call, so <see langword="null"/> means no surface was declared — never fabricated.
+    /// </summary>
+    public string? Origin { get; set; }
 }
 
 /// <summary>
 /// Represents the wrapper for events received from KGSM — the top-level envelope
 /// around each event's <see cref="Data"/> payload. Mirrors the wire shape emitted
 /// by KGSM's <c>_build_event_payload</c>: <c>EventType</c>, <c>Data</c>, and the
-/// emission metadata (<c>Timestamp</c>, <c>Actor</c>, <c>Hostname</c>, <c>KGSMVersion</c>).
+/// emission metadata (<c>Timestamp</c>, <c>Actor</c>, <c>Origin</c>, <c>Hostname</c>,
+/// <c>KGSMVersion</c>).
 /// </summary>
 public class EventWrapper
 {
@@ -61,6 +72,14 @@ public class EventWrapper
     /// if the emitter did not include it.
     /// </summary>
     public string? Actor { get; set; }
+
+    /// <summary>
+    /// Gets or sets the surface that drove the event (<c>ui</c>, <c>assistant</c>,
+    /// <c>discord</c>, <c>system</c>, <c>api</c>) — the companion to <see cref="Actor"/>.
+    /// KGSM takes it from <c>$KGSM_EVENT_ORIGIN</c>; <see langword="null"/> when the
+    /// emitter declared no surface (e.g. a bare CLI call) — never fabricated.
+    /// </summary>
+    public string? Origin { get; set; }
 
     /// <summary>
     /// Gets or sets the host KGSM emitted the event from. <see langword="null"/> if absent.

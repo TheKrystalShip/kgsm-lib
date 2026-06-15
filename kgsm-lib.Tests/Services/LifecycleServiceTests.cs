@@ -99,6 +99,81 @@ public class LifecycleServiceTests
         Assert.True(result.IsSuccess);
     }
 
+    // --- provenance: actor/origin propagate as KGSM_EVENT_* env vars on the command ---
+
+    [Fact]
+    public void Start_WithActorAndOrigin_PropagatesBothAsEnvironment()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(
+                It.Is<IReadOnlyDictionary<string, string>>(e =>
+                    e.Count == 2
+                    && e.ContainsKey("KGSM_EVENT_ACTOR") && e["KGSM_EVENT_ACTOR"] == "discord:haru"
+                    && e.ContainsKey("KGSM_EVENT_ORIGIN") && e["KGSM_EVENT_ORIGIN"] == "ui"),
+                It.Is<string[]>(a => ArgsAre(a, "lifecycle", "start", Instance))))
+            .Returns(new KgsmResult(new ProcessResult(0, "started", string.Empty)));
+
+        KgsmResult result = _lifecycleService.Start(Instance, actor: "discord:haru", origin: "ui");
+
+        Assert.True(result.IsSuccess);
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.Is<IReadOnlyDictionary<string, string>>(e =>
+                e["KGSM_EVENT_ACTOR"] == "discord:haru" && e["KGSM_EVENT_ORIGIN"] == "ui"),
+            It.Is<string[]>(a => ArgsAre(a, "lifecycle", "start", Instance))), Times.Once);
+    }
+
+    [Fact]
+    public void Stop_WithActorOnly_OmitsOriginFromEnvironment()
+    {
+        // Only the actor is supplied — origin is omitted from the environment entirely
+        // (KGSM then emits no origin) rather than carrying an empty/fabricated value.
+        _mockCommandExecutor
+            .Setup(x => x.Execute(
+                It.Is<IReadOnlyDictionary<string, string>>(e =>
+                    e.Count == 1
+                    && e.ContainsKey("KGSM_EVENT_ACTOR") && e["KGSM_EVENT_ACTOR"] == "system:watchdog"
+                    && !e.ContainsKey("KGSM_EVENT_ORIGIN")),
+                It.Is<string[]>(a => ArgsAre(a, "lifecycle", "stop", Instance))))
+            .Returns(new KgsmResult(new ProcessResult(0, "stopped", string.Empty)));
+
+        KgsmResult result = _lifecycleService.Stop(Instance, actor: "system:watchdog");
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void Restart_WithOriginOnly_OmitsActorFromEnvironment()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(
+                It.Is<IReadOnlyDictionary<string, string>>(e =>
+                    e.Count == 1
+                    && e.ContainsKey("KGSM_EVENT_ORIGIN") && e["KGSM_EVENT_ORIGIN"] == "assistant"
+                    && !e.ContainsKey("KGSM_EVENT_ACTOR")),
+                It.Is<string[]>(a => ArgsAre(a, "lifecycle", "restart", Instance))))
+            .Returns(new KgsmResult(new ProcessResult(0, "restarted", string.Empty)));
+
+        KgsmResult result = _lifecycleService.Restart(Instance, origin: "assistant");
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void Start_NoProvenance_UsesPlainCommandPathNotEnvironment()
+    {
+        // Neither actor nor origin supplied: the no-env command path is used so KGSM
+        // applies its own honest fallbacks — the environment overload is never called.
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "lifecycle", "start", Instance))))
+            .Returns(new KgsmResult(new ProcessResult(0, "started", string.Empty)));
+
+        KgsmResult result = _lifecycleService.Start(Instance);
+
+        Assert.True(result.IsSuccess);
+        _mockCommandExecutor.Verify(
+            x => x.Execute(It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<string[]>()), Times.Never);
+    }
+
     [Fact]
     public void GetStatus_ExecutionFails_ReturnsFailureResultWithoutThrowing()
     {

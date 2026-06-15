@@ -27,6 +27,21 @@ public interface IProcessRunner
     ProcessResult Execute(string command, TimeSpan timeout, params string[] args);
 
     /// <summary>
+    /// Executes a command with an explicit timeout and additional environment variables
+    /// layered onto the inherited process environment. Used to pass per-invocation
+    /// provenance (e.g. <c>KGSM_EVENT_ACTOR</c> / <c>KGSM_EVENT_ORIGIN</c>) down to KGSM
+    /// so the events it emits are attributable, without mutating this process's own
+    /// environment. A <see langword="null"/> or empty <paramref name="environment"/>
+    /// behaves exactly like the timeout overload.
+    /// </summary>
+    /// <param name="command">The command to execute.</param>
+    /// <param name="timeout">Maximum time to wait for the process to exit.</param>
+    /// <param name="environment">Extra environment variables to set on the child process.</param>
+    /// <param name="args">Arguments to pass to the command.</param>
+    /// <returns>Result of the command execution.</returns>
+    ProcessResult Execute(string command, TimeSpan timeout, IReadOnlyDictionary<string, string>? environment, string[] args);
+
+    /// <summary>
     /// Asynchronously executes a command with the specified arguments.
     /// </summary>
     /// <param name="command">The command to execute.</param>

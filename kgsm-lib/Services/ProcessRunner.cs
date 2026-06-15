@@ -37,10 +37,14 @@ public class ProcessRunner : IProcessRunner
 
     /// <inheritdoc/>
     public ProcessResult Execute(string command, params string[] args)
-        => Execute(command, DefaultTimeout, args);
+        => Execute(command, DefaultTimeout, null, args);
 
     /// <inheritdoc/>
     public ProcessResult Execute(string command, TimeSpan timeout, params string[] args)
+        => Execute(command, timeout, null, args);
+
+    /// <inheritdoc/>
+    public ProcessResult Execute(string command, TimeSpan timeout, IReadOnlyDictionary<string, string>? environment, string[] args)
     {
         ArgumentNullException.ThrowIfNull(command, nameof(command));
 
@@ -59,6 +63,17 @@ public class ProcessRunner : IProcessRunner
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8
         };
+
+        // Layer caller-supplied provenance onto the inherited environment (UseShellExecute
+        // is false, so ProcessStartInfo.Environment is pre-seeded from this process). We
+        // only ADD keys — never replace the environment — and never touch our own.
+        if (environment is not null)
+        {
+            foreach (KeyValuePair<string, string> variable in environment)
+            {
+                processStartInfo.Environment[variable.Key] = variable.Value;
+            }
+        }
 
         Process? process;
 

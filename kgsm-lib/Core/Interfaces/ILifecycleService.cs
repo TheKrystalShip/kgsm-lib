@@ -12,25 +12,35 @@ public interface ILifecycleService
     /// Launches a game server instance.
     /// </summary>
     /// <param name="instanceName">The name of the instance to start.</param>
+    /// <param name="actor">Optional audit principal (who) propagated to KGSM as
+    /// <c>$KGSM_EVENT_ACTOR</c> so the emitted event is attributable. When null/empty,
+    /// KGSM falls back to the invoking OS user.</param>
+    /// <param name="origin">Optional surface (through-what: <c>ui</c>/<c>assistant</c>/
+    /// <c>discord</c>/<c>system</c>/<c>api</c>) propagated as <c>$KGSM_EVENT_ORIGIN</c>.
+    /// When null/empty, KGSM emits no origin (no fabricated surface).</param>
     /// <returns>A <see cref="KgsmResult"/> containing the command execution result.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
-    KgsmResult Start(string instanceName);
+    KgsmResult Start(string instanceName, string? actor = null, string? origin = null);
 
     /// <summary>
     /// Gracefully shuts down a running server instance.
     /// </summary>
     /// <param name="instanceName">The name of the instance to stop.</param>
+    /// <param name="actor">Optional audit principal — see <see cref="Start"/>.</param>
+    /// <param name="origin">Optional driving surface — see <see cref="Start"/>.</param>
     /// <returns>A <see cref="KgsmResult"/> containing the command execution result.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
-    KgsmResult Stop(string instanceName);
+    KgsmResult Stop(string instanceName, string? actor = null, string? origin = null);
 
     /// <summary>
     /// Performs a complete stop and start sequence for an instance.
     /// </summary>
     /// <param name="instanceName">The name of the instance to restart.</param>
+    /// <param name="actor">Optional audit principal — see <see cref="Start"/>.</param>
+    /// <param name="origin">Optional driving surface — see <see cref="Start"/>.</param>
     /// <returns>A <see cref="KgsmResult"/> containing the command execution result.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
-    KgsmResult Restart(string instanceName);
+    KgsmResult Restart(string instanceName, string? actor = null, string? origin = null);
 
     /// <summary>
     /// Displays comprehensive runtime status for an instance.

@@ -187,6 +187,26 @@ public class KgsmCommandExecutor : IKgsmCommandExecutor
     }
 
     /// <inheritdoc/>
+    public KgsmResult Execute(IReadOnlyDictionary<string, string> environment, params string[] args)
+    {
+        var commandName = string.Join(" ", args);
+        _logger.LogDebug("Executing KGSM command with provenance: {Command}", commandName);
+
+        ProcessResult result = _processRunner.Execute(_kgsmPath, _defaultTimeout, environment, args);
+
+        if (result.ExitCode != 0)
+        {
+            _logger.LogError("Command failed: {Command} - {Error}", commandName, result.Stderr);
+        }
+        else
+        {
+            _logger.LogDebug("Command succeeded: {Command}", commandName);
+        }
+
+        return new KgsmResult(result);
+    }
+
+    /// <inheritdoc/>
     public KgsmResult Probe(params string[] args)
     {
         var commandName = string.Join(" ", args);

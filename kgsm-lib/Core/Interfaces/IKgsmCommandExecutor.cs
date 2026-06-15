@@ -56,6 +56,17 @@ public interface IKgsmCommandExecutor
     KgsmResult Execute(TimeSpan timeout, params string[] args);
 
     /// <summary>
+    /// Executes a KGSM command with additional environment variables layered onto the
+    /// child process, using the configured default timeout. Used to pass per-invocation
+    /// provenance (<c>KGSM_EVENT_ACTOR</c> / <c>KGSM_EVENT_ORIGIN</c>) so the events KGSM
+    /// emits are attributable downstream, without mutating this process's environment.
+    /// </summary>
+    /// <param name="environment">Extra environment variables to set on the child process.</param>
+    /// <param name="args">The command arguments to pass to KGSM.</param>
+    /// <returns>A KgsmResult containing the command output and exit code.</returns>
+    KgsmResult Execute(IReadOnlyDictionary<string, string> environment, params string[] args);
+
+    /// <summary>
     /// Executes a KGSM command asynchronously and returns the raw result wrapped in a KgsmResult.
     /// </summary>
     /// <param name="args">The command arguments to pass to KGSM.</param>

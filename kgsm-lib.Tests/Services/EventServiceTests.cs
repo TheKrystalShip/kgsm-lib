@@ -160,6 +160,56 @@ public class EventServiceTests
     }
 
     [Fact]
+    public async Task ReceivedEvent_CopiesEnvelopeOriginOntoData()
+    {
+        using EventService svc = CreateService();
+        var tcs = new TaskCompletionSource<InstanceStartedData>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        svc.RegisterHandler<InstanceStartedData>(data =>
+        {
+            tcs.TrySetResult(data);
+            return Task.CompletedTask;
+        });
+        svc.Initialize();
+
+        // Origin (the driving surface) lives at the top level of the envelope alongside
+        // Actor; the service must copy it onto the data object so a handler sees
+        // through-which-surface, not just who.
+        const string wire = """
+            {"EventType":"instance_started","Data":{"InstanceName":"7dtd"},"Actor":"discord:tester","Origin":"assistant","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+            """;
+        _mockClient.Raise(c => c.EventReceived += null, wire);
+
+        InstanceStartedData received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("assistant", received.Origin);
+        Assert.Equal("discord:tester", received.Actor);
+    }
+
+    [Fact]
+    public async Task ReceivedEvent_NoOriginOnWire_LeavesOriginNull()
+    {
+        using EventService svc = CreateService();
+        var tcs = new TaskCompletionSource<InstanceStartedData>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        svc.RegisterHandler<InstanceStartedData>(data =>
+        {
+            tcs.TrySetResult(data);
+            return Task.CompletedTask;
+        });
+        svc.Initialize();
+
+        // A bare CLI invocation declares no surface — the absent origin stays null,
+        // never a fabricated surface (mirrors the absent-actor contract above).
+        _mockClient.Raise(c => c.EventReceived += null,
+            Wire("instance_started", """{"InstanceName":"7dtd"}"""));
+
+        InstanceStartedData received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Null(received.Origin);
+    }
+
+    [Fact]
     public void ReceivedEvent_UnknownEventType_DoesNotInvokeHandlerOrThrow()
     {
         using EventService svc = CreateService();

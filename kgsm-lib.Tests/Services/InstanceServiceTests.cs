@@ -425,17 +425,17 @@ public class InstanceServiceTests
     public void Start_ValidInstance_ForwardsToLifecycle()
     {
         var expected = new KgsmResult(new ProcessResult(0, "started", string.Empty));
-        _mockLifecycleService.Setup(x => x.Start(Instance)).Returns(expected);
+        _mockLifecycleService.Setup(x => x.Start(Instance, It.IsAny<string?>(), It.IsAny<string?>())).Returns(expected);
 
         Assert.Same(expected, _instanceService.Start(Instance));
-        _mockLifecycleService.Verify(x => x.Start(Instance), Times.Once);
+        _mockLifecycleService.Verify(x => x.Start(Instance, It.IsAny<string?>(), It.IsAny<string?>()), Times.Once);
     }
 
     [Fact]
     public void Stop_ValidInstance_ForwardsToLifecycle()
     {
         var expected = new KgsmResult(new ProcessResult(0, "stopped", string.Empty));
-        _mockLifecycleService.Setup(x => x.Stop(Instance)).Returns(expected);
+        _mockLifecycleService.Setup(x => x.Stop(Instance, It.IsAny<string?>(), It.IsAny<string?>())).Returns(expected);
 
         Assert.Same(expected, _instanceService.Stop(Instance));
     }
@@ -444,7 +444,7 @@ public class InstanceServiceTests
     public void Restart_ValidInstance_ForwardsToLifecycle()
     {
         var expected = new KgsmResult(new ProcessResult(0, "restarted", string.Empty));
-        _mockLifecycleService.Setup(x => x.Restart(Instance)).Returns(expected);
+        _mockLifecycleService.Setup(x => x.Restart(Instance, It.IsAny<string?>(), It.IsAny<string?>())).Returns(expected);
 
         Assert.Same(expected, _instanceService.Restart(Instance));
     }
