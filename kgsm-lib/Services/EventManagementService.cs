@@ -60,6 +60,38 @@ public class EventManagementService : IEventManagementService
     }
 
     /// <inheritdoc/>
+    public KgsmResult EmitWithProvenance(string eventType, string? actor, string? origin, params string[] parameters)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(eventType, nameof(eventType));
+
+        Dictionary<string, string>? provenance = BuildProvenance(actor, origin);
+        string[] args = ["events", "emit", eventType, .. parameters];
+
+        return provenance is null
+            ? _commandExecutor.Execute(args)
+            : _commandExecutor.Execute(provenance, args);
+    }
+
+    /// <summary>
+    /// Builds the provenance environment (<c>KGSM_EVENT_ACTOR</c> / <c>KGSM_EVENT_ORIGIN</c>)
+    /// for an emit. Only non-empty values are set — a null/empty actor or origin is omitted so
+    /// KGSM applies its own fallback. Returns <see langword="null"/> when neither is supplied,
+    /// so the caller takes the plain execute path. Mirrors <c>LifecycleService.BuildProvenance</c>.
+    /// </summary>
+    private static Dictionary<string, string>? BuildProvenance(string? actor, string? origin)
+    {
+        if (string.IsNullOrEmpty(actor) && string.IsNullOrEmpty(origin))
+            return null;
+
+        Dictionary<string, string> provenance = new();
+        if (!string.IsNullOrEmpty(actor))
+            provenance["KGSM_EVENT_ACTOR"] = actor;
+        if (!string.IsNullOrEmpty(origin))
+            provenance["KGSM_EVENT_ORIGIN"] = origin;
+        return provenance;
+    }
+
+    /// <inheritdoc/>
     public KgsmResult EnableSocket()
         => _commandExecutor.Execute("events", "socket", "enable");
 

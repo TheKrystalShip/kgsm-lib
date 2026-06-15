@@ -50,6 +50,35 @@ public interface IEventManagementService
     KgsmResult Emit(string eventType, params string[] parameters);
 
     /// <summary>
+    /// Emits an event via KGSM with explicit provenance, dispatching it to all enabled
+    /// transports. Unlike <see cref="Emit(string, string[])"/> (which leaves KGSM to fall
+    /// back to the invoking OS user), this stamps the supplied <paramref name="actor"/> and
+    /// <paramref name="origin"/> so an autonomous engine component (e.g. the watchdog) can
+    /// attribute the event to <c>system</c> rather than its service account.
+    /// </summary>
+    /// <param name="eventType">
+    /// The event type to emit (e.g. <c>instance-crashed</c>, <c>instance-failed</c>).
+    /// </param>
+    /// <param name="actor">
+    /// The audit principal (who), propagated as <c>$KGSM_EVENT_ACTOR</c>. When null/empty,
+    /// KGSM applies its OS-user fallback.
+    /// </param>
+    /// <param name="origin">
+    /// The driving surface (<c>ui</c>/<c>assistant</c>/<c>discord</c>/<c>system</c>/<c>api</c>),
+    /// propagated as <c>$KGSM_EVENT_ORIGIN</c>. When null/empty, KGSM emits no origin
+    /// (never a fabricated surface).
+    /// </param>
+    /// <param name="parameters">Optional additional parameters for the event.</param>
+    /// <returns>
+    /// A <see cref="KgsmResult"/> indicating success or failure.
+    /// <see cref="KgsmResult.IsSuccess"/> is true when the event was emitted successfully.
+    /// </returns>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="eventType"/> is null or whitespace.
+    /// </exception>
+    KgsmResult EmitWithProvenance(string eventType, string? actor, string? origin, params string[] parameters);
+
+    /// <summary>
     /// Enables the Unix domain socket transport.
     /// </summary>
     /// <returns>

@@ -180,6 +180,88 @@ public class EventManagementServiceTests
         Assert.Equal(0, result.ExitCode);
     }
 
+    // --- EmitWithProvenance ---
+
+    [Fact]
+    public void EmitWithProvenance_NullEventType_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            _service.EmitWithProvenance(null!, "system", "system"));
+    }
+
+    [Fact]
+    public void EmitWithProvenance_StampsActorAndOrigin_OnEnvironmentAndPassesArgs()
+    {
+        // Arrange — the watchdog crash-event call shape: actor/origin stamped, instance +
+        // exit code + restart count as event parameters.
+        const string eventType = "instance-crashed";
+
+        _mockCommandExecutor
+            .Setup(x => x.Execute(
+                It.Is<IReadOnlyDictionary<string, string>>(env =>
+                    env.Count == 2 &&
+                    env["KGSM_EVENT_ACTOR"] == "system" &&
+                    env["KGSM_EVENT_ORIGIN"] == "system"),
+                It.Is<string[]>(args => args.SequenceEqual(
+                    new[] { "events", "emit", eventType, "my-server", "139", "2" }))))
+            .Returns(new KgsmResult(new ProcessResult(0, string.Empty, string.Empty)));
+
+        // Act
+        KgsmResult result =
+            _service.EmitWithProvenance(eventType, "system", "system", "my-server", "139", "2");
+
+        // Assert — the env overload was taken (provenance present), not the plain Execute.
+        Assert.True(result.IsSuccess);
+        _mockCommandExecutor.Verify(
+            x => x.Execute(It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<string[]>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public void EmitWithProvenance_OnlyActor_OmitsOriginFromEnvironment()
+    {
+        // Arrange — a null/empty origin must NOT be set (KGSM keeps its own honest default;
+        // no fabricated surface).
+        const string eventType = "instance-failed";
+
+        _mockCommandExecutor
+            .Setup(x => x.Execute(
+                It.Is<IReadOnlyDictionary<string, string>>(env =>
+                    env.Count == 1 &&
+                    env["KGSM_EVENT_ACTOR"] == "system" &&
+                    !env.ContainsKey("KGSM_EVENT_ORIGIN")),
+                It.IsAny<string[]>()))
+            .Returns(new KgsmResult(new ProcessResult(0, string.Empty, string.Empty)));
+
+        // Act
+        KgsmResult result = _service.EmitWithProvenance(eventType, "system", null, "my-server");
+
+        // Assert
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void EmitWithProvenance_NoActorOrOrigin_TakesPlainExecutePath()
+    {
+        // Arrange — with neither stamped, it must fall through to the plain (no-environment)
+        // Execute so KGSM applies its own actor/origin fallbacks.
+        const string eventType = "instance-crashed";
+
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(args => args.SequenceEqual(
+                new[] { "events", "emit", eventType, "my-server" }))))
+            .Returns(new KgsmResult(new ProcessResult(0, string.Empty, string.Empty)));
+
+        // Act
+        KgsmResult result = _service.EmitWithProvenance(eventType, null, null, "my-server");
+
+        // Assert — no environment overload was used.
+        Assert.True(result.IsSuccess);
+        _mockCommandExecutor.Verify(
+            x => x.Execute(It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<string[]>()),
+            Times.Never);
+    }
+
     // --- EnableSocket ---
 
     [Fact]

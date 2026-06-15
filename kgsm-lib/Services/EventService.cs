@@ -50,6 +50,8 @@ public class EventService : IEventService, IAsyncDisposable
         { "instance_started", typeof(InstanceStartedData) },
         { "instance_stopped", typeof(InstanceStoppedData) },
         { "instance_restarted", typeof(InstanceRestartedData) },
+        { "instance_crashed", typeof(InstanceCrashedData) },
+        { "instance_failed", typeof(InstanceFailedData) },
         { "instance_ready", typeof(InstanceReadyData) },
 
         { "instance_backup_created", typeof(InstanceBackupCreatedData) },

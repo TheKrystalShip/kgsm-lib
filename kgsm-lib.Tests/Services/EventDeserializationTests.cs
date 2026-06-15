@@ -72,6 +72,55 @@ public class EventDeserializationTests
         Assert.Equal("7dtd", failed.InstanceName);
     }
 
+    // Models the kgsm `_build_event_payload instance_crashed 7dtd 139 2` wire shape: the
+    // watchdog crash-restart event, stamped Actor=system / Origin=system (autonomous engine
+    // action), carrying the exit code + restart-attempt count as strings (the jq --arg wire
+    // form). Reconstructed from the payload builder; the BashEventRegistry conformance test
+    // pins the event name against the real sibling kgsm.
+    private const string CrashedWireJson = """
+        {"EventType":"instance_crashed","Data":{"InstanceName":"7dtd","ExitCode":"139","Restarts":"2"},"Timestamp":"2026-06-15T08:00:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"unknown"}
+        """;
+
+    // The give-up event: the supervisor exhausted its retries. ExitCode is the literal
+    // "unknown" here — the respawn could not read a code — never a fabricated 0.
+    private const string FailedWireJson = """
+        {"EventType":"instance_failed","Data":{"InstanceName":"7dtd","ExitCode":"unknown","Restarts":"5"},"Timestamp":"2026-06-15T08:00:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"unknown"}
+        """;
+
+    [Fact]
+    public void CrashedEvent_DeserializesExitCodeAndRestarts_WithSystemProvenance()
+    {
+        EventWrapper? wrapper =
+            JsonSerializer.Deserialize(CrashedWireJson, KgsmJsonContext.Default.EventWrapper);
+        Assert.NotNull(wrapper);
+        // Autonomous engine action: who = system, surface = system.
+        Assert.Equal("system", wrapper!.Actor);
+        Assert.Equal("system", wrapper.Origin);
+
+        (string eventType, EventDataBase? data) =
+            Deserialize(CrashedWireJson, typeof(InstanceCrashedData));
+
+        Assert.Equal("instance_crashed", eventType);
+        var crashed = Assert.IsType<InstanceCrashedData>(data);
+        Assert.Equal("7dtd", crashed.InstanceName);
+        Assert.Equal("139", crashed.ExitCode);
+        Assert.Equal("2", crashed.Restarts);
+    }
+
+    [Fact]
+    public void FailedEvent_DeserializesWithUnknownExitCode_NeverFabricated()
+    {
+        (string eventType, EventDataBase? data) =
+            Deserialize(FailedWireJson, typeof(InstanceFailedData));
+
+        Assert.Equal("instance_failed", eventType);
+        var failed = Assert.IsType<InstanceFailedData>(data);
+        Assert.Equal("7dtd", failed.InstanceName);
+        // Honest unknown — the unreadable exit code is "unknown", not a fabricated code.
+        Assert.Equal("unknown", failed.ExitCode);
+        Assert.Equal("5", failed.Restarts);
+    }
+
     // Models the kgsm `_build_event_payload` wire shape after the actor/timestamp
     // enrichment (reconstructed from a captured emit; JSON is whitespace/order-
     // insensitive): the envelope now carries a top-level Actor alongside Timestamp.

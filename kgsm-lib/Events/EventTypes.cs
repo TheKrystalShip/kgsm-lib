@@ -274,6 +274,52 @@ public class InstanceRestartedData : EventDataBase
 }
 
 /// <summary>
+/// Event data for when the resident supervisor (kgsm-watchdog) detected that an
+/// instance's process died unexpectedly while it was desired-running and is
+/// auto-restarting it. An autonomous engine action — emitted with
+/// <c>Actor == "system"</c> and <c>Origin == "system"</c> (no human surface drove it).
+/// Distinct from <see cref="InstanceRestartedData"/>, which is a deliberate operator
+/// restart.
+/// </summary>
+public class InstanceCrashedData : EventDataBase
+{
+    /// <summary>
+    /// Gets or sets the leader process exit code the supervisor read, as a string
+    /// (the wire value). The literal <c>"unknown"</c> when the code could not be read
+    /// — never a fabricated code.
+    /// </summary>
+    public string ExitCode { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the consecutive restart-attempt count at the moment of the crash
+    /// (always ≥ 1), as a string.
+    /// </summary>
+    public string Restarts { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Event data for when the resident supervisor (kgsm-watchdog) gave up auto-restarting
+/// an instance after exhausting its restart retries; the instance is down and staying
+/// down (supervision phase = failed). This is the escalation signal. An autonomous
+/// engine action — emitted with <c>Actor == "system"</c> and <c>Origin == "system"</c>.
+/// </summary>
+public class InstanceFailedData : EventDataBase
+{
+    /// <summary>
+    /// Gets or sets the last leader process exit code the supervisor read, as a string
+    /// (the wire value). The literal <c>"unknown"</c> when the code could not be read
+    /// (e.g. the respawn itself failed to start) — never a fabricated code.
+    /// </summary>
+    public string ExitCode { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the consecutive-failure count at give-up (the retries exhausted),
+    /// as a string.
+    /// </summary>
+    public string Restarts { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// Event data for when an instance backup is created.
 /// </summary>
 public class InstanceBackupCreatedData : EventDataBase
