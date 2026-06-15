@@ -134,4 +134,47 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Adds the kgsm-firewall control client (<see cref="IFirewallService"/>) to the service collection.
+    /// Independent of <see cref="AddKgsmServices(IServiceCollection, string, string)"/> and
+    /// <see cref="AddKgsmWatchdogClient(IServiceCollection, string)"/> — a surface can take any combination.
+    /// </summary>
+    /// <param name="services">The IServiceCollection to add services to.</param>
+    /// <param name="socketPath">Path to the kgsm-firewall control unix socket.</param>
+    /// <returns>The IServiceCollection so that additional calls can be chained.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when services is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when socketPath is null, empty, or whitespace.</exception>
+    public static IServiceCollection AddKgsmFirewallClient(this IServiceCollection services, string socketPath)
+    {
+        ArgumentNullException.ThrowIfNull(services, nameof(services));
+
+        if (string.IsNullOrWhiteSpace(socketPath))
+            throw new ArgumentException("Firewall socket path cannot be null, empty, or whitespace.", nameof(socketPath));
+
+        return AddKgsmFirewallClient(services, options => options.SocketPath = socketPath);
+    }
+
+    /// <summary>
+    /// Adds the kgsm-firewall control client with a configuration action.
+    /// </summary>
+    /// <param name="services">The IServiceCollection to add services to.</param>
+    /// <param name="configureOptions">Action to configure the firewall client options.</param>
+    /// <returns>The IServiceCollection so that additional calls can be chained.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when services or configureOptions is null.</exception>
+    public static IServiceCollection AddKgsmFirewallClient(this IServiceCollection services, Action<FirewallClientOptions> configureOptions)
+    {
+        ArgumentNullException.ThrowIfNull(services, nameof(services));
+        ArgumentNullException.ThrowIfNull(configureOptions, nameof(configureOptions));
+
+        var options = new FirewallClientOptions();
+        configureOptions(options);
+
+        // Singleton like the watchdog client: cheap, stateless (a socket is opened per request), and a
+        // single registration the surfaces resolve.
+        services.AddSingleton(options);
+        services.AddSingleton<IFirewallService, FirewallService>();
+
+        return services;
+    }
 }
