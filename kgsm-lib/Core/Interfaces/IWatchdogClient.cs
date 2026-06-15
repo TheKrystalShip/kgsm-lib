@@ -19,16 +19,16 @@ namespace TheKrystalShip.KGSM.Core.Interfaces;
 public interface IWatchdogClient : IDisposable
 {
     /// <summary>
-    /// Probes supervisor readiness. Returns <c>true</c> only when the daemon
-    /// answers <c>GET /ready</c> with 200 (in-slice and able to spawn). A daemon
-    /// that is down or whose socket is stale yields <c>false</c> rather than
-    /// throwing, so this doubles as a presence check.
+    /// Probes supervisor readiness via the unified <c>GET /health</c> probe. Returns
+    /// <c>true</c> only when the daemon answers 200 (in-slice and able to spawn); any
+    /// other status (503 + reason) or an unreachable/stale socket yields <c>false</c>
+    /// rather than throwing, so this doubles as a presence check.
     /// </summary>
     /// <param name="cancellationToken">Cancels the request.</param>
     Task<bool> IsReadyAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Fetches the supervisor readiness detail (the <c>/ready</c> body, served on
+    /// Fetches the supervisor readiness detail (the <c>/health</c> body, served on
     /// both 200 and 503). Returns <c>null</c> if the daemon is unreachable.
     /// </summary>
     /// <param name="cancellationToken">Cancels the request.</param>

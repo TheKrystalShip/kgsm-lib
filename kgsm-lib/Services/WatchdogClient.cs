@@ -75,7 +75,9 @@ public sealed class WatchdogClient : IWatchdogClient
         ThrowIfDisposed();
         try
         {
-            using var response = await _http.GetAsync("/ready", cancellationToken).ConfigureAwait(false);
+            // Unified ecosystem health probe (/health). Carries readiness: 200 ⇒ in-slice and
+            // able to spawn; anything else (503 + reason, or unreachable) ⇒ not ready.
+            using var response = await _http.GetAsync("/health", cancellationToken).ConfigureAwait(false);
             return response.StatusCode == HttpStatusCode.OK;
         }
         catch (HttpRequestException ex)
@@ -92,14 +94,14 @@ public sealed class WatchdogClient : IWatchdogClient
         ThrowIfDisposed();
         try
         {
-            // /ready returns a ReadyState body on both 200 and 503.
-            using var response = await _http.GetAsync("/ready", cancellationToken).ConfigureAwait(false);
+            // /health returns a ReadyState body on both 200 (ready) and 503 (up-but-unable).
+            using var response = await _http.GetAsync("/health", cancellationToken).ConfigureAwait(false);
             return await ReadJsonAsync(response, KgsmJsonContext.Default.WatchdogReadyState, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogDebug(ex, "Watchdog /ready fetch failed to connect");
+            _logger.LogDebug(ex, "Watchdog /health fetch failed to connect");
             return null;
         }
     }
