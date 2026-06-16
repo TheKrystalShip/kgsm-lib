@@ -42,12 +42,12 @@ public class FileServiceTests
         "Create" => _fileService.Create(Instance),
         "CreateManage" => _fileService.CreateManage(Instance),
         "CreateSystemd" => _fileService.CreateSystemd(Instance),
-        "CreateUfw" => _fileService.CreateUfw(Instance),
+        "CreateFirewall" => _fileService.CreateFirewall(Instance),
         "CreateSymlink" => _fileService.CreateSymlink(Instance),
         "CreateUpnp" => _fileService.CreateUpnp(Instance),
         "Remove" => _fileService.Remove(Instance),
         "RemoveSystemd" => _fileService.RemoveSystemd(Instance),
-        "RemoveUfw" => _fileService.RemoveUfw(Instance),
+        "RemoveFirewall" => _fileService.RemoveFirewall(Instance),
         "RemoveSymlink" => _fileService.RemoveSymlink(Instance),
         "RemoveUpnp" => _fileService.RemoveUpnp(Instance),
         "RemoveManage" => _fileService.RemoveManage(Instance),
@@ -58,12 +58,12 @@ public class FileServiceTests
     [InlineData("Create", "files create my-server")]
     [InlineData("CreateManage", "files management create my-server")]
     [InlineData("CreateSystemd", "files systemd enable my-server")]
-    [InlineData("CreateUfw", "files ufw enable my-server")]
+    [InlineData("CreateFirewall", "files firewall enable my-server")]
     [InlineData("CreateSymlink", "files symlink enable my-server")]
     [InlineData("CreateUpnp", "files upnp enable my-server")]
     [InlineData("Remove", "files remove my-server")]
     [InlineData("RemoveSystemd", "files systemd disable my-server")]
-    [InlineData("RemoveUfw", "files ufw disable my-server")]
+    [InlineData("RemoveFirewall", "files firewall disable my-server")]
     [InlineData("RemoveSymlink", "files symlink disable my-server")]
     [InlineData("RemoveUpnp", "files upnp disable my-server")]
     [InlineData("RemoveManage", "files management remove my-server")]

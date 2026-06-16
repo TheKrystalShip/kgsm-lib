@@ -12,7 +12,7 @@ public interface IFileService
     /// Generates all required files for the instance including:
     /// - instance.manage.sh
     /// - systemd service/socket files (if applicable)
-    /// - UFW firewall rules (if applicable)
+    /// - Firewall rules via kgsm-firewall (if applicable)
     /// - symlink to the management file (if applicable)
     /// - UPnP configuration files (if applicable)
     /// </summary>
@@ -45,11 +45,11 @@ public interface IFileService
     KgsmResult CreateSystemd(string instanceName);
 
     /// <summary>
-    /// Generates and enables UFW firewall rule for the instance.
+    /// Opens the instance's ports via the kgsm-firewall authority.
     /// </summary>
-    /// <param name="instanceName">Instance name to create UFW rule for.</param>
+    /// <param name="instanceName">Instance name to open firewall ports for.</param>
     /// <returns>Result of the create operation.</returns>
-    KgsmResult CreateUfw(string instanceName);
+    KgsmResult CreateFirewall(string instanceName);
 
     /// <summary>
     /// Creates a symlink to the management file in the PATH.
@@ -80,11 +80,11 @@ public interface IFileService
     KgsmResult RemoveSystemd(string instanceName);
 
     /// <summary>
-    /// Removes UFW firewall rules for the instance.
+    /// Closes the instance's ports via the kgsm-firewall authority.
     /// </summary>
-    /// <param name="instanceName">Instance name to remove UFW rules for.</param>
+    /// <param name="instanceName">Instance name to close firewall ports for.</param>
     /// <returns>Result of the remove operation.</returns>
-    KgsmResult RemoveUfw(string instanceName);
+    KgsmResult RemoveFirewall(string instanceName);
 
     /// <summary>
     /// Removes the symlink to the management file.

@@ -47,8 +47,8 @@ public class FileService : IFileService
         ExecuteFileOperation(instanceName, "systemd", "enable");
 
     /// <inheritdoc/>
-    public KgsmResult CreateUfw(string instanceName) =>
-        ExecuteFileOperation(instanceName, "ufw", "enable");
+    public KgsmResult CreateFirewall(string instanceName) =>
+        ExecuteFileOperation(instanceName, "firewall", "enable");
 
     /// <inheritdoc/>
     public KgsmResult CreateSymlink(string instanceName) =>
@@ -67,8 +67,8 @@ public class FileService : IFileService
         ExecuteFileOperation(instanceName, "systemd", "disable");
 
     /// <inheritdoc/>
-    public KgsmResult RemoveUfw(string instanceName) =>
-        ExecuteFileOperation(instanceName, "ufw", "disable");
+    public KgsmResult RemoveFirewall(string instanceName) =>
+        ExecuteFileOperation(instanceName, "firewall", "disable");
 
     /// <inheritdoc/>
     public KgsmResult RemoveSymlink(string instanceName) =>
