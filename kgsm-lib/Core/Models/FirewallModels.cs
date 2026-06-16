@@ -15,8 +15,14 @@ namespace TheKrystalShip.KGSM.Core.Models;
 /// </summary>
 public enum FirewallOutcome
 {
-    /// <summary>The rule was applied (the ports are now open for the instance).</summary>
+    /// <summary>The rule was applied and the backend is enforcing (the ports are now open for the instance).</summary>
     Applied,
+
+    /// <summary>The rule was written/staged, but the backend is NOT enforcing (e.g. ufw inactive): it
+    /// persists and takes effect on the operator's next <c>ufw enable</c>, and meanwhile the port is open
+    /// anyway (nothing is filtering). A success — distinct from <see cref="Applied"/> so a caller can say
+    /// "staged, not yet enforced" rather than imply an enforced open (Firewall.Contracts 1.1.0).</summary>
+    AppliedInactive,
 
     /// <summary>The instance's rules were removed.</summary>
     Removed,
@@ -76,6 +82,27 @@ public sealed record FirewallActionResult
     public string? Detail { get; init; }
 }
 
+/// <summary>
+/// The backend's runtime <b>enforcement</b> state (Firewall.Contracts 1.1.0), orthogonal to whether any
+/// rules exist. A backend can be installed yet <see cref="Inactive"/> (e.g. ufw disabled), in which case
+/// it filters NOTHING — so every port is reachable regardless of rules. A consumer computing an honest
+/// "is this port open" verdict needs this: <see cref="Enforcing"/> → open iff a rule allows it;
+/// <see cref="Inactive"/> → open (all, unfiltered); <see cref="Unknown"/> → unknown. NEVER read an
+/// inactive backend's empty rule set as "closed".
+/// </summary>
+public enum FirewallEnforcement
+{
+    /// <summary>The backend is active and filtering — owned rules determine open/closed.</summary>
+    Enforcing,
+
+    /// <summary>Installed but not enforcing (e.g. <c>ufw</c> inactive) — nothing filtered, all ports open.</summary>
+    Inactive,
+
+    /// <summary>Cannot determine (non-root / backend absent / unparsable), OR a pre-1.1.0 authority that
+    /// does not report enforcement — honest unknown; a consumer should fall back to its prior behaviour.</summary>
+    Unknown,
+}
+
 /// <summary>The ports the authority owns for one instance — the range-preserving
 /// <see cref="PortMapping"/> form, mapped from the wire.</summary>
 public sealed record FirewallOwnedRule(string Instance, IReadOnlyList<PortMapping> Ports);
@@ -93,6 +120,12 @@ public sealed record FirewallListResult
     /// <summary>The owned rules. Authoritative only when <see cref="Status"/> is
     /// <see cref="FirewallListStatus.Ok"/>; empty otherwise.</summary>
     public IReadOnlyList<FirewallOwnedRule> Rules { get; init; } = [];
+
+    /// <summary>The backend's enforcement state (Firewall.Contracts 1.1.0). Load-bearing for an honest
+    /// open verdict: when <see cref="FirewallEnforcement.Inactive"/>, the empty/partial rule set must NOT
+    /// be read as "closed" — nothing is filtering, so every port is open. A pre-1.1.0 authority (no
+    /// enforcement on the wire) maps to <see cref="FirewallEnforcement.Unknown"/>.</summary>
+    public FirewallEnforcement Enforcement { get; init; } = FirewallEnforcement.Unknown;
 }
 
 /// <summary>

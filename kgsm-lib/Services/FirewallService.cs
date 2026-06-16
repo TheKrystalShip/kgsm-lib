@@ -180,18 +180,28 @@ public sealed class FirewallService : IFirewallService
             rules.Add(new FirewallOwnedRule(rule.Instance, ports));
         }
 
-        return new FirewallListResult { Status = status, Rules = rules };
+        return new FirewallListResult { Status = status, Rules = rules, Enforcement = ToEnforcement(r.Enforcement) };
     }
 
     private static FirewallOutcome ToOutcome(string token) => token switch
     {
         Outcomes.Applied => FirewallOutcome.Applied,
+        Outcomes.AppliedInactive => FirewallOutcome.AppliedInactive,
         Outcomes.Removed => FirewallOutcome.Removed,
         Outcomes.NoOp => FirewallOutcome.NoOp,
         Outcomes.Ok => FirewallOutcome.Ok,
         Outcomes.Unknown => FirewallOutcome.Unknown,
         Outcomes.Unsupported => FirewallOutcome.Unsupported,
         _ => FirewallOutcome.Failed, // includes Outcomes.Failed and any unrecognised token (fail-closed)
+    };
+
+    // Map the wire enforcement token (Firewall.Contracts 1.1.0). Null = a pre-1.1.0 authority that does not
+    // report it, or any op that doesn't carry it → honest Unknown (the consumer falls back to prior behaviour).
+    private static FirewallEnforcement ToEnforcement(string? token) => token switch
+    {
+        Enforcements.Enforcing => FirewallEnforcement.Enforcing,
+        Enforcements.Inactive => FirewallEnforcement.Inactive,
+        _ => FirewallEnforcement.Unknown,
     };
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);

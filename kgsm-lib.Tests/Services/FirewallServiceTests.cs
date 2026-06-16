@@ -54,6 +54,7 @@ public class FirewallServiceTests
 
     [Theory]
     [InlineData(Outcomes.Applied, FirewallOutcome.Applied, true)]
+    [InlineData(Outcomes.AppliedInactive, FirewallOutcome.AppliedInactive, true)] // staged-not-enforced is a success (1.1.0)
     [InlineData(Outcomes.NoOp, FirewallOutcome.NoOp, true)]
     [InlineData(Outcomes.Unsupported, FirewallOutcome.Unsupported, false)]
     [InlineData(Outcomes.Failed, FirewallOutcome.Failed, false)]
@@ -67,6 +68,25 @@ public class FirewallServiceTests
 
         Assert.Equal(expected, result.Outcome);
         Assert.Equal(ok, result.Ok);
+    }
+
+    // The 1.1.0 enforcement axis maps onto FirewallListResult.Enforcement; a pre-1.1.0 authority omits it
+    // (null) → Unknown, so a consumer falls back to its prior behaviour rather than misread "closed".
+    [Theory]
+    [InlineData(Enforcements.Enforcing, FirewallEnforcement.Enforcing)]
+    [InlineData(Enforcements.Inactive, FirewallEnforcement.Inactive)]
+    [InlineData(Enforcements.Unknown, FirewallEnforcement.Unknown)]
+    [InlineData(null, FirewallEnforcement.Unknown)]
+    public async Task ListOwnedAsync_MapsEnforcement(string? token, FirewallEnforcement expected)
+    {
+        await using var authority = new FakeFirewallAuthority(
+            new FirewallResponse(true, Outcomes.Ok, "ufw", Rules: [], Enforcement: token));
+        using var client = ClientFor(authority.SocketPath);
+
+        FirewallListResult result = await client.ListOwnedAsync();
+
+        Assert.Equal(FirewallListStatus.Ok, result.Status);
+        Assert.Equal(expected, result.Enforcement);
     }
 
     [Fact]
