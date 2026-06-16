@@ -67,6 +67,18 @@ public interface IKgsmCommandExecutor
     KgsmResult Execute(IReadOnlyDictionary<string, string> environment, params string[] args);
 
     /// <summary>
+    /// Executes a KGSM command with both additional environment variables AND an explicit
+    /// timeout. The combination of the previous two overloads — for a long-running mutation
+    /// (install, update, backup, restore, uninstall) that also needs provenance stamped so its
+    /// event is attributable.
+    /// </summary>
+    /// <param name="environment">Extra environment variables to set on the child process.</param>
+    /// <param name="timeout">Maximum time to wait for the command to complete.</param>
+    /// <param name="args">The command arguments to pass to KGSM.</param>
+    /// <returns>A KgsmResult containing the command output and exit code.</returns>
+    KgsmResult Execute(IReadOnlyDictionary<string, string> environment, TimeSpan timeout, params string[] args);
+
+    /// <summary>
     /// Executes a KGSM command asynchronously and returns the raw result wrapped in a KgsmResult.
     /// </summary>
     /// <param name="args">The command arguments to pass to KGSM.</param>

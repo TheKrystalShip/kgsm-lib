@@ -724,4 +724,143 @@ public class InstanceServiceTests
         Assert.False(result.IsSuccess);
         Assert.Equal(8, result.ExitCode);
     }
+
+    // --- provenance (1.15.0): actor/origin propagate as KGSM_EVENT_* env on every mutation ----------
+    // The long-running verbs (install/uninstall/update/backup/restore) take the env+timeout overload;
+    // config-set takes the default-timeout env overload; start/stop/restart forward to the lifecycle
+    // layer. A null/empty value is omitted (KGSM keeps its honest fallback), and with NO provenance the
+    // plain (no-env) path is taken so existing behaviour is unchanged.
+
+    private static readonly KgsmResult Ok = new(new ProcessResult(0, "ok", string.Empty));
+
+    private void SetupEnvTimeout() => _mockCommandExecutor
+        .Setup(x => x.Execute(It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<TimeSpan>(), It.IsAny<string[]>()))
+        .Returns(Ok);
+
+    [Fact]
+    public void Install_WithProvenance_StampsActorAndOriginOnTheEnvTimeoutOverload()
+    {
+        SetupEnvTimeout();
+
+        _instanceService.Install("valheim", actor: "discord:haru", origin: "discord");
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.Is<IReadOnlyDictionary<string, string>>(e =>
+                e["KGSM_EVENT_ACTOR"] == "discord:haru" && e["KGSM_EVENT_ORIGIN"] == "discord"),
+            It.IsAny<TimeSpan>(),
+            It.Is<string[]>(a => ArgsAre(a, "install", "valheim"))), Times.Once);
+    }
+
+    [Fact]
+    public void Install_WithoutProvenance_TakesThePlainTimeoutPath_NoEnvOverload()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.IsAny<TimeSpan>(), It.IsAny<string[]>()))
+            .Returns(Ok);
+
+        _instanceService.Install("valheim");
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.IsAny<TimeSpan>(), It.Is<string[]>(a => ArgsAre(a, "install", "valheim"))), Times.Once);
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<TimeSpan>(), It.IsAny<string[]>()), Times.Never);
+    }
+
+    [Fact]
+    public void Uninstall_WithProvenance_StampsEnv()
+    {
+        SetupEnvTimeout();
+
+        _instanceService.Uninstall("valheim", actor: "discord:haru", origin: "discord");
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.Is<IReadOnlyDictionary<string, string>>(e => e["KGSM_EVENT_ORIGIN"] == "discord"),
+            It.IsAny<TimeSpan>(),
+            It.Is<string[]>(a => ArgsAre(a, "uninstall", "valheim"))), Times.Once);
+    }
+
+    [Fact]
+    public void Update_WithProvenance_StampsEnv()
+    {
+        SetupEnvTimeout();
+
+        _instanceService.Update("valheim", actor: "discord:haru", origin: "assistant");
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.Is<IReadOnlyDictionary<string, string>>(e =>
+                e["KGSM_EVENT_ACTOR"] == "discord:haru" && e["KGSM_EVENT_ORIGIN"] == "assistant"),
+            It.IsAny<TimeSpan>(),
+            It.Is<string[]>(a => ArgsAre(a, "instances", "update", "valheim"))), Times.Once);
+    }
+
+    [Fact]
+    public void CreateBackup_WithProvenance_StampsEnv()
+    {
+        SetupEnvTimeout();
+
+        _instanceService.CreateBackup("valheim", actor: "discord:haru", origin: "discord");
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.Is<IReadOnlyDictionary<string, string>>(e => e["KGSM_EVENT_ACTOR"] == "discord:haru"),
+            It.IsAny<TimeSpan>(),
+            It.Is<string[]>(a => ArgsAre(a, "instances", "create-backup", "valheim"))), Times.Once);
+    }
+
+    [Fact]
+    public void RestoreBackup_WithProvenance_StampsEnv()
+    {
+        SetupEnvTimeout();
+
+        _instanceService.RestoreBackup("valheim", "backup-1", actor: "discord:haru", origin: "discord");
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.Is<IReadOnlyDictionary<string, string>>(e => e["KGSM_EVENT_ORIGIN"] == "discord"),
+            It.IsAny<TimeSpan>(),
+            It.Is<string[]>(a => ArgsAre(a, "instances", "restore-backup", "valheim", "backup-1"))), Times.Once);
+    }
+
+    [Fact]
+    public void SetInstanceConfigValue_WithProvenance_UsesTheDefaultTimeoutEnvOverload()
+    {
+        // config-set is quick → the env overload WITHOUT an explicit timeout, not the env+timeout one.
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<string[]>()))
+            .Returns(Ok);
+
+        _instanceService.SetInstanceConfigValue("valheim", "key", "val", actor: "discord:haru", origin: "discord");
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.Is<IReadOnlyDictionary<string, string>>(e =>
+                e["KGSM_EVENT_ACTOR"] == "discord:haru" && e["KGSM_EVENT_ORIGIN"] == "discord"),
+            It.Is<string[]>(a => ArgsAre(a, "instances", "config-set", "valheim", "key=val"))), Times.Once);
+    }
+
+    [Fact]
+    public void OnlyActor_OmitsOriginFromTheEnv_NeverFabricated()
+    {
+        SetupEnvTimeout();
+
+        _instanceService.CreateBackup("valheim", actor: "system:watchdog");
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.Is<IReadOnlyDictionary<string, string>>(e =>
+                e["KGSM_EVENT_ACTOR"] == "system:watchdog" && !e.ContainsKey("KGSM_EVENT_ORIGIN")),
+            It.IsAny<TimeSpan>(), It.IsAny<string[]>()), Times.Once);
+    }
+
+    [Fact]
+    public void Start_WithProvenance_ForwardsActorOriginToTheLifecycleLayer()
+    {
+        _instanceService.Start("valheim", actor: "discord:haru", origin: "discord");
+        _mockLifecycleService.Verify(x => x.Start("valheim", "discord:haru", "discord"), Times.Once);
+    }
+
+    [Fact]
+    public void StopAndRestart_WithProvenance_ForwardToTheLifecycleLayer()
+    {
+        _instanceService.Stop("valheim", actor: "discord:haru", origin: "assistant");
+        _instanceService.Restart("valheim", actor: "api:token", origin: "api");
+        _mockLifecycleService.Verify(x => x.Stop("valheim", "discord:haru", "assistant"), Times.Once);
+        _mockLifecycleService.Verify(x => x.Restart("valheim", "api:token", "api"), Times.Once);
+    }
 }

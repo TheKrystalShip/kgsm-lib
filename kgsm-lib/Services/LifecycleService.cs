@@ -50,29 +50,11 @@ public class LifecycleService : ILifecycleService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        Dictionary<string, string>? provenance = BuildProvenance(actor, origin);
+        IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
 
         return provenance is null
             ? _commandExecutor.Execute("lifecycle", verb, instanceName)
             : _commandExecutor.Execute(provenance, "lifecycle", verb, instanceName);
-    }
-
-    /// <summary>
-    /// Builds the provenance environment for a lifecycle command. Only non-empty values
-    /// are set — a null/empty actor or origin is omitted so KGSM applies its own fallback,
-    /// never a fabricated value. Returns null when neither is supplied.
-    /// </summary>
-    private static Dictionary<string, string>? BuildProvenance(string? actor, string? origin)
-    {
-        if (string.IsNullOrEmpty(actor) && string.IsNullOrEmpty(origin))
-            return null;
-
-        Dictionary<string, string> provenance = new(2);
-        if (!string.IsNullOrEmpty(actor))
-            provenance["KGSM_EVENT_ACTOR"] = actor;
-        if (!string.IsNullOrEmpty(origin))
-            provenance["KGSM_EVENT_ORIGIN"] = origin;
-        return provenance;
     }
 
     /// <inheritdoc/>

@@ -73,15 +73,21 @@ public interface IInstanceService
     /// <param name="installDir">Optional installation directory.</param>
     /// <param name="version">Optional version to install.</param>
     /// <param name="name">Optional identifier used when creating the instance.</param>
+    /// <param name="actor">Optional audit principal (who) propagated to KGSM as <c>KGSM_EVENT_ACTOR</c>
+    /// so the emitted event is attributable; null/empty = KGSM's OS-user fallback (never fabricated).</param>
+    /// <param name="origin">Optional driving surface (through-what) propagated as <c>KGSM_EVENT_ORIGIN</c>;
+    /// null/empty = no surface emitted.</param>
     /// <returns>Result of the instance installation operation.</returns>
-    KgsmResult Install(string blueprintName, string? installDir = null, string? version = null, string? name = null);
+    KgsmResult Install(string blueprintName, string? installDir = null, string? version = null, string? name = null, string? actor = null, string? origin = null);
 
     /// <summary>
     /// Uninstalls an instance.
     /// </summary>
     /// <param name="instanceName">Instance name to uninstall.</param>
+    /// <param name="actor">Optional audit principal — see <see cref="Install"/>.</param>
+    /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result of the uninstallation operation.</returns>
-    KgsmResult Uninstall(string instanceName);
+    KgsmResult Uninstall(string instanceName, string? actor = null, string? origin = null);
 
     /// <summary>
     /// Gets the logs for an instance.
@@ -132,25 +138,32 @@ public interface IInstanceService
     /// Starts an instance.
     /// </summary>
     /// <param name="instanceName">Instance name to start.</param>
+    /// <param name="actor">Optional audit principal — see <see cref="Install"/>. Forwarded to the
+    /// lifecycle layer so the emitted event is attributable.</param>
+    /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result of the start operation.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
-    KgsmResult Start(string instanceName);
+    KgsmResult Start(string instanceName, string? actor = null, string? origin = null);
 
     /// <summary>
     /// Stops an instance.
     /// </summary>
     /// <param name="instanceName">Instance name to stop.</param>
+    /// <param name="actor">Optional audit principal — see <see cref="Install"/>.</param>
+    /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result of the stop operation.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
-    KgsmResult Stop(string instanceName);
+    KgsmResult Stop(string instanceName, string? actor = null, string? origin = null);
 
     /// <summary>
     /// Restarts an instance.
     /// </summary>
     /// <param name="instanceName">Instance name to restart.</param>
+    /// <param name="actor">Optional audit principal — see <see cref="Install"/>.</param>
+    /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result of the restart operation.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
-    KgsmResult Restart(string instanceName);
+    KgsmResult Restart(string instanceName, string? actor = null, string? origin = null);
 
     /// <summary>
     /// Gets the installed version of an instance.
@@ -177,8 +190,10 @@ public interface IInstanceService
     /// Updates an instance to the latest version.
     /// </summary>
     /// <param name="instanceName">Instance name to update.</param>
+    /// <param name="actor">Optional audit principal — see <see cref="Install"/>.</param>
+    /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result of the update operation.</returns>
-    KgsmResult Update(string instanceName);
+    KgsmResult Update(string instanceName, string? actor = null, string? origin = null);
 
     /// <summary>
     /// Gets a list of backups for an instance.
@@ -191,16 +206,20 @@ public interface IInstanceService
     /// Creates a backup for an instance.
     /// </summary>
     /// <param name="instanceName">Instance name to create backup for.</param>
+    /// <param name="actor">Optional audit principal — see <see cref="Install"/>.</param>
+    /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result of the backup creation operation.</returns>
-    KgsmResult CreateBackup(string instanceName);
+    KgsmResult CreateBackup(string instanceName, string? actor = null, string? origin = null);
 
     /// <summary>
     /// Restores a backup for an instance.
     /// </summary>
     /// <param name="instanceName">Instance name to restore backup for.</param>
     /// <param name="backupName">Name of the backup to restore.</param>
+    /// <param name="actor">Optional audit principal — see <see cref="Install"/>.</param>
+    /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result of the backup restoration operation.</returns>
-    KgsmResult RestoreBackup(string instanceName, string backupName);
+    KgsmResult RestoreBackup(string instanceName, string backupName, string? actor = null, string? origin = null);
 
     /// <summary>
     /// Generates a unique instance identifier for a blueprint.
@@ -262,10 +281,12 @@ public interface IInstanceService
     /// <param name="instanceName">The instance whose config to modify.</param>
     /// <param name="key">The configuration key to set.</param>
     /// <param name="value">The value to write; may be the empty string, but not null.</param>
+    /// <param name="actor">Optional audit principal — see <see cref="Install"/>.</param>
+    /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result of the operation.</returns>
     /// <exception cref="ArgumentException">Thrown when instanceName or key is null or whitespace.</exception>
     /// <exception cref="ArgumentNullException">Thrown when value is null.</exception>
-    KgsmResult SetInstanceConfigValue(string instanceName, string key, string value);
+    KgsmResult SetInstanceConfigValue(string instanceName, string key, string value, string? actor = null, string? origin = null);
 
     /// <summary>
     /// Subscribes to continuous log streaming for an instance.

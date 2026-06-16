@@ -76,7 +76,7 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
-    public KgsmResult Install(string blueprintName, string? installDir = null, string? version = null, string? name = null)
+    public KgsmResult Install(string blueprintName, string? installDir = null, string? version = null, string? name = null, string? actor = null, string? origin = null)
     {
         ArgumentNullException.ThrowIfNull(blueprintName, nameof(blueprintName));
 
@@ -100,15 +100,21 @@ public class InstanceService : IInstanceService
             args.Add(name);
         }
 
-        return _commandExecutor.Execute(_timeouts.Install, args.ToArray());
+        IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
+        return provenance is null
+            ? _commandExecutor.Execute(_timeouts.Install, args.ToArray())
+            : _commandExecutor.Execute(provenance, _timeouts.Install, args.ToArray());
     }
 
     /// <inheritdoc/>
-    public KgsmResult Uninstall(string instanceName)
+    public KgsmResult Uninstall(string instanceName, string? actor = null, string? origin = null)
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        return _commandExecutor.Execute(_timeouts.Uninstall, "uninstall", instanceName);
+        IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
+        return provenance is null
+            ? _commandExecutor.Execute(_timeouts.Uninstall, "uninstall", instanceName)
+            : _commandExecutor.Execute(provenance, _timeouts.Uninstall, "uninstall", instanceName);
     }
 
     /// <inheritdoc/>
@@ -152,27 +158,27 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
-    public KgsmResult Start(string instanceName)
+    public KgsmResult Start(string instanceName, string? actor = null, string? origin = null)
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        return _lifecycleService.Start(instanceName);
+        return _lifecycleService.Start(instanceName, actor, origin);
     }
 
     /// <inheritdoc/>
-    public KgsmResult Stop(string instanceName)
+    public KgsmResult Stop(string instanceName, string? actor = null, string? origin = null)
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        return _lifecycleService.Stop(instanceName);
+        return _lifecycleService.Stop(instanceName, actor, origin);
     }
 
     /// <inheritdoc/>
-    public KgsmResult Restart(string instanceName)
+    public KgsmResult Restart(string instanceName, string? actor = null, string? origin = null)
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        return _lifecycleService.Restart(instanceName);
+        return _lifecycleService.Restart(instanceName, actor, origin);
     }
 
     /// <inheritdoc/>
@@ -200,11 +206,14 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
-    public KgsmResult Update(string instanceName)
+    public KgsmResult Update(string instanceName, string? actor = null, string? origin = null)
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        return _commandExecutor.Execute(_timeouts.Update, "instances", "update", instanceName);
+        IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
+        return provenance is null
+            ? _commandExecutor.Execute(_timeouts.Update, "instances", "update", instanceName)
+            : _commandExecutor.Execute(provenance, _timeouts.Update, "instances", "update", instanceName);
     }
 
     /// <inheritdoc/>
@@ -216,20 +225,26 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
-    public KgsmResult CreateBackup(string instanceName)
+    public KgsmResult CreateBackup(string instanceName, string? actor = null, string? origin = null)
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        return _commandExecutor.Execute(_timeouts.Backup, "instances", "create-backup", instanceName);
+        IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
+        return provenance is null
+            ? _commandExecutor.Execute(_timeouts.Backup, "instances", "create-backup", instanceName)
+            : _commandExecutor.Execute(provenance, _timeouts.Backup, "instances", "create-backup", instanceName);
     }
 
     /// <inheritdoc/>
-    public KgsmResult RestoreBackup(string instanceName, string backupName)
+    public KgsmResult RestoreBackup(string instanceName, string backupName, string? actor = null, string? origin = null)
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
         ArgumentNullException.ThrowIfNull(backupName, nameof(backupName));
 
-        return _commandExecutor.Execute(_timeouts.Restore, "instances", "restore-backup", instanceName, backupName);
+        IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
+        return provenance is null
+            ? _commandExecutor.Execute(_timeouts.Restore, "instances", "restore-backup", instanceName, backupName)
+            : _commandExecutor.Execute(provenance, _timeouts.Restore, "instances", "restore-backup", instanceName, backupName);
     }
 
     /// <inheritdoc/>
@@ -283,7 +298,7 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
-    public KgsmResult SetInstanceConfigValue(string instanceName, string key, string value)
+    public KgsmResult SetInstanceConfigValue(string instanceName, string key, string value, string? actor = null, string? origin = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
         ArgumentException.ThrowIfNullOrWhiteSpace(key, nameof(key));
@@ -292,8 +307,12 @@ public class InstanceService : IInstanceService
         ArgumentNullException.ThrowIfNull(value, nameof(value));
 
         // The whole assignment rides as a single argv element; kgsm splits it on
-        // the first '=' only, so a value containing '=' is preserved.
-        return _commandExecutor.Execute("instances", "config-set", instanceName, $"{key}={value}");
+        // the first '=' only, so a value containing '=' is preserved. config-set is a
+        // quick command, so the default-timeout env overload carries provenance.
+        IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
+        return provenance is null
+            ? _commandExecutor.Execute("instances", "config-set", instanceName, $"{key}={value}")
+            : _commandExecutor.Execute(provenance, "instances", "config-set", instanceName, $"{key}={value}");
     }
 
     /// <inheritdoc/>
