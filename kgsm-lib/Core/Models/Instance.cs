@@ -155,12 +155,6 @@ public record class Instance
     public string StartupSuccessRegex { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the port forwarding state file for the instance.
-    /// </summary>
-    [JsonPropertyName("port_forwarding_state_file")]
-    public string PortForwardingStateFile { get; set; } = string.Empty;
-
-    /// <summary>
     /// Gets or sets the level name for the instance.
     /// </summary>
     [JsonPropertyName("level_name")]
@@ -187,18 +181,11 @@ public record class Instance
     /// <summary>
     /// Gets or sets the instance's ports as the canonical range-preserving structured form
     /// (<c>[{start,end,protocol}]</c>). KGSM derives this from the UFW-style port spec and emits
-    /// it on <c>instances info --json</c>; it replaces the old opaque <c>ports</c> string AND the
-    /// pre-expanded <c>upnp_ports</c> bash-array. Consumers expand it (<see cref="PortMappingExtensions.Expand"/>)
+    /// it on <c>instances info --json</c>; it replaces the old opaque <c>ports</c> string. Consumers expand it (<see cref="PortMappingExtensions.Expand"/>)
     /// or render it (<see cref="PortMappingExtensions.ToUfwSpec"/>) rather than re-parsing a string.
     /// </summary>
     [JsonPropertyName("ports")]
     public List<PortMapping> Ports { get; set; } = [];
-
-    /// <summary>
-    /// Gets or sets whether port forwarding is enabled for the instance.
-    /// </summary>
-    [JsonPropertyName("enable_port_forwarding")]
-    public bool EnablePortForwarding { get; set; } = false;
 
     /// <summary>
     /// Gets or sets whether firewall management is enabled for the instance.

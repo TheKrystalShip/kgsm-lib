@@ -10,7 +10,7 @@ namespace TheKrystalShip.KGSM.Core.Models;
 /// <para>
 /// A single port is <c>Start == End</c>; a UFW entry written with no protocol expands to two
 /// mappings (one <c>tcp</c>, one <c>udp</c>). This is the shape kgsm-firewall's
-/// <c>EnsureOpen(instance, ports[])</c> and the watchdog's UPnP path both consume — no consumer
+/// <c>EnsureOpen(instance, ports[])</c> and the watchdog's port-forwarding path both consume — no consumer
 /// re-parses an opaque port string. <see cref="Start"/>/<see cref="End"/> arrive as JSON numbers
 /// (the global string→int coercion still accepts a stringly form, so either wire shape binds).
 /// </para>
@@ -32,14 +32,14 @@ public record class PortMapping
 
 /// <summary>
 /// Helpers over a set of <see cref="PortMapping"/>s. They live in kgsm-lib (the C#↔engine
-/// chokepoint) so no consumer re-derives port logic — the watchdog expands for <c>upnpc</c>, and
+/// chokepoint) so no consumer re-derives port logic — the watchdog expands individual ports, and
 /// anyone needing the legacy string form renders it here.
 /// </summary>
 public static class PortMappingExtensions
 {
     /// <summary>
     /// Expand the range-preserving mappings into individual <c>(Port, Protocol)</c> pairs — what
-    /// UPnP needs (<c>upnpc</c> opens one external port at a time) and what a per-port conflict
+    /// port-forwarding needs (one external port at a time) and what a per-port conflict
     /// scan iterates. Inverted ranges (<c>End &lt; Start</c>) are skipped defensively. Order
     /// follows the source mappings.
     /// </summary>

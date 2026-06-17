@@ -2,7 +2,7 @@ namespace TheKrystalShip.KGSM.Tests.Models;
 
 /// <summary>
 /// The two pure helpers over the canonical structured port form: <see cref="PortMappingExtensions.Expand"/>
-/// (range → individual (port, protocol) pairs, what the watchdog feeds <c>upnpc</c> and a per-port
+/// (range → individual (port, protocol) pairs, what the watchdog feeds and a per-port
 /// conflict scan iterates) and <see cref="PortMappingExtensions.ToUfwSpec"/> (the inverse render to the
 /// legacy UFW string).
 /// </summary>

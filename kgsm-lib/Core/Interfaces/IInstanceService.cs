@@ -274,7 +274,7 @@ public interface IInstanceService
     /// <remarks>
     /// Only plain runtime values are settable. KGSM refuses identity/structural keys,
     /// the filesystem paths it manages (every *_dir/*_file), and the integration toggles
-    /// (enable_firewall_management, enable_port_forwarding, enable_command_shortcuts) —
+    /// (enable_firewall_management, enable_command_shortcuts) —
     /// those have dedicated flows. A refused key surfaces as a non-zero
     /// <see cref="KgsmResult"/> rather than an exception.
     /// </remarks>

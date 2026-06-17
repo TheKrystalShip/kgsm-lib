@@ -44,12 +44,10 @@ public class FileServiceTests
         "CreateSystemd" => _fileService.CreateSystemd(Instance),
         "CreateFirewall" => _fileService.CreateFirewall(Instance),
         "CreateSymlink" => _fileService.CreateSymlink(Instance),
-        "CreateUpnp" => _fileService.CreateUpnp(Instance),
         "Remove" => _fileService.Remove(Instance),
         "RemoveSystemd" => _fileService.RemoveSystemd(Instance),
         "RemoveFirewall" => _fileService.RemoveFirewall(Instance),
         "RemoveSymlink" => _fileService.RemoveSymlink(Instance),
-        "RemoveUpnp" => _fileService.RemoveUpnp(Instance),
         "RemoveManage" => _fileService.RemoveManage(Instance),
         _ => throw new ArgumentOutOfRangeException(nameof(key), key, "unknown method key"),
     };
@@ -60,12 +58,10 @@ public class FileServiceTests
     [InlineData("CreateSystemd", "files systemd enable my-server")]
     [InlineData("CreateFirewall", "files firewall enable my-server")]
     [InlineData("CreateSymlink", "files symlink enable my-server")]
-    [InlineData("CreateUpnp", "files upnp enable my-server")]
     [InlineData("Remove", "files remove my-server")]
     [InlineData("RemoveSystemd", "files systemd disable my-server")]
     [InlineData("RemoveFirewall", "files firewall disable my-server")]
     [InlineData("RemoveSymlink", "files symlink disable my-server")]
-    [InlineData("RemoveUpnp", "files upnp disable my-server")]
     [InlineData("RemoveManage", "files management remove my-server")]
     public void FileOperation_IssuesExpectedCommand(string key, string expectedArgs)
     {

@@ -14,7 +14,6 @@ public interface IFileService
     /// - systemd service/socket files (if applicable)
     /// - Firewall rules via kgsm-firewall (if applicable)
     /// - symlink to the management file (if applicable)
-    /// - UPnP configuration files (if applicable)
     /// </summary>
     /// <param name="instanceName">Instance name to create files for.</param>
     /// <returns>Result of the create operation.</returns>
@@ -59,13 +58,6 @@ public interface IFileService
     KgsmResult CreateSymlink(string instanceName);
 
     /// <summary>
-    /// Generates UPnP configuration files for the instance (if applicable).
-    /// </summary>
-    /// <param name="instanceName">Instance name to create UPnP configuration for.</param>
-    /// <returns>Result of the create operation.</returns>
-    KgsmResult CreateUpnp(string instanceName);
-
-    /// <summary>
     /// Removes all files and integrations for instance uninstall.
     /// </summary>
     /// <param name="instanceName">Instance name to remove files for.</param>
@@ -92,13 +84,6 @@ public interface IFileService
     /// <param name="instanceName">Instance name to remove symlink for.</param>
     /// <returns>Result of the remove operation.</returns>
     KgsmResult RemoveSymlink(string instanceName);
-
-    /// <summary>
-    /// Removes UPnP configuration files for the instance.
-    /// </summary>
-    /// <param name="instanceName">Instance name to remove UPnP configuration for.</param>
-    /// <returns>Result of the remove operation.</returns>
-    KgsmResult RemoveUpnp(string instanceName);
 
     /// <summary>
     /// Removes the instance configuration file from working directory.

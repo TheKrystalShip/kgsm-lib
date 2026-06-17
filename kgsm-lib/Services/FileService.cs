@@ -55,10 +55,6 @@ public class FileService : IFileService
         ExecuteFileOperation(instanceName, "symlink", "enable");
 
     /// <inheritdoc/>
-    public KgsmResult CreateUpnp(string instanceName) =>
-        ExecuteFileOperation(instanceName, "upnp", "enable");
-
-    /// <inheritdoc/>
     public KgsmResult Remove(string instanceName) =>
         ExecuteFileOperation(instanceName, "remove");
 
@@ -73,10 +69,6 @@ public class FileService : IFileService
     /// <inheritdoc/>
     public KgsmResult RemoveSymlink(string instanceName) =>
         ExecuteFileOperation(instanceName, "symlink", "disable");
-
-    /// <inheritdoc/>
-    public KgsmResult RemoveUpnp(string instanceName) =>
-        ExecuteFileOperation(instanceName, "upnp", "disable");
 
     /// <inheritdoc/>
     [Obsolete("kgsm removed the standalone 'files config' component; config-file cleanup is handled by Remove(). "
