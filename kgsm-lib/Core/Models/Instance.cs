@@ -173,6 +173,12 @@ public record class Instance
     public string SteamAppId { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the client Steam app ID for launch/connect deeplinks.
+    /// </summary>
+    [JsonPropertyName("client_steam_app_id")]
+    public string ClientSteamAppId { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets whether a Steam account is required for the instance.
     /// </summary>
     [JsonPropertyName("is_steam_account_required")]

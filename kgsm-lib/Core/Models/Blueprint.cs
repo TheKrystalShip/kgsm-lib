@@ -28,6 +28,11 @@ public class Blueprint
     public string SteamAppId { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the client Steam App ID for launch/connect deeplinks.
+    /// </summary>
+    public string ClientSteamAppId { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets whether a Steam account is required for the game server.
     /// </summary>
     public bool IsSteamAccountRequired { get; set; } = false;
@@ -78,6 +83,7 @@ public class Blueprint
                $"Ports: {Ports}, " +
                $"BlueprintType: {BlueprintType}, " +
                $"SteamAppId: {SteamAppId}, " +
+               $"ClientSteamAppId: {ClientSteamAppId}, " +
                $"IsSteamAccountRequired: {IsSteamAccountRequired}, " +
                $"ExecutableFile: {ExecutableFile}, " +
                $"ExecutableSubdirectory: {ExecutableSubdirectory}, " +

@@ -18,6 +18,7 @@ public class BlueprintTests
         Assert.Empty(blueprint.Name);
         Assert.Empty(blueprint.Ports);
         Assert.Empty(blueprint.SteamAppId);
+        Assert.Empty(blueprint.ClientSteamAppId);
         Assert.False(blueprint.IsSteamAccountRequired);
         Assert.Empty(blueprint.ExecutableFile);
         Assert.Empty(blueprint.ExecutableSubdirectory);
@@ -36,6 +37,7 @@ public class BlueprintTests
             Name = "valheim",
             Ports = "2456-2458",
             SteamAppId = "896660",
+            ClientSteamAppId = "892970",
             IsSteamAccountRequired = true,
             ExecutableFile = "valheim_server.x86_64",
             ExecutableSubdirectory = "bin",
@@ -49,6 +51,7 @@ public class BlueprintTests
         Assert.Equal("valheim", blueprint.Name);
         Assert.Equal("2456-2458", blueprint.Ports);
         Assert.Equal("896660", blueprint.SteamAppId);
+        Assert.Equal("892970", blueprint.ClientSteamAppId);
         Assert.True(blueprint.IsSteamAccountRequired);
         Assert.Equal("valheim_server.x86_64", blueprint.ExecutableFile);
         Assert.Equal("bin", blueprint.ExecutableSubdirectory);
@@ -107,6 +110,7 @@ public class BlueprintTests
             ""Name"": ""valheim"",
             ""Ports"": ""2456-2458"",
             ""SteamAppId"": ""896660"",
+            ""ClientSteamAppId"": ""892970"",
             ""IsSteamAccountRequired"": false,
             ""ExecutableFile"": ""valheim_server.x86_64"",
             ""ExecutableSubdirectory"": """",
@@ -124,6 +128,7 @@ public class BlueprintTests
         Assert.Equal("valheim", blueprint.Name);
         Assert.Equal("2456-2458", blueprint.Ports);
         Assert.Equal("896660", blueprint.SteamAppId);
+        Assert.Equal("892970", blueprint.ClientSteamAppId);
         Assert.False(blueprint.IsSteamAccountRequired);
     }
 }
