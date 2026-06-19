@@ -70,4 +70,79 @@ public static class PortMappingExtensions
                 ? $"{m.Start}/{m.Protocol}"
                 : $"{m.Start}:{m.End}/{m.Protocol}"));
     }
+
+    /// <summary>
+    /// Parse a UFW-style port spec string into the canonical structured form — the inverse of
+    /// <see cref="ToUfwSpec"/>. KGSM emits this legacy string on the <c>blueprints … --json</c>
+    /// surface (e.g. <c>"26900:26903/tcp|26900:26903/udp"</c> or <c>"7777/udp|27015/udp"</c>),
+    /// where — unlike <c>instances info --json</c> — the ports are <em>not</em> pre-structured. This
+    /// parser lives at the chokepoint so no consumer (the control-panel API's blueprint catalog, etc.)
+    /// re-derives port logic: a structured surface gets a structured value here, not a relayed opaque
+    /// string the SPA would have to split.
+    /// <para>
+    /// Mirrors KGSM's own parse: <c>|</c>-separated entries, each <c>port</c> or <c>start:end</c>
+    /// optionally suffixed <c>/tcp</c> or <c>/udp</c>; an entry written with <strong>no</strong>
+    /// protocol expands to two mappings (one <c>tcp</c>, one <c>udp</c>), matching the doc note on
+    /// <see cref="PortMapping"/>. Honesty/robustness: a malformed entry (non-numeric port, an
+    /// unrecognised protocol, or an inverted <c>end &lt; start</c> range) is <strong>skipped</strong>
+    /// defensively rather than guessed — the same posture as <see cref="Expand"/>. A null/blank spec
+    /// yields an empty list.
+    /// </para>
+    /// </summary>
+    /// <param name="spec">The UFW-style spec string (may be null, blank, or malformed).</param>
+    /// <returns>The parsed mappings, in source order; empty when nothing parses.</returns>
+    public static List<PortMapping> FromUfwSpec(string? spec)
+    {
+        var result = new List<PortMapping>();
+        if (string.IsNullOrWhiteSpace(spec))
+            return result;
+
+        foreach (string entry in spec.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            string portPart = entry;
+            string? protocol = null;
+
+            int slash = entry.IndexOf('/');
+            if (slash >= 0)
+            {
+                protocol = entry[(slash + 1)..].Trim().ToLowerInvariant();
+                portPart = entry[..slash].Trim();
+                // Unknown protocol — skip rather than fabricate a transport (never guess).
+                if (protocol is not ("tcp" or "udp"))
+                    continue;
+            }
+
+            int start, end;
+            int colon = portPart.IndexOf(':');
+            if (colon >= 0)
+            {
+                if (!int.TryParse(portPart[..colon].Trim(), out start)
+                    || !int.TryParse(portPart[(colon + 1)..].Trim(), out end))
+                    continue;
+            }
+            else
+            {
+                if (!int.TryParse(portPart.Trim(), out start))
+                    continue;
+                end = start;
+            }
+
+            // Inverted range — skip defensively (mirrors Expand's posture).
+            if (end < start)
+                continue;
+
+            if (protocol is null)
+            {
+                // No protocol → both transports, matching KGSM's UFW expansion.
+                result.Add(new PortMapping { Start = start, End = end, Protocol = "tcp" });
+                result.Add(new PortMapping { Start = start, End = end, Protocol = "udp" });
+            }
+            else
+            {
+                result.Add(new PortMapping { Start = start, End = end, Protocol = protocol });
+            }
+        }
+
+        return result;
+    }
 }
