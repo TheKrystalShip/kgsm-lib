@@ -35,7 +35,7 @@ public class BlueprintMetadataDeserializationTests
         const string json = """
             {
               "Name": "7dtd",
-              "Ports": "26900:26903/tcp|26900:26903/udp",
+              "Ports": [{"start":26900,"end":26903,"protocol":"tcp"},{"start":26900,"end":26903,"protocol":"udp"}],
               "BlueprintType": "Native",
               "SteamAppId": "294420",
               "ClientSteamAppId": "251570",
@@ -84,7 +84,7 @@ public class BlueprintMetadataDeserializationTests
         const string json = """
             {
               "Name": "factorio",
-              "Ports": "34197",
+              "Ports": [{"start":34197,"end":34197,"protocol":"tcp"},{"start":34197,"end":34197,"protocol":"udp"}],
               "BlueprintType": "Native",
               "SteamAppId": "0",
               "ClientSteamAppId": "0",
@@ -127,7 +127,7 @@ public class BlueprintMetadataDeserializationTests
         const string json = """
             {
               "Name": "valheim",
-              "Ports": "2456:2458/tcp|2456:2458/udp",
+              "Ports": [{"start":2456,"end":2458,"protocol":"tcp"},{"start":2456,"end":2458,"protocol":"udp"}],
               "BlueprintType": "Native",
               "SteamAppId": "896660",
               "ClientSteamAppId": "892970",

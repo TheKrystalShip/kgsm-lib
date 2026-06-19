@@ -13,9 +13,14 @@ public class Blueprint
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the ports used by the game server.
+    /// Gets or sets the game server's declared default ports in the canonical, range-preserving
+    /// structured form — <c>[ { start, end, protocol }, ... ]</c>, the same shape
+    /// <c>instances info --json</c> emits for <see cref="Instance.Ports"/>. KGSM emits this on the
+    /// <c>blueprints … --json</c> surface; a single port has <c>Start == End</c>, and a UFW entry
+    /// written with no protocol expands to one <c>tcp</c> + one <c>udp</c> mapping. Empty when the
+    /// blueprint declares none. No consumer re-parses an opaque port string.
     /// </summary>
-    public string Ports { get; set; } = string.Empty;
+    public List<PortMapping> Ports { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the blueprint type (Native or Container).
@@ -80,7 +85,7 @@ public class Blueprint
     public override string ToString()
     {
         return $"Blueprint: {Name}, " +
-               $"Ports: {Ports}, " +
+               $"Ports: {Ports.ToUfwSpec()}, " +
                $"BlueprintType: {BlueprintType}, " +
                $"SteamAppId: {SteamAppId}, " +
                $"ClientSteamAppId: {ClientSteamAppId}, " +

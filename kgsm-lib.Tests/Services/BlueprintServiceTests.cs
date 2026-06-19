@@ -44,7 +44,7 @@ public class BlueprintServiceTests
             ["valheim"] = new Blueprint
             {
                 Name = "valheim",
-                Ports = "2456-2458",
+                Ports = [new PortMapping { Start = 2456, End = 2458, Protocol = "udp" }],
                 SteamAppId = "896660",
                 IsSteamAccountRequired = false,
                 ExecutableFile = "valheim_server.x86_64",
@@ -69,7 +69,7 @@ public class BlueprintServiceTests
         Assert.Single(result);
         Assert.True(result.ContainsKey("valheim"));
         Assert.Equal("valheim", result["valheim"].Name);
-        Assert.Equal("2456-2458", result["valheim"].Ports);
+        Assert.Equal([new PortMapping { Start = 2456, End = 2458, Protocol = "udp" }], result["valheim"].Ports);
         Assert.Equal("896660", result["valheim"].SteamAppId);
         Assert.False(result["valheim"].IsSteamAccountRequired);
     }
@@ -134,9 +134,9 @@ public class BlueprintServiceTests
     {
         var expected = new Dictionary<string, Blueprint>
         {
-            ["valheim"] = new Blueprint { Name = "valheim", Ports = "2456-2458" },
-            ["factorio"] = new Blueprint { Name = "factorio", Ports = "34197" },
-            ["7dtd"] = new Blueprint { Name = "7dtd", Ports = "26900" },
+            ["valheim"] = new Blueprint { Name = "valheim", Ports = [new PortMapping { Start = 2456, End = 2458, Protocol = "udp" }] },
+            ["factorio"] = new Blueprint { Name = "factorio", Ports = [new PortMapping { Start = 34197, End = 34197, Protocol = "tcp" }] },
+            ["7dtd"] = new Blueprint { Name = "7dtd", Ports = [new PortMapping { Start = 26900, End = 26900, Protocol = "tcp" }] },
         };
         _mockCommandExecutor
             .Setup(x => x.ExecuteForJson<Dictionary<string, Blueprint>>(
@@ -148,7 +148,7 @@ public class BlueprintServiceTests
         Dictionary<string, Blueprint> result = _blueprintService.ListDetailed();
 
         Assert.Equal(3, result.Count);
-        Assert.Equal("34197", result["factorio"].Ports);
+        Assert.Equal([new PortMapping { Start = 34197, End = 34197, Protocol = "tcp" }], result["factorio"].Ports);
         Assert.True(result.ContainsKey("valheim"));
         Assert.True(result.ContainsKey("7dtd"));
     }

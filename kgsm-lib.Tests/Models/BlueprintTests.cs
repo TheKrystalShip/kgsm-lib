@@ -35,7 +35,7 @@ public class BlueprintTests
         var blueprint = new Blueprint
         {
             Name = "valheim",
-            Ports = "2456-2458",
+            Ports = [new PortMapping { Start = 2456, End = 2458, Protocol = "udp" }],
             SteamAppId = "896660",
             ClientSteamAppId = "892970",
             IsSteamAccountRequired = true,
@@ -49,7 +49,7 @@ public class BlueprintTests
 
         // Assert
         Assert.Equal("valheim", blueprint.Name);
-        Assert.Equal("2456-2458", blueprint.Ports);
+        Assert.Equal([new PortMapping { Start = 2456, End = 2458, Protocol = "udp" }], blueprint.Ports);
         Assert.Equal("896660", blueprint.SteamAppId);
         Assert.Equal("892970", blueprint.ClientSteamAppId);
         Assert.True(blueprint.IsSteamAccountRequired);
@@ -68,7 +68,7 @@ public class BlueprintTests
         var blueprint = new Blueprint
         {
             Name = "test-server",
-            Ports = "8080",
+            Ports = [new PortMapping { Start = 8080, End = 8080, Protocol = "tcp" }],
             SteamAppId = "12345"
         };
 
@@ -77,7 +77,7 @@ public class BlueprintTests
 
         // Assert
         Assert.Contains("test-server", result);
-        Assert.Contains("8080", result);
+        Assert.Contains("8080", result); // ToString renders Ports.ToUfwSpec() -> "8080/tcp"
         Assert.Contains("12345", result);
     }
 
@@ -88,7 +88,7 @@ public class BlueprintTests
         var blueprint = new Blueprint
         {
             Name = "valheim",
-            Ports = "2456-2458",
+            Ports = [new PortMapping { Start = 2456, End = 2458, Protocol = "udp" }],
             SteamAppId = "896660",
             IsSteamAccountRequired = false
         };
@@ -98,7 +98,7 @@ public class BlueprintTests
 
         // Assert
         Assert.Contains("valheim", json);
-        Assert.Contains("2456-2458", json);
+        Assert.Contains("2456", json);  // Ports now serialize as the structured [{start,end,protocol}] array
         Assert.Contains("896660", json);
     }
 
@@ -108,7 +108,7 @@ public class BlueprintTests
         // Arrange
         var json = @"{
             ""Name"": ""valheim"",
-            ""Ports"": ""2456-2458"",
+            ""Ports"": [ { ""start"": 2456, ""end"": 2458, ""protocol"": ""udp"" } ],
             ""SteamAppId"": ""896660"",
             ""ClientSteamAppId"": ""892970"",
             ""IsSteamAccountRequired"": false,
@@ -126,7 +126,7 @@ public class BlueprintTests
         // Assert
         Assert.NotNull(blueprint);
         Assert.Equal("valheim", blueprint.Name);
-        Assert.Equal("2456-2458", blueprint.Ports);
+        Assert.Equal([new PortMapping { Start = 2456, End = 2458, Protocol = "udp" }], blueprint.Ports);
         Assert.Equal("896660", blueprint.SteamAppId);
         Assert.Equal("892970", blueprint.ClientSteamAppId);
         Assert.False(blueprint.IsSteamAccountRequired);
