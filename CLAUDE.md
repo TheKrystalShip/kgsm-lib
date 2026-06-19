@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-KGSM-Lib is a C# library (.NET 9.0) that provides interop capabilities with [KGSM](https://github.com/TheKrystalShip/KGSM), a Linux game server manager. The library communicates via shell process execution and Unix domain sockets for real-time events.
+KGSM-Lib is a C# library (.NET 10.0) that provides interop capabilities with [KGSM](https://github.com/TheKrystalShip/KGSM), a Linux game server manager. The library communicates via shell process execution and Unix domain sockets for real-time events.
 
 **Key Architecture**: SOLID-based with three service layers:
 - **KgsmClient** (main facade) → **BlueprintService/InstanceService/EventService** → **ProcessRunner/UnixSocketClient** (infrastructure)
@@ -116,7 +116,7 @@ dotnet build kgsm-lib.sln                    # Debug build
 dotnet build -c Release kgsm-lib.sln         # Release (generates NuGet package)
 ```
 
-**Output**: `bin/$(Configuration)/net9.0/` contains `TheKrystalShip.KGSM.dll`
+**Output**: `bin/$(Configuration)/net10.0/` contains `TheKrystalShip.KGSM.dll`
 
 ### Testing
 xUnit (v2) suite in `kgsm-lib.Tests/` — run with `dotnet test kgsm-lib.sln`. All green,

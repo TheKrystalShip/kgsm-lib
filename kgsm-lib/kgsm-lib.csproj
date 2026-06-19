@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsAotCompatible>true</IsAotCompatible>
@@ -29,12 +29,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
     <!-- The kgsm-firewall control-socket wire contract (DTOs + newline-JSON framing + source-gen
          context) that IFirewallService speaks. Resolved from the local-nuget folder feed (see
          ../nuget.config). One-directional: kgsm-lib depends on this, never the reverse — kgsm-firewall
-         must not reference kgsm-lib (cycle). net9.0 + AOT/trim-clean, so it keeps kgsm-lib AOT-safe. -->
+         must not reference kgsm-lib (cycle). net10.0 + AOT/trim-clean, so it keeps kgsm-lib AOT-safe. -->
     <PackageReference Include="TheKrystalShip.KGSM.Firewall.Contracts" Version="1.1.0" />
   </ItemGroup>
 

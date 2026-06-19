@@ -278,7 +278,7 @@ Typical benchmark results on a modern development machine:
 
 ### Prerequisites
 
-- .NET 9.0 SDK
+- .NET 10.0 SDK
 - Git
 - ReportGenerator tool (for coverage reports)
 - KGSM installed (for integration tests)
