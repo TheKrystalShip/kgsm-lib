@@ -111,10 +111,15 @@ public class InstanceService : IInstanceService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
+        // Always --force: a programmatic uninstall through the library is, by definition, already
+        // confirmed at the calling surface (e.g. the API's operator gate + the SPA's confirm flow). kgsm's
+        // uninstall is interactive by default and returns a non-zero EC_CANCELLED with no TTY — so without
+        // --force this would silently no-op. The destructive confirmation belongs at the product surface,
+        // never as a TTY prompt to a non-interactive engine call.
         IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
         return provenance is null
-            ? _commandExecutor.Execute(_timeouts.Uninstall, "uninstall", instanceName)
-            : _commandExecutor.Execute(provenance, _timeouts.Uninstall, "uninstall", instanceName);
+            ? _commandExecutor.Execute(_timeouts.Uninstall, "uninstall", instanceName, "--force")
+            : _commandExecutor.Execute(provenance, _timeouts.Uninstall, "uninstall", instanceName, "--force");
     }
 
     /// <inheritdoc/>

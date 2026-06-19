@@ -288,7 +288,9 @@ public class InstanceServiceTests
         Assert.True(result.IsSuccess);
     }
 
-    // --- Uninstall : Execute(timeout, "uninstall", name) ---
+    // --- Uninstall : Execute(timeout, "uninstall", name, "--force") ---
+    // Always --force: a programmatic uninstall is already confirmed at the calling surface, and kgsm's
+    // uninstall is interactive-by-default (a no-TTY call without --force is a non-zero EC_CANCELLED no-op).
 
     [Fact]
     public void Uninstall_NullInstanceName_ThrowsArgumentNullException()
@@ -297,12 +299,12 @@ public class InstanceServiceTests
     }
 
     [Fact]
-    public void Uninstall_ValidInstance_IssuesUninstallCommand()
+    public void Uninstall_ValidInstance_IssuesForcedUninstallCommand()
     {
         _mockCommandExecutor
             .Setup(x => x.Execute(
                 It.IsAny<TimeSpan>(),
-                It.Is<string[]>(a => ArgsAre(a, "uninstall", Instance))))
+                It.Is<string[]>(a => ArgsAre(a, "uninstall", Instance, "--force"))))
             .Returns(new KgsmResult(new ProcessResult(0, "uninstalled", string.Empty)));
 
         KgsmResult result = _instanceService.Uninstall(Instance);
@@ -310,7 +312,7 @@ public class InstanceServiceTests
         Assert.True(result.IsSuccess);
         _mockCommandExecutor.Verify(x => x.Execute(
             It.IsAny<TimeSpan>(),
-            It.Is<string[]>(a => ArgsAre(a, "uninstall", Instance))), Times.Once);
+            It.Is<string[]>(a => ArgsAre(a, "uninstall", Instance, "--force"))), Times.Once);
     }
 
     // --- GetInfo : Execute("instances", "info", name) (raw, not JSON) ---
@@ -776,7 +778,7 @@ public class InstanceServiceTests
         _mockCommandExecutor.Verify(x => x.Execute(
             It.Is<IReadOnlyDictionary<string, string>>(e => e["KGSM_EVENT_ORIGIN"] == "discord"),
             It.IsAny<TimeSpan>(),
-            It.Is<string[]>(a => ArgsAre(a, "uninstall", "valheim"))), Times.Once);
+            It.Is<string[]>(a => ArgsAre(a, "uninstall", "valheim", "--force"))), Times.Once);
     }
 
     [Fact]
