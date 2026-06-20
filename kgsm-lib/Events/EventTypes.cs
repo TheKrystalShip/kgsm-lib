@@ -430,3 +430,50 @@ public class InstancePortsClosedData : EventDataBase
     /// </summary>
     public List<PortMapping> Ports { get; set; } = [];
 }
+
+/// <summary>
+/// Event data for when a player joined a running instance. For our kgsm-containers
+/// images these are forwarded by the kgsm-watchdog — it tails the in-container event
+/// channel and re-emits via kgsm-lib — stamped <c>Actor == "system"</c> /
+/// <c>Origin == "system"</c> (an autonomous observation, not a human action). Native
+/// detection is a later increment. At least one of <see cref="PlayerId"/> /
+/// <see cref="PlayerName"/> is non-null (the emitting shim enforces it).
+/// </summary>
+public class InstancePlayerJoinedData : EventDataBase
+{
+    /// <summary>
+    /// Gets or sets the opaque, game-scoped stable player id (SteamID64 / Minecraft
+    /// UUID / …) when the source provides one, otherwise <see langword="null"/>.
+    /// Never fabricated — a source that gives only a display name leaves this null.
+    /// </summary>
+    public string? PlayerId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the player's display label when the source provides one, otherwise
+    /// <see langword="null"/>. Never fabricated. See <see cref="PlayerId"/> for the
+    /// at-least-one-non-null guarantee.
+    /// </summary>
+    public string? PlayerName { get; set; }
+}
+
+/// <summary>
+/// Event data for when a player left a running instance. The leave counterpart of
+/// <see cref="InstancePlayerJoinedData"/> — same source, provenance, and nullable
+/// identity rules.
+/// </summary>
+public class InstancePlayerLeftData : EventDataBase
+{
+    /// <summary>
+    /// Gets or sets the opaque, game-scoped stable player id (SteamID64 / Minecraft
+    /// UUID / …) when the source provides one, otherwise <see langword="null"/>.
+    /// Never fabricated.
+    /// </summary>
+    public string? PlayerId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the player's display label when the source provides one, otherwise
+    /// <see langword="null"/>. Never fabricated. See <see cref="PlayerId"/> for the
+    /// at-least-one-non-null guarantee.
+    /// </summary>
+    public string? PlayerName { get; set; }
+}

@@ -166,6 +166,54 @@ public class EventDeserializationTests
         Assert.Equal(new PortMapping { Start = 7777, End = 7777, Protocol = "tcp" }, closed.Ports[0]);
     }
 
+    // Models the kgsm `_build_event_payload instance_player_joined factorio-01 76561198000000000 haru`
+    // wire shape: Data.PlayerId / Data.PlayerName are the out-of-band nullable params (rendered to JSON
+    // null when empty by the builder — never an empty string). Forwarded by the watchdog from a
+    // container's in-image shim → stamped Actor=system / Origin=system (an autonomous observation).
+    private const string PlayerJoinedWireJson = """
+        {"EventType":"instance_player_joined","Data":{"InstanceName":"factorio-01","PlayerId":"76561198000000000","PlayerName":"haru"},"Timestamp":"2026-06-20T08:00:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+        """;
+
+    // The leave event with a NAME-ONLY source: PlayerId is JSON null (the source gave no stable id) —
+    // surfaced honestly as null, never a fabricated id. The at-least-one-non-null rule is the shim's job.
+    private const string PlayerLeftWireJson = """
+        {"EventType":"instance_player_left","Data":{"InstanceName":"factorio-01","PlayerId":null,"PlayerName":"haru"},"Timestamp":"2026-06-20T08:05:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+        """;
+
+    [Fact]
+    public void PlayerJoinedEvent_DeserializesIdAndName_WithSystemProvenance()
+    {
+        EventWrapper? wrapper =
+            JsonSerializer.Deserialize(PlayerJoinedWireJson, KgsmJsonContext.Default.EventWrapper);
+        Assert.NotNull(wrapper);
+        // Autonomous observation forwarded by the watchdog: who = system, surface = system.
+        Assert.Equal("system", wrapper!.Actor);
+        Assert.Equal("system", wrapper.Origin);
+
+        (string eventType, EventDataBase? data) =
+            Deserialize(PlayerJoinedWireJson, typeof(InstancePlayerJoinedData));
+
+        Assert.Equal("instance_player_joined", eventType);
+        var joined = Assert.IsType<InstancePlayerJoinedData>(data);
+        Assert.Equal("factorio-01", joined.InstanceName);
+        Assert.Equal("76561198000000000", joined.PlayerId);
+        Assert.Equal("haru", joined.PlayerName);
+    }
+
+    [Fact]
+    public void PlayerLeftEvent_DeserializesNameOnly_NullIdNeverFabricated()
+    {
+        (string eventType, EventDataBase? data) =
+            Deserialize(PlayerLeftWireJson, typeof(InstancePlayerLeftData));
+
+        Assert.Equal("instance_player_left", eventType);
+        var left = Assert.IsType<InstancePlayerLeftData>(data);
+        Assert.Equal("factorio-01", left.InstanceName);
+        // Name-only source: the id is honestly null, not a fabricated value.
+        Assert.Null(left.PlayerId);
+        Assert.Equal("haru", left.PlayerName);
+    }
+
     // Models the kgsm `_build_event_payload` wire shape after the actor/timestamp
     // enrichment (reconstructed from a captured emit; JSON is whitespace/order-
     // insensitive): the envelope now carries a top-level Actor alongside Timestamp.

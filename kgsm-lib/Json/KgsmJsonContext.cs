@@ -80,6 +80,8 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(InstanceUninstalledData))]
 [JsonSerializable(typeof(InstancePortsOpenedData))]
 [JsonSerializable(typeof(InstancePortsClosedData))]
+[JsonSerializable(typeof(InstancePlayerJoinedData))]
+[JsonSerializable(typeof(InstancePlayerLeftData))]
 public partial class KgsmJsonContext : JsonSerializerContext
 {
 }
