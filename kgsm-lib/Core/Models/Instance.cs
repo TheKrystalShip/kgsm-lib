@@ -155,6 +155,39 @@ public record class Instance
     public string StartupSuccessRegex { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the regex matched against the game's log output to detect a player
+    /// joining (player-presence Increment 2, native detection). Empty when the blueprint
+    /// sets no pattern — that detection is disabled (honest unknown, no event invented).
+    /// Optional named groups <c>(?&lt;id&gt;…)</c> / <c>(?&lt;name&gt;…)</c> populate the
+    /// emitted event's player id / name; at least one must match. Materialized from the
+    /// blueprint into the instance config, so the resident supervisor (kgsm-watchdog) reads
+    /// it off this Instance to tail a native instance's log. (Containers use the base64 env
+    /// form + in-image shim instead; the field is shared but the matching engine differs —
+    /// Perl in the container shim, .NET here.)
+    /// </summary>
+    [JsonPropertyName("player_joined_regex")]
+    public string PlayerJoinedRegex { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the regex matched against the game's log output to detect a player
+    /// leaving — the leave counterpart of <see cref="PlayerJoinedRegex"/>, same rules.
+    /// </summary>
+    [JsonPropertyName("player_left_regex")]
+    public string PlayerLeftRegex { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets whether the resident supervisor (kgsm-watchdog) should UPnP
+    /// port-forward this instance — the per-instance gate its <c>UpnpService</c>
+    /// reads. <see langword="false"/> (the safe default) when absent from the wire:
+    /// current KGSM stripped UPnP from the bash engine (the headless-network plan
+    /// re-homes it into the watchdog), so it is not emitted today and forwarding
+    /// stays off until that migration re-supplies this flag. Typed here because the
+    /// watchdog is a live consumer — it must compile against this Instance.
+    /// </summary>
+    [JsonPropertyName("enable_port_forwarding")]
+    public bool EnablePortForwarding { get; set; } = false;
+
+    /// <summary>
     /// Gets or sets the level name for the instance.
     /// </summary>
     [JsonPropertyName("level_name")]

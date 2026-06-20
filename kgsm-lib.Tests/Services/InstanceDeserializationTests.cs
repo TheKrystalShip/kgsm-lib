@@ -81,6 +81,36 @@ public class InstanceDeserializationTests
     }
 
     [Fact]
+    public void PlayerPresenceRegexes_bind_from_the_wire_fields()
+    {
+        // KGSM materializes the blueprint's player_joined_regex / player_left_regex into the
+        // instance config, which the generic instances-info JSON dump emits. The watchdog reads
+        // these off the native Instance to tail its log. Bind via [JsonPropertyName("player_*_regex")].
+        StubProcessOutput(
+            """{"name":"factorio-01","runtime":"native","player_joined_regex":"\\[JOIN\\] (?<name>.+) joined","player_left_regex":"\\[LEAVE\\] (?<name>.+) left"}""");
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        Assert.Equal("\\[JOIN\\] (?<name>.+) joined", result!.PlayerJoinedRegex);
+        Assert.Equal("\\[LEAVE\\] (?<name>.+) left", result.PlayerLeftRegex);
+    }
+
+    [Fact]
+    public void PlayerPresenceRegexes_default_to_empty_when_absent()
+    {
+        // No blueprint pattern set (or a pre-1.20.0 KGSM) → empty, the watchdog's signal that
+        // native detection is disabled for this instance (honest unknown, no event invented).
+        StubProcessOutput("""{"name":"7dtd","runtime":"native"}""");
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        Assert.Equal(string.Empty, result!.PlayerJoinedRegex);
+        Assert.Equal(string.Empty, result.PlayerLeftRegex);
+    }
+
+    [Fact]
     public void Legacy_systemd_and_lifecycle_manager_fields_are_ignored_not_thrown_on()
     {
         // Older KGSM still emits lifecycle_manager / enable_systemd / systemd_* — their properties were
