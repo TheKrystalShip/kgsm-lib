@@ -432,6 +432,42 @@ public class InstancePortsClosedData : EventDataBase
 }
 
 /// <summary>
+/// Event data for when an instance's UPnP port mappings were opened on the local IGD
+/// (router) — a <b>distinct</b> operation from the host-firewall
+/// <see cref="InstancePortsOpenedData"/> (router NAT forward vs. ufw rule; a host can
+/// have one without the other). Emitted by the kgsm-watchdog — the resident supervisor
+/// owns UPnP because it is process-lifetime state — stamped <c>Actor == "system"</c> /
+/// <c>Origin == "system"</c> (an autonomous daemon action). Only a confirmed mapping
+/// (<c>upnpc</c> exited 0) emits this, never a fabricated outcome.
+/// </summary>
+public class InstanceUpnpOpenedData : EventDataBase
+{
+    /// <summary>
+    /// Gets or sets the ports that were forwarded, as the canonical range-preserving
+    /// <see cref="PortMapping"/> array (the same shape <c>instances info --json</c>
+    /// emits) — never an opaque UFW string.
+    /// </summary>
+    public List<PortMapping> Ports { get; set; } = [];
+}
+
+/// <summary>
+/// Event data for when an instance's UPnP port mappings were closed on the local IGD
+/// (router) — the close twin of <see cref="InstanceUpnpOpenedData"/>, distinct from the
+/// host-firewall <see cref="InstancePortsClosedData"/>. Emitted by the kgsm-watchdog on
+/// a deliberate stop, <c>Actor == "system"</c> / <c>Origin == "system"</c>. Only a
+/// confirmed removal (<c>upnpc</c> exited 0) emits — a "nothing to delete" close (no
+/// mapping existed) changes nothing and emits nothing.
+/// </summary>
+public class InstanceUpnpClosedData : EventDataBase
+{
+    /// <summary>
+    /// Gets or sets the ports whose forward was removed, as the canonical
+    /// range-preserving <see cref="PortMapping"/> array — never an opaque UFW string.
+    /// </summary>
+    public List<PortMapping> Ports { get; set; } = [];
+}
+
+/// <summary>
 /// Event data for when a player joined a running instance. For our kgsm-containers
 /// images these are forwarded by the kgsm-watchdog — it tails the in-container event
 /// channel and re-emits via kgsm-lib — stamped <c>Actor == "system"</c> /

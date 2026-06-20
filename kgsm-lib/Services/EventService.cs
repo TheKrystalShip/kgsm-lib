@@ -70,6 +70,9 @@ public class EventService : IEventService, IAsyncDisposable
         { "instance_ports_opened", typeof(InstancePortsOpenedData) },
         { "instance_ports_closed", typeof(InstancePortsClosedData) },
 
+        { "instance_upnp_opened", typeof(InstanceUpnpOpenedData) },
+        { "instance_upnp_closed", typeof(InstanceUpnpClosedData) },
+
         { "instance_player_joined", typeof(InstancePlayerJoinedData) },
         { "instance_player_left", typeof(InstancePlayerLeftData) }
     };

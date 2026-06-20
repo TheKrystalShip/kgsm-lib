@@ -166,6 +166,47 @@ public class EventDeserializationTests
         Assert.Equal(new PortMapping { Start = 7777, End = 7777, Protocol = "tcp" }, closed.Ports[0]);
     }
 
+    // The watchdog's UPnP-open audit event — DISTINCT from instance_ports_opened (router NAT
+    // forward, not a ufw rule). Emitted by the resident supervisor after upnpc exits 0, stamped
+    // Actor=system / Origin=system (an autonomous daemon action). Same structured Ports shape.
+    private const string UpnpOpenedWireJson = """
+        {"EventType":"instance_upnp_opened","Data":{"InstanceName":"factorio-01","Ports":[{"start":34197,"end":34197,"protocol":"udp"},{"start":27015,"end":27020,"protocol":"tcp"}]},"Timestamp":"2026-06-20T08:00:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+        """;
+
+    private const string UpnpClosedWireJson = """
+        {"EventType":"instance_upnp_closed","Data":{"InstanceName":"factorio-01","Ports":[{"start":7777,"end":7777,"protocol":"udp"}]},"Timestamp":"2026-06-20T08:00:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+        """;
+
+    [Fact]
+    public void UpnpOpenedEvent_DeserializesStructuredRangePreservingPorts()
+    {
+        (string eventType, EventDataBase? data) =
+            Deserialize(UpnpOpenedWireJson, typeof(InstanceUpnpOpenedData));
+
+        Assert.Equal("instance_upnp_opened", eventType);
+        var opened = Assert.IsType<InstanceUpnpOpenedData>(data);
+        Assert.Equal("factorio-01", opened.InstanceName);
+
+        // Range preserved (start != end), never pre-expanded — same canonical shape as the
+        // firewall ports event, a different (router) fact.
+        Assert.Equal(2, opened.Ports.Count);
+        Assert.Equal(new PortMapping { Start = 34197, End = 34197, Protocol = "udp" }, opened.Ports[0]);
+        Assert.Equal(new PortMapping { Start = 27015, End = 27020, Protocol = "tcp" }, opened.Ports[1]);
+    }
+
+    [Fact]
+    public void UpnpClosedEvent_DeserializesStructuredPorts()
+    {
+        (string eventType, EventDataBase? data) =
+            Deserialize(UpnpClosedWireJson, typeof(InstanceUpnpClosedData));
+
+        Assert.Equal("instance_upnp_closed", eventType);
+        var closed = Assert.IsType<InstanceUpnpClosedData>(data);
+        Assert.Equal("factorio-01", closed.InstanceName);
+        Assert.Single(closed.Ports);
+        Assert.Equal(new PortMapping { Start = 7777, End = 7777, Protocol = "udp" }, closed.Ports[0]);
+    }
+
     // Models the kgsm `_build_event_payload instance_player_joined factorio-01 76561198000000000 haru`
     // wire shape: Data.PlayerId / Data.PlayerName are the out-of-band nullable params (rendered to JSON
     // null when empty by the builder — never an empty string). Forwarded by the watchdog from a

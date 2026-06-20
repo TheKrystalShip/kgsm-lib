@@ -110,6 +110,39 @@ public class InstanceDeserializationTests
         Assert.Equal(string.Empty, result.PlayerLeftRegex);
     }
 
+    [Theory]
+    [InlineData("true", true)]
+    [InlineData("false", false)]
+    [InlineData("TRUE", true)]
+    public void EnablePortForwarding_binds_from_the_stringly_bool_wire(string wire, bool expected)
+    {
+        // KGSM's instances-info dump renders every config value as a STRING (jq -R), so the UPnP gate
+        // arrives as "true"/"false" — NOT a JSON bool. The global JsonStringToBoolConverter coerces it
+        // (case-insensitive), the same path enable_firewall_management already rides. The watchdog reads
+        // this off the spec (GetInstanceInfo) to gate upnpc — if it didn't bind, UPnP could never be
+        // enabled. Binds via [JsonPropertyName("enable_port_forwarding")].
+        StubProcessOutput(
+            "{\"name\":\"factorio-01\",\"runtime\":\"native\",\"enable_port_forwarding\":\"" + wire + "\"}");
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        Assert.Equal(expected, result!.EnablePortForwarding);
+    }
+
+    [Fact]
+    public void EnablePortForwarding_defaults_to_false_when_absent()
+    {
+        // An instance whose config predates the gate (or a pre-restore KGSM) emits no key → false =
+        // inert (the safe default; the watchdog runs no upnpc until the operator enables it).
+        StubProcessOutput("""{"name":"7dtd","runtime":"native"}""");
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        Assert.False(result!.EnablePortForwarding);
+    }
+
     [Fact]
     public void Legacy_systemd_and_lifecycle_manager_fields_are_ignored_not_thrown_on()
     {
