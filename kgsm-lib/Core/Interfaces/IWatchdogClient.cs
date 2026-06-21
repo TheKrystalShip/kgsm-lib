@@ -66,4 +66,47 @@ public interface IWatchdogClient : IDisposable
     /// </summary>
     /// <param name="cancellationToken">Cancels the request.</param>
     Task<IReadOnlyList<WatchdogInstanceState>> ListAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Follows the live console (stdout/stderr tail) of a native, supervised instance,
+    /// yielding each line as the daemon appends it. The stream carries <b>only</b> lines
+    /// written <em>after</em> the call connects — it does not replay history (use
+    /// <see cref="GetConsoleTailAsync"/> for a backlog).
+    /// </summary>
+    /// <remarks>
+    /// The stream is <b>unbounded and never self-completes on the daemon's own initiative</b>:
+    /// it does not end on the instance stopping, on log EOF, or on a missing-on-disk log (a
+    /// missing log holds the connection open, polling, until the file appears). In normal
+    /// operation enumeration ends only when the caller cancels
+    /// <paramref name="cancellationToken"/> (or disposes the enumerator) — at which point an
+    /// <see cref="OperationCanceledException"/> may surface from the iterator. A
+    /// <em>server-side</em> disconnect (the daemon stopping, or the socket dropping) appears
+    /// as stream EOF and ends the sequence <b>normally</b> (no exception) — a consumer that
+    /// wants to keep following must re-invoke; the sequence ending is not by itself proof the
+    /// caller cancelled. An unknown / non-native / no-console instance yields an empty
+    /// sequence (the daemon answers 404 before the first byte). The shared request timeout
+    /// does <b>not</b> apply to this call — it streams for as long as the caller keeps the
+    /// token un-cancelled and the connection stays up.
+    /// </remarks>
+    /// <param name="instanceName">The instance whose console to follow.</param>
+    /// <param name="cancellationToken">Stops the follow when cancelled — the normal way it ends (a server-side disconnect ends it without cancellation).</param>
+    /// <returns>An async sequence of console lines (newline already stripped).</returns>
+    IAsyncEnumerable<string> FollowConsoleAsync(string instanceName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads a finite tail of a native, supervised instance's console — the last
+    /// <paramref name="lines"/> lines currently on disk, oldest-first.
+    /// </summary>
+    /// <remarks>
+    /// An unknown / non-native / no-console instance (the daemon answers 404) returns an
+    /// <b>empty</b> list rather than throwing — an honest "no console" read, mirroring how
+    /// <see cref="GetStatusAsync"/> degrades a 404 to null. An instance with a console but
+    /// no lines also returns an empty list. The daemon clamps <paramref name="lines"/> to
+    /// its own bounds (0..5000); a request transport failure still throws.
+    /// </remarks>
+    /// <param name="instanceName">The instance whose console tail to read.</param>
+    /// <param name="lines">How many trailing lines to request (the daemon clamps 0..5000).</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The trailing console lines oldest-first, or an empty list when there is no console.</returns>
+    Task<IReadOnlyList<string>> GetConsoleTailAsync(string instanceName, int lines, CancellationToken cancellationToken = default);
 }

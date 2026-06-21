@@ -114,7 +114,8 @@ public class WatchdogClientTests
     [Fact]
     public void Ctor_NullOptions_Throws()
         => Assert.Throws<ArgumentNullException>(
-            () => new WatchdogClient(null!, NullLogger<WatchdogClient>.Instance));
+            // Cast disambiguates from the internal test-only WatchdogClient(HttpClient, …) ctor.
+            () => new WatchdogClient((WatchdogClientOptions)null!, NullLogger<WatchdogClient>.Instance));
 
     [Theory]
     [InlineData("")]

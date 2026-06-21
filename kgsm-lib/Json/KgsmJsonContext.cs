@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using TheKrystalShip.KGSM.Core.Models;
@@ -84,6 +83,7 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(InstanceUpnpClosedData))]
 [JsonSerializable(typeof(InstancePlayerJoinedData))]
 [JsonSerializable(typeof(InstancePlayerLeftData))]
+[JsonSerializable(typeof(InstanceConfigChangedData))]
 public partial class KgsmJsonContext : JsonSerializerContext
 {
 }

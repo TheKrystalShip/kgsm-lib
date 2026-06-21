@@ -1,6 +1,6 @@
 using System.Net;
-using System.Net.Http;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.KGSM.Core.Interfaces;
@@ -18,7 +18,18 @@ namespace TheKrystalShip.KGSM.Services;
 /// </summary>
 public sealed class WatchdogClient : IWatchdogClient
 {
+    // The finite-request client (the readiness/start/stop/status/list/tail verbs are
+    // bounded). Carries the configured RequestTimeout.
     private readonly HttpClient _http;
+
+    // A separate client used ONLY for the unbounded console-follow stream. HttpClient's
+    // Timeout bounds the WHOLE request including the streamed body read (ResponseHeadersRead
+    // only changes when GetAsync returns, not the timeout scope), so a finite Timeout would
+    // silently kill a long follow. This one runs at Timeout.InfiniteTimeSpan — the follow
+    // ends solely on the caller's CancellationToken, which is the daemon's contract (the
+    // stream never self-completes).
+    private readonly HttpClient _streamHttp;
+
     private readonly ILogger<WatchdogClient> _logger;
     private bool _disposed;
 
@@ -40,34 +51,61 @@ public sealed class WatchdogClient : IWatchdogClient
         _logger = logger;
 
         var socketPath = options.SocketPath;
-        var handler = new SocketsHttpHandler
-        {
-            // Every HTTP connection is dialed over the unix-domain socket. The Host
-            // in the request URI is a placeholder the daemon ignores.
-            ConnectCallback = async (_, ct) =>
-            {
-                var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-                try
-                {
-                    await socket.ConnectAsync(new UnixDomainSocketEndPoint(socketPath), ct).ConfigureAwait(false);
-                    return new NetworkStream(socket, ownsSocket: true);
-                }
-                catch
-                {
-                    socket.Dispose();
-                    throw;
-                }
-            }
-        };
 
-        _http = new HttpClient(handler, disposeHandler: true)
+        _http = new HttpClient(BuildSocketHandler(socketPath), disposeHandler: true)
         {
             BaseAddress = new Uri("http://localhost"),
             Timeout = options.RequestTimeout,
         };
 
+        // Same UDS transport, but no wall-clock cap — the follow stream is unbounded and
+        // ends only when the caller cancels.
+        _streamHttp = new HttpClient(BuildSocketHandler(socketPath), disposeHandler: true)
+        {
+            BaseAddress = new Uri("http://localhost"),
+            Timeout = Timeout.InfiniteTimeSpan,
+        };
+
         _logger.LogDebug("WatchdogClient initialized for control socket {SocketPath}", socketPath);
     }
+
+    /// <summary>
+    /// Test-only constructor: drives both the finite and the follow paths through an
+    /// injected <see cref="HttpClient"/> (typically wrapping a stub
+    /// <see cref="HttpMessageHandler"/>), so the request shapes and response handling can
+    /// be unit-tested without a live daemon socket.
+    /// </summary>
+    internal WatchdogClient(HttpClient httpClient, ILogger<WatchdogClient> logger)
+    {
+        ArgumentNullException.ThrowIfNull(httpClient, nameof(httpClient));
+        ArgumentNullException.ThrowIfNull(logger, nameof(logger));
+
+        _logger = logger;
+        // Both fields point at the same injected client in tests; the stub handler stands
+        // in for the daemon for both the finite and the streaming requests.
+        _http = httpClient;
+        _streamHttp = httpClient;
+    }
+
+    private static SocketsHttpHandler BuildSocketHandler(string socketPath) => new()
+    {
+        // Every HTTP connection is dialed over the unix-domain socket. The Host
+        // in the request URI is a placeholder the daemon ignores.
+        ConnectCallback = async (_, ct) =>
+        {
+            var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            try
+            {
+                await socket.ConnectAsync(new UnixDomainSocketEndPoint(socketPath), ct).ConfigureAwait(false);
+                return new NetworkStream(socket, ownsSocket: true);
+            }
+            catch
+            {
+                socket.Dispose();
+                throw;
+            }
+        }
+    };
 
     /// <inheritdoc/>
     public async Task<bool> IsReadyAsync(CancellationToken cancellationToken = default)
@@ -146,6 +184,78 @@ public sealed class WatchdogClient : IWatchdogClient
         return states ?? [];
     }
 
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<string>> GetConsoleTailAsync(string instanceName, int lines, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+
+        using var response = await _http
+            .GetAsync($"/console/{Uri.EscapeDataString(instanceName)}?tail={lines}", cancellationToken)
+            .ConfigureAwait(false);
+
+        // An unknown / non-native / no-console instance has no console — an honest empty
+        // read, not an error (mirrors GetStatusAsync degrading a 404 to null).
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return [];
+
+        response.EnsureSuccessStatusCode();
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrEmpty(body))
+            return [];
+
+        // The daemon \n-joins the lines with a trailing \n; split and drop that trailing
+        // empty element so "no lines" → [] and N lines → exactly N entries.
+        var split = body.Split('\n');
+        var count = split.Length;
+        if (count > 0 && split[count - 1].Length == 0)
+            count--;
+
+        if (count == 0)
+            return [];
+
+        var result = new string[count];
+        Array.Copy(split, result, count);
+        return result;
+    }
+
+    /// <inheritdoc/>
+    public async IAsyncEnumerable<string> FollowConsoleAsync(
+        string instanceName,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+
+        // ResponseHeadersRead so we get the response (and can stream the body) without
+        // buffering the unbounded chunked body first. The _streamHttp client has an
+        // infinite Timeout, so only `cancellationToken` ends this — matching the daemon's
+        // contract that the stream never self-completes.
+        using var response = await _streamHttp
+            .GetAsync(
+                $"/console/{Uri.EscapeDataString(instanceName)}/follow",
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        // An unknown / non-native / no-console instance answers 404 before the first byte
+        // → an empty sequence, not an error.
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            yield break;
+
+        response.EnsureSuccessStatusCode();
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        using var reader = new StreamReader(stream);
+
+        string? line;
+        while ((line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false)) is not null)
+        {
+            yield return line;
+        }
+    }
+
     private async Task<WatchdogActionResult> PostActionAsync(string verb, string instanceName, CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
@@ -189,6 +299,9 @@ public sealed class WatchdogClient : IWatchdogClient
         if (_disposed)
             return;
         _http.Dispose();
+        // In the production ctor _streamHttp is a distinct client; in the test ctor it is
+        // the same injected instance, so a double-Dispose is a harmless no-op.
+        _streamHttp.Dispose();
         _disposed = true;
     }
 }

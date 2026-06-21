@@ -160,3 +160,119 @@ public class InstanceStatusDeserializationTests
         Assert.Null(broken.Value); // no masquerading status object
     }
 }
+
+/// <summary>
+/// Verifies the tolerant <c>start_time</c> converter
+/// (<see cref="JsonTolerantUtcDateTimeConverter"/>) applied to
+/// <see cref="ProcessInfo.StartTime"/>. The contract is honesty-critical: a value
+/// only becomes non-null when it carries an explicit instant (UTC <c>Z</c> or an
+/// offset), and it must bind to <see cref="DateTimeKind.Utc"/> (kgsm-api's
+/// ServerAggregator drops a non-UTC kind). ANY other string — the old local-time
+/// asctime form, the offset-less <c>2026-06-16 14:23:01</c>, empty, garbage — degrades
+/// to <see langword="null"/> WITHOUT throwing, so a single bad value loses only its own
+/// <c>start_time</c> instead of throwing inside the one bulk <c>Deserialize</c> call and
+/// collapsing the whole roster (the regression this exists for). An offset-less value is
+/// honest null, never a fabricated instant (no timezone is assumed).
+///
+/// Exercised through the real <see cref="KgsmCommandExecutor"/> bulk-status path so the
+/// converter runs exactly as it does in production.
+/// </summary>
+public class StartTimeConverterTests
+{
+    private readonly Mock<IProcessRunner> _processRunner = new();
+    private readonly Mock<ILogger<KgsmCommandExecutor>> _logger = new();
+
+    private KgsmCommandExecutor Create() =>
+        new(_processRunner.Object,
+            new KgsmOptions { KgsmPath = "/opt/kgsm/kgsm.sh", Timeouts = new KgsmTimeoutOptions() },
+            _logger.Object);
+
+    private DateTime? DeserializeStartTime(string startTimeJsonValue)
+    {
+        // A single-instance bulk-status blob with the start_time literal under test.
+        string json = $$"""
+            {
+              "x": {
+                "instance_name": "x",
+                "status": true,
+                "process": { "pid": 1234, "status": "running", "start_time": {{startTimeJsonValue}} },
+                "version": { "current": "1", "latest": null, "checked": false, "updates_available": null },
+                "configuration": { "blueprint": "x.bp", "runtime": "native", "directory": "/x" },
+                "resources": { "disk_usage": "1G" },
+                "backups": [],
+                "recent_logs": ""
+              }
+            }
+            """;
+        _processRunner
+            .Setup(r => r.Execute(It.IsAny<string>(), It.IsAny<TimeSpan>(), It.IsAny<string[]>()))
+            .Returns(new ProcessResult(0, json, string.Empty));
+
+        Dictionary<string, Reading<InstanceRuntimeStatus>>? result =
+            Create().ExecuteForJson<Dictionary<string, Reading<InstanceRuntimeStatus>>>(
+                ["instances", "list", "--status", "--json"]);
+
+        Assert.NotNull(result);
+        // The whole read must survive regardless of the start_time value — the point of
+        // the converter. A bad value never sinks the dictionary.
+        Reading<InstanceRuntimeStatus> reading = result![ "x" ];
+        Assert.Equal(ReadingState.Measured, reading.State);
+        return reading.Value!.Process.StartTime;
+    }
+
+    [Fact]
+    public void IsoUtcZ_BindsToUtcKind()
+    {
+        // The form current KGSM emits. Must round-trip to a UTC-kind DateTime (the only
+        // kind kgsm-api's ServerAggregator accepts).
+        DateTime? dt = DeserializeStartTime("\"2026-06-21T23:53:46Z\"");
+        Assert.NotNull(dt);
+        Assert.Equal(DateTimeKind.Utc, dt!.Value.Kind);
+        Assert.Equal(new DateTime(2026, 6, 21, 23, 53, 46, DateTimeKind.Utc), dt.Value);
+    }
+
+    [Fact]
+    public void ExplicitOffset_NormalizedToUtcKind()
+    {
+        // An explicit offset pins a real instant; normalize to UTC (not null).
+        DateTime? dt = DeserializeStartTime("\"2026-06-21T23:53:46+02:00\"");
+        Assert.NotNull(dt);
+        Assert.Equal(DateTimeKind.Utc, dt!.Value.Kind);
+        Assert.Equal(new DateTime(2026, 6, 21, 21, 53, 46, DateTimeKind.Utc), dt.Value);
+    }
+
+    [Fact]
+    public void JsonNull_BecomesNull()
+    {
+        Assert.Null(DeserializeStartTime("null"));
+    }
+
+    [Fact]
+    public void OffsetlessSpaceFormat_BecomesNull_NeverFabricated()
+    {
+        // The load-bearing case: an offset-less string is ambiguous. A naive
+        // DateTimeOffset.TryParse(...).UtcDateTime would ASSUME local time and fabricate a
+        // wrong instant. The honest answer is null.
+        Assert.Null(DeserializeStartTime("\"2026-06-16 14:23:01\""));
+    }
+
+    [Fact]
+    public void OldAsctimeLocalFormat_BecomesNull()
+    {
+        // The legacy `date`/asctime form from un-regenerated instances — no offset, must
+        // be null.
+        Assert.Null(DeserializeStartTime("\"Sun Jun 21 23:53:46 2026\""));
+    }
+
+    [Fact]
+    public void EmptyString_BecomesNull()
+    {
+        Assert.Null(DeserializeStartTime("\"\""));
+    }
+
+    [Fact]
+    public void Garbage_BecomesNull_DoesNotThrow()
+    {
+        Assert.Null(DeserializeStartTime("\"not-a-date\""));
+    }
+}

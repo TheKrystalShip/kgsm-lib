@@ -86,6 +86,31 @@ public class EventServiceTests
     }
 
     [Fact]
+    public async Task ReceivedEvent_ConfigChanged_BindsInstanceNameAndKey()
+    {
+        using EventService svc = CreateService();
+        var tcs = new TaskCompletionSource<InstanceConfigChangedData>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        svc.RegisterHandler<InstanceConfigChangedData>(data =>
+        {
+            tcs.TrySetResult(data);
+            return Task.CompletedTask;
+        });
+        svc.Initialize();
+
+        // Verbatim wire shape captured live: Data is exactly { InstanceName, Key } — both
+        // always-present non-null strings. The changed VALUE is never carried (secret
+        // hygiene), so the payload only names the key.
+        _mockClient.Raise(c => c.EventReceived += null,
+            Wire("instance_config_changed", """{"InstanceName":"factorio-test","Key":"rcon_password"}"""));
+
+        InstanceConfigChangedData received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("factorio-test", received.InstanceName);
+        Assert.Equal("rcon_password", received.Key);
+    }
+
+    [Fact]
     public async Task ReceivedEvent_FailureEventWithInstanceOnly_InvokesHandler()
     {
         using EventService svc = CreateService();

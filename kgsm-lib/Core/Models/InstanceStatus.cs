@@ -20,9 +20,15 @@ public record class ProcessInfo
     public string? Status { get; set; }
 
     /// <summary>
-    /// Gets or sets the process start time.
+    /// Gets or sets the process start time, as UTC. Current KGSM emits ISO-8601 UTC
+    /// (<c>…Z</c>); a value with an explicit UTC <c>Z</c> or offset binds to a UTC
+    /// <see cref="DateTime"/>, and any other (old local-time/asctime, empty, garbage)
+    /// value degrades to <see langword="null"/> without throwing — see
+    /// <see cref="JsonTolerantUtcDateTimeConverter"/>. <see langword="null"/> means no
+    /// honest start time, never a fabricated one.
     /// </summary>
     [JsonPropertyName("start_time")]
+    [JsonConverter(typeof(JsonTolerantUtcDateTimeConverter))]
     public DateTime? StartTime { get; set; }
 }
 

@@ -468,6 +468,22 @@ public class InstanceUpnpClosedData : EventDataBase
 }
 
 /// <summary>
+/// Event data for when an instance's <c>.config.ini</c> had a single key changed
+/// (via <c>kgsm config-set</c> / the lib's config setter). Both fields are always
+/// present non-null strings — <see cref="EventDataBase.InstanceName"/> identifies the
+/// instance and <see cref="Key"/> names the changed key. The new <em>value</em> is
+/// intentionally never carried (secret hygiene — instance config can hold passwords
+/// or tokens), so a consumer auditing this only learns that <see cref="Key"/> changed,
+/// never to what.
+/// </summary>
+public class InstanceConfigChangedData : EventDataBase
+{
+    /// <summary>The config key that was changed. The value is intentionally never carried
+    /// (secret hygiene — instance config can hold passwords/tokens).</summary>
+    public string Key { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// Event data for when a player joined a running instance. For our kgsm-containers
 /// images these are forwarded by the kgsm-watchdog — it tails the in-container event
 /// channel and re-emits via kgsm-lib — stamped <c>Actor == "system"</c> /
