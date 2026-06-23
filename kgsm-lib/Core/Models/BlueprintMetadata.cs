@@ -27,6 +27,16 @@ public class BlueprintMetadata
     public string? Description { get; set; }
 
     /// <summary>
+    /// Gets or sets the game's slug on RAWG.io (e.g. "garrys-mod"), or null. A
+    /// lookup hint for the external catalog the control panel uses to fetch cover
+    /// art / description / tags — the same kind of external-catalog id as a Steam
+    /// App ID. KGSM never calls RAWG; the consumer (kgsm-api) does. The blueprint
+    /// name is NOT assumed to equal the slug; an unverified game stays null (a wrong
+    /// slug would be misattribution).
+    /// </summary>
+    public string? RawgSlug { get; set; }
+
+    /// <summary>
     /// Gets or sets the maximum number of players, or null if
     /// unbounded/configurable/unknown.
     /// </summary>
