@@ -76,7 +76,9 @@ public class EventService : IEventService, IAsyncDisposable
         { "instance_player_joined", typeof(InstancePlayerJoinedData) },
         { "instance_player_left", typeof(InstancePlayerLeftData) },
 
-        { "instance_config_changed", typeof(InstanceConfigChangedData) }
+        { "instance_config_changed", typeof(InstanceConfigChangedData) },
+
+        { "instance_input_sent", typeof(InstanceInputSentData) }
     };
 
     /// <summary>

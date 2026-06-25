@@ -484,6 +484,26 @@ public class InstanceConfigChangedData : EventDataBase
 }
 
 /// <summary>
+/// Event data for when an arbitrary console command was sent to a running instance
+/// (via <c>kgsm instances input</c> / the lib's <c>IInstanceService.SendInput</c>).
+/// <see cref="EventDataBase.InstanceName"/> identifies the instance and <see cref="Command"/>
+/// is the verbatim command text delivered to the server's console input.
+/// </summary>
+/// <remarks>
+/// Unlike <see cref="InstanceConfigChangedData"/> (which carries the key but never the value),
+/// this event carries the FULL command text — a deliberate choice so the audit trail records
+/// exactly what an operator ran (console commands are admin-level: ban/kick/op/…). A console
+/// command can therefore contain a secret (e.g. an RCON login); the trade was accepted because
+/// the command surface is operator-gated and the trail's value is who-ran-what. A consumer that
+/// must redact should do so at its own boundary.
+/// </remarks>
+public class InstanceInputSentData : EventDataBase
+{
+    /// <summary>The verbatim console command that was sent to the instance.</summary>
+    public string Command { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// Event data for when a player joined a running instance. For our kgsm-containers
 /// images these are forwarded by the kgsm-watchdog — it tails the in-container event
 /// channel and re-emits via kgsm-lib — stamped <c>Actor == "system"</c> /

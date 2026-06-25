@@ -247,9 +247,14 @@ public interface IInstanceService
     /// </summary>
     /// <param name="instanceName">The instance to send the command to.</param>
     /// <param name="command">The console command to send.</param>
+    /// <param name="actor">Optional audit principal (who) to stamp on the emitted
+    /// <c>instance_input_sent</c> event via <c>KGSM_EVENT_ACTOR</c>; null omits it so kgsm
+    /// applies its OS-user fallback (never a fabricated identity).</param>
+    /// <param name="origin">Optional driving surface (through which) to stamp via
+    /// <c>KGSM_EVENT_ORIGIN</c>; null omits it (no surface — never fabricated).</param>
     /// <returns>Result containing log output after command execution.</returns>
     /// <exception cref="ArgumentException">Thrown when instanceName or command is null or whitespace.</exception>
-    KgsmResult SendInput(string instanceName, string command);
+    KgsmResult SendInput(string instanceName, string command, string? actor = null, string? origin = null);
 
     /// <summary>
     /// Gets the absolute path to an instance's configuration file.

@@ -277,12 +277,17 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
-    public KgsmResult SendInput(string instanceName, string command)
+    public KgsmResult SendInput(string instanceName, string command, string? actor = null, string? origin = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
         ArgumentException.ThrowIfNullOrWhiteSpace(command, nameof(command));
 
-        return _commandExecutor.Execute("instances", "input", instanceName, command);
+        // input is a quick command, so the default-timeout env overload carries provenance
+        // onto the instance_input_sent event kgsm emits (same pattern as SetInstanceConfigValue).
+        IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
+        return provenance is null
+            ? _commandExecutor.Execute("instances", "input", instanceName, command)
+            : _commandExecutor.Execute(provenance, "instances", "input", instanceName, command);
     }
 
     /// <inheritdoc/>

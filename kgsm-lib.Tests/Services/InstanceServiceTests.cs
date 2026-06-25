@@ -577,6 +577,36 @@ public class InstanceServiceTests
         Assert.Equal(1, result.ExitCode);
     }
 
+    [Fact]
+    public void SendInput_WithProvenance_UsesTheDefaultTimeoutEnvOverload()
+    {
+        // input is quick → the env overload WITHOUT an explicit timeout, like config-set, so the
+        // instance_input_sent event kgsm emits is attributable (actor/origin via KGSM_EVENT_*).
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<string[]>()))
+            .Returns(Ok);
+
+        _instanceService.SendInput("my-instance", "say hello", actor: "discord:haru", origin: "ui");
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.Is<IReadOnlyDictionary<string, string>>(e =>
+                e["KGSM_EVENT_ACTOR"] == "discord:haru" && e["KGSM_EVENT_ORIGIN"] == "ui"),
+            It.Is<string[]>(a => ArgsAre(a, "instances", "input", "my-instance", "say hello"))), Times.Once);
+    }
+
+    [Fact]
+    public void SendInput_NoProvenance_TakesThePlainNoEnvPath()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", "input", "my-instance", "say hello"))))
+            .Returns(Ok);
+
+        _instanceService.SendInput("my-instance", "say hello");
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<string[]>()), Times.Never);
+    }
+
     // --- FindConfigPath : Execute("instances", "find", name) ---
 
     [Fact]
