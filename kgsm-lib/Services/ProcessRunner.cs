@@ -55,7 +55,6 @@ public class ProcessRunner : IProcessRunner
         ProcessStartInfo processStartInfo = new()
         {
             FileName = command,
-            Arguments = arguments,
             UseShellExecute = false,
             RedirectStandardError = true,
             RedirectStandardOutput = true,
@@ -63,6 +62,13 @@ public class ProcessRunner : IProcessRunner
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8
         };
+
+        // Pass each arg as a DISTINCT argv element (ArgumentList), never a single
+        // space-joined Arguments string — that string is re-split on whitespace and
+        // would mangle ANY argument containing a space (a console command, a config
+        // value, an instance name with spaces). `arguments` above is for logging only.
+        foreach (string arg in args)
+            processStartInfo.ArgumentList.Add(arg);
 
         // Layer caller-supplied provenance onto the inherited environment (UseShellExecute
         // is false, so ProcessStartInfo.Environment is pre-seeded from this process). We
@@ -201,7 +207,6 @@ public class ProcessRunner : IProcessRunner
         ProcessStartInfo processStartInfo = new()
         {
             FileName = command,
-            Arguments = arguments,
             UseShellExecute = false,
             RedirectStandardError = true,
             RedirectStandardOutput = true,
@@ -209,6 +214,12 @@ public class ProcessRunner : IProcessRunner
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8
         };
+
+        // Each arg as a distinct argv element — never a space-joined Arguments string
+        // (which is re-split on whitespace, mangling any arg with a space). See the sync
+        // overload; `arguments` is for logging only.
+        foreach (string arg in args)
+            processStartInfo.ArgumentList.Add(arg);
 
         Process? process;
 

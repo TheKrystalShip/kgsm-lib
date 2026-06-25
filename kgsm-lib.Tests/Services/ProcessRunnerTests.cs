@@ -65,6 +65,32 @@ public class ProcessRunnerTests
     }
 
     [Fact]
+    public void Execute_SingleArgWithSpaces_PassedAsOneArgv()
+    {
+        // Regression: an argument containing spaces must reach the process as ONE argv,
+        // not be re-split on whitespace. `printf '%s' "alpha beta gamma"` echoes the single
+        // operand verbatim → "alpha beta gamma"; if the arg were split into 3 operands the
+        // recycled %s would print "alphabetagamma". (The old space-joined Arguments string
+        // mangled every multi-word console command / config value.)
+        var result = _processRunner.Execute("printf", "%s", "alpha beta gamma");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("alpha beta gamma", result.Stdout);
+    }
+
+    [Fact]
+    public void Execute_WithEnvironment_SingleArgWithSpaces_PreservedAndEnvApplied()
+    {
+        // The provenance overload (env + args) is the exact path the console-input command
+        // takes; the spaced arg must survive AND the env var must be layered on.
+        var env = new Dictionary<string, string> { ["KGSM_TEST_VAR"] = "x" };
+        var result = _processRunner.Execute("printf", TimeSpan.FromSeconds(10), env, new[] { "%s", "say hello world" });
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("say hello world", result.Stdout);
+    }
+
+    [Fact]
     public void Execute_CommandWithNoArgs_ExecutesCorrectly()
     {
         // Arrange
@@ -265,6 +291,16 @@ public class ProcessRunnerTests
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("hello", result.Stdout);
         Assert.Contains("world", result.Stdout);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SingleArgWithSpaces_PassedAsOneArgv()
+    {
+        // Async counterpart of the argv regression — a spaced arg stays one operand.
+        var result = await _processRunner.ExecuteAsync("printf", new[] { "%s", "alpha beta gamma" });
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("alpha beta gamma", result.Stdout);
     }
 
     [Fact]
