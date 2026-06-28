@@ -22,6 +22,19 @@ public interface IInstanceService
     Dictionary<string, Instance> GetAll();
 
     /// <summary>
+    /// Reads the full instance roster, <b>distinguishing a failed read from a genuinely empty one</b>.
+    /// KGSM emits <c>{}</c> for an empty roster (a successful read of zero instances), so a successful
+    /// command always deserializes to a dictionary (possibly empty); only a failed command (non-zero
+    /// exit) or unparseable output yields <see langword="null"/> — the nullable-return failure
+    /// convention. Use this instead of <see cref="GetAll"/> on any surface that must not treat a
+    /// transient engine-read failure as "zero instances" (e.g. one that would otherwise drop every
+    /// server from a list or push a removal tombstone for each). <see cref="GetAll"/> collapses both
+    /// cases to an empty dictionary and so cannot tell them apart.
+    /// </summary>
+    /// <returns>The instance roster on a successful read (may be empty), or <see langword="null"/> on a read failure.</returns>
+    Dictionary<string, Instance>? GetAllOrNull();
+
+    /// <summary>
     /// Gets detailed information about a specific instance in JSON format.
     /// </summary>
     /// <param name="instanceName">Instance name to get information for.</param>

@@ -46,7 +46,17 @@ public class InstanceService : IInstanceService
     /// <inheritdoc/>
     public Dictionary<string, Instance> GetAll()
     {
-        return _commandExecutor.ExecuteForJson<Dictionary<string, Instance>>(["instances", "list", "--detailed", "--json"]) ?? [];
+        return GetAllOrNull() ?? [];
+    }
+
+    /// <inheritdoc/>
+    public Dictionary<string, Instance>? GetAllOrNull()
+    {
+        // ExecuteForJson returns null on a non-zero exit OR unparseable output, and the deserialized
+        // value on success. KGSM emits "{}" for an empty roster, which deserializes to an empty (NON-null)
+        // dictionary — so null here unambiguously means the read FAILED, never "zero instances". GetAll()
+        // keeps the lenient "?? []" for callers that don't care; this preserves the distinction.
+        return _commandExecutor.ExecuteForJson<Dictionary<string, Instance>>(["instances", "list", "--detailed", "--json"]);
     }
 
     /// <inheritdoc/>
