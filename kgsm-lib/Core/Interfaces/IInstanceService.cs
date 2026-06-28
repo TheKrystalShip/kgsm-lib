@@ -90,8 +90,11 @@ public interface IInstanceService
     /// so the emitted event is attributable; null/empty = KGSM's OS-user fallback (never fabricated).</param>
     /// <param name="origin">Optional driving surface (through-what) propagated as <c>KGSM_EVENT_ORIGIN</c>;
     /// null/empty = no surface emitted.</param>
+    /// <param name="port">Optional override for the blueprint's primary game port (1-65535), passed to KGSM
+    /// as <c>--port</c>. Null = keep the blueprint's declared port(s). Trailing-optional (after provenance) so
+    /// existing positional callers are unaffected.</param>
     /// <returns>Result of the instance installation operation.</returns>
-    KgsmResult Install(string blueprintName, string? installDir = null, string? version = null, string? name = null, string? actor = null, string? origin = null);
+    KgsmResult Install(string blueprintName, string? installDir = null, string? version = null, string? name = null, string? actor = null, string? origin = null, int? port = null);
 
     /// <summary>
     /// Uninstalls an instance.
