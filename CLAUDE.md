@@ -181,3 +181,10 @@ Tracked in `docs/production-readiness-plan.md`. Test suite is green with no skip
 inverted assertions, dead tests for removed APIs — was cleaned up). Remaining work toward
 publish is operational (CI / publish-on-tag), not product: see the ecosystem-level
 `../architecture-review-findings.md` (findings #1 stranded-lib-distribution, #3 no-CI).
+
+## Version tracking
+
+- **Version source:** `<Version>` in `kgsm-lib/kgsm-lib.csproj`
+- Bump the version whenever you make a user-facing change (new feature, bug fix, behaviour change). Patch for fixes, minor for new features, major for breaking changes.
+- Update `CHANGELOG.md` under `## [Unreleased]` with a brief entry for every meaningful change.
+- A git tag matching the new version should be created on release: `git tag v<version>`.
