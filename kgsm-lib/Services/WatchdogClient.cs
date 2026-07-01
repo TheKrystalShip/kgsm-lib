@@ -221,6 +221,32 @@ public sealed class WatchdogClient : IWatchdogClient
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyDictionary<string, IReadOnlyList<WatchdogPlayer>>?> GetAllPlayersAsync(CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+
+        using var response = await _http.GetAsync("/players", cancellationToken).ConfigureAwait(false);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+
+        response.EnsureSuccessStatusCode();
+
+        var raw = await ReadJsonAsync(response, KgsmJsonContext.Default.DictionaryStringWatchdogPlayerArray, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (raw is null)
+            return null;
+
+        // The daemon serializes as Dictionary<string, WatchdogPlayer[]> — convert to the
+        // interface type so consumers get a read-only view.
+        var result = new Dictionary<string, IReadOnlyList<WatchdogPlayer>>(StringComparer.Ordinal);
+        foreach (var kvp in raw)
+            result[kvp.Key] = kvp.Value;
+        return result;
+    }
+
+    /// <inheritdoc/>
     public async IAsyncEnumerable<string> FollowConsoleAsync(
         string instanceName,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)

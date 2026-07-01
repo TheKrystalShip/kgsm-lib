@@ -109,4 +109,18 @@ public interface IWatchdogClient : IDisposable
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>The trailing console lines oldest-first, or an empty list when there is no console.</returns>
     Task<IReadOnlyList<string>> GetConsoleTailAsync(string instanceName, int lines, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fetches the live player sessions across all instances from the watchdog's in-memory
+    /// session map. Returns a dictionary keyed by instance name, each value an array of
+    /// <see cref="WatchdogPlayer"/> sessions. Returns <c>null</c> when the daemon is
+    /// unreachable (graceful degradation).
+    /// </summary>
+    /// <remarks>
+    /// The session map is populated by the native player-presence ingester from game log
+    /// matching. It reflects who is <em>currently connected</em> — not a historical roster.
+    /// The map is volatile: a watchdog restart clears it (rebuilds from logs on next match).
+    /// </remarks>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    Task<IReadOnlyDictionary<string, IReadOnlyList<WatchdogPlayer>>?> GetAllPlayersAsync(CancellationToken cancellationToken = default);
 }

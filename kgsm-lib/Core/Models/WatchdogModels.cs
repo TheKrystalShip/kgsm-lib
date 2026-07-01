@@ -90,3 +90,26 @@ public record class WatchdogReadyState
     [JsonPropertyName("detail")]
     public string Detail { get; set; } = string.Empty;
 }
+
+/// <summary>
+/// A single player session tracked by the watchdog's in-memory session map. Served by
+/// <c>GET /players</c> so consumers (kgsm-api) can reconcile their roster on startup.
+/// </summary>
+public record class WatchdogPlayer
+{
+    /// <summary>The session key (first non-blank of key, addr, id, name — contract §4).</summary>
+    [JsonPropertyName("sessionKey")]
+    public string? SessionKey { get; set; }
+
+    /// <summary>The player's account or platform id, when known.</summary>
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
+    /// <summary>The player's display name, when known.</summary>
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    /// <summary>The player's network address, when known.</summary>
+    [JsonPropertyName("addr")]
+    public string? Addr { get; set; }
+}
