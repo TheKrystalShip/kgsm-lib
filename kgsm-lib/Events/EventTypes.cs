@@ -508,8 +508,10 @@ public class InstanceInputSentData : EventDataBase
 /// images these are forwarded by the kgsm-watchdog — it tails the in-container event
 /// channel and re-emits via kgsm-lib — stamped <c>Actor == "system"</c> /
 /// <c>Origin == "system"</c> (an autonomous observation, not a human action). Native
-/// detection is a later increment. At least one of <see cref="PlayerId"/> /
-/// <see cref="PlayerName"/> is non-null (the emitting shim enforces it).
+/// detection (log-scraping via <c>NativeLogMatcher</c>) is the same shape. At least one
+/// of <see cref="PlayerId"/> / <see cref="PlayerName"/> / <see cref="PlayerAddr"/> is
+/// non-null (the emitting side enforces it — a session with no human-meaningful field
+/// is not a roster entry).
 /// </summary>
 public class InstancePlayerJoinedData : EventDataBase
 {
@@ -526,6 +528,21 @@ public class InstancePlayerJoinedData : EventDataBase
     /// at-least-one-non-null guarantee.
     /// </summary>
     public string? PlayerName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the player's real network address (<c>ip:port</c>) when the source
+    /// exposes one (direct-socket games), otherwise <see langword="null"/>. Steam-relay
+    /// / P2P games never expose a real address — never fabricated.
+    /// </summary>
+    public string? PlayerAddr { get; set; }
+
+    /// <summary>
+    /// Gets or sets the opaque per-session correlation token (<c>key ?? addr ?? id ??
+    /// name</c>) — always a non-empty string. Not an identity, not an address; the
+    /// roster of record (kgsm-api) keys on this rather than on the display name (names
+    /// can collide across sessions).
+    /// </summary>
+    public string? SessionKey { get; set; }
 }
 
 /// <summary>
@@ -548,4 +565,27 @@ public class InstancePlayerLeftData : EventDataBase
     /// at-least-one-non-null guarantee.
     /// </summary>
     public string? PlayerName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the player's real network address (<c>ip:port</c>) when the source
+    /// exposes one (direct-socket games), otherwise <see langword="null"/>. Never
+    /// fabricated.
+    /// </summary>
+    public string? PlayerAddr { get; set; }
+
+    /// <summary>
+    /// Gets or sets the opaque per-session correlation token (<c>key ?? addr ?? id ??
+    /// name</c>) — always a non-empty string. Matches the token captured on this
+    /// session's join, letting a consumer correlate the pair without touching
+    /// display-name identity (which can collide).
+    /// </summary>
+    public string? SessionKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets the disconnect reason when the game's log carries one (e.g.
+    /// <c>RemoteConnectionClose</c>, <c>App_Min</c>), otherwise <see langword="null"/>.
+    /// Never fabricated. Kick/ban classification of this vocabulary is deferred to a
+    /// future version.
+    /// </summary>
+    public string? Reason { get; set; }
 }
