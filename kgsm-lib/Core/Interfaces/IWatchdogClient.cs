@@ -54,6 +54,49 @@ public interface IWatchdogClient : IDisposable
     Task<WatchdogActionResult> StopAsync(string instanceName, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Adds <paramref name="instanceName"/> to the watchdog's persisted boot-autostart set so the
+    /// daemon will spawn it automatically on the next host boot (or watchdog start). Idempotent —
+    /// already-enabled returns <see cref="WatchdogActionResult.Ok"/> = false (409) rather than throwing.
+    /// </summary>
+    Task<WatchdogActionResult> EnableAsync(string instanceName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes <paramref name="instanceName"/> from the watchdog's persisted boot-autostart set.
+    /// Idempotent — already-disabled returns <see cref="WatchdogActionResult.Ok"/> = false (409) rather than throwing.
+    /// </summary>
+    Task<WatchdogActionResult> DisableAsync(string instanceName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the names of all instances currently in the persisted boot-autostart set.
+    /// An empty list means no instances are enabled (never null).
+    /// </summary>
+    Task<IReadOnlyList<string>> GetEnabledNamesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Live-applies a CPU scheduling priority to the running instance's cgroup.
+    /// Translates the priority string to a cgroup <c>cpu.weight</c> value
+    /// (low=50, normal=100, high=400) and writes it. Returns <c>Ok=false</c>
+    /// with a message (not an exception) if the instance cgroup does not exist
+    /// (not running) — the caller should treat this as "will apply at next start".
+    /// </summary>
+    Task<WatchdogActionResult> SetCpuPriorityAsync(string instanceName, string priority, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Requests the daemon atomically restart <paramref name="instanceName"/>:
+    /// stops the process, waits for the cgroup to drain, then respawns it.
+    /// Does not increment the crash-recovery streak (this is an intentional restart).
+    /// The <paramref name="origin"/> is stamped on the emitted audit event
+    /// (e.g. pass <c>"scheduler"</c> for scheduler-driven restarts).
+    /// </summary>
+    /// <param name="instanceName">The instance to restart.</param>
+    /// <param name="origin">Audit origin label (default <c>"scheduler"</c>).</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    Task<WatchdogActionResult> RestartAsync(
+        string instanceName,
+        string origin = "scheduler",
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets the supervised state of a single instance, or <c>null</c> when the
     /// daemon does not track it (HTTP 404).
     /// </summary>

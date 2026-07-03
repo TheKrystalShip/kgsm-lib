@@ -143,6 +143,50 @@ public record class Instance
     public bool AutoUpdate { get; set; } = false;
 
     /// <summary>
+    /// Gets or sets the CPU scheduling priority for the instance (<c>low</c>/<c>normal</c>/<c>high</c>).
+    /// Null when KGSM omits <c>cpu_priority</c> — honest unknown, never fabricated as a default.
+    /// The watchdog translates it to a cgroup <c>cpu.weight</c> value when enforcing.
+    /// </summary>
+    [JsonPropertyName("cpu_priority")]
+    public string? CpuPriority { get; set; }
+
+    /// <summary>
+    /// Gets or sets the memory cap in megabytes for the instance's cgroup.
+    /// Null when KGSM omits <c>memory_cap_mb</c> — honest unknown, never fabricated as a default.
+    /// </summary>
+    [JsonPropertyName("memory_cap_mb")]
+    public int? MemoryCapMb { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether a scheduled restart is configured for the instance.
+    /// Null when KGSM omits <c>scheduled_restart</c> — honest unknown, never fabricated.
+    /// Read by kgsm-scheduler to drive scheduled restarts.
+    /// </summary>
+    [JsonPropertyName("scheduled_restart")]
+    public string? ScheduledRestart { get; set; }
+
+    /// <summary>
+    /// Gets or sets the time-of-day for the scheduled restart.
+    /// Null when KGSM omits <c>restart_time</c> — honest unknown, never fabricated.
+    /// </summary>
+    [JsonPropertyName("restart_time")]
+    public string? RestartTime { get; set; }
+
+    /// <summary>
+    /// Gets or sets the day for the scheduled restart.
+    /// Null when KGSM omits <c>restart_day</c> — honest unknown, never fabricated.
+    /// </summary>
+    [JsonPropertyName("restart_day")]
+    public string? RestartDay { get; set; }
+
+    /// <summary>
+    /// Gets or sets the timezone used to interpret the scheduled restart time.
+    /// Null when KGSM omits <c>timezone</c> — honest unknown, never fabricated.
+    /// </summary>
+    [JsonPropertyName("timezone")]
+    public string? Timezone { get; set; }
+
+    /// <summary>
     /// Gets or sets the logs redirect pattern for the instance.
     /// </summary>
     [JsonPropertyName("log_file")]

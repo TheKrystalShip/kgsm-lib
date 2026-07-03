@@ -153,6 +153,54 @@ public sealed class WatchdogClient : IWatchdogClient
         => await PostActionAsync("stop", instanceName, cancellationToken).ConfigureAwait(false);
 
     /// <inheritdoc/>
+    public async Task<WatchdogActionResult> EnableAsync(string instanceName, CancellationToken cancellationToken = default)
+        => await PostActionAsync("enable", instanceName, cancellationToken).ConfigureAwait(false);
+
+    /// <inheritdoc/>
+    public async Task<WatchdogActionResult> DisableAsync(string instanceName, CancellationToken cancellationToken = default)
+        => await PostActionAsync("disable", instanceName, cancellationToken).ConfigureAwait(false);
+
+    /// <inheritdoc/>
+    public async Task<WatchdogActionResult> SetCpuPriorityAsync(string instanceName, string priority, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+        ArgumentException.ThrowIfNullOrWhiteSpace(priority, nameof(priority));
+
+        var path = $"/set-cpu-priority/{Uri.EscapeDataString(instanceName)}/{Uri.EscapeDataString(priority)}";
+        return await PostPathAsync(path, instanceName, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
+    public async Task<WatchdogActionResult> RestartAsync(
+        string instanceName,
+        string origin = "scheduler",
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+
+        var url = $"/restart/{Uri.EscapeDataString(instanceName)}?origin={Uri.EscapeDataString(origin)}";
+        using var response = await _http.PostAsync(url, content: null, cancellationToken)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        return await ReadJsonAsync(response, KgsmJsonContext.Default.WatchdogActionResult, cancellationToken)
+                   .ConfigureAwait(false)
+               ?? new WatchdogActionResult { Instance = instanceName, Ok = false, Message = "empty response" };
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<string>> GetEnabledNamesAsync(CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        using var response = await _http.GetAsync("/enabled", cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        var list = await ReadJsonAsync(response, KgsmJsonContext.Default.ListString, cancellationToken)
+            .ConfigureAwait(false);
+        return (IReadOnlyList<string>?)list ?? [];
+    }
+
+    /// <inheritdoc/>
     public async Task<WatchdogInstanceState?> GetStatusAsync(string instanceName, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -287,10 +335,16 @@ public sealed class WatchdogClient : IWatchdogClient
         ThrowIfDisposed();
         ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
 
+        return await PostPathAsync($"/{verb}/{Uri.EscapeDataString(instanceName)}", instanceName, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<WatchdogActionResult> PostPathAsync(string path, string instanceName, CancellationToken cancellationToken)
+    {
         // Both 200 (acted) and 409 (already in the desired state) carry an
         // ActionResult body; only a transport/5xx failure throws.
         using var response = await _http
-            .PostAsync($"/{verb}/{Uri.EscapeDataString(instanceName)}", content: null, cancellationToken)
+            .PostAsync(path, content: null, cancellationToken)
             .ConfigureAwait(false);
 
         if (response.StatusCode != HttpStatusCode.OK && response.StatusCode != HttpStatusCode.Conflict)

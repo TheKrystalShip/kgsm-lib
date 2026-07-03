@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `Instance.CpuPriority` (string?) and `Instance.MemoryCapMb` (int?) — expose the new per-instance
+  resource-cap config keys (`cpu_priority`/`memory_cap_mb`) for watchdog cgroup enforcement.
+- `IWatchdogClient.SetCpuPriorityAsync` — live-applies a CPU priority to a running instance's cgroup
+  (low/normal/high → cpu.weight 50/100/400); returns `Ok=false` (not an exception) when the cgroup
+  is absent (not running).
+- `Instance.ScheduledRestart`, `RestartTime`, `RestartDay`, `Timezone` — expose the new schedule
+  config keys for kgsm-scheduler to read.
+- `IWatchdogClient.RestartAsync` — atomic intentional restart via `POST /restart/{name}?origin=`.
+
+## [1.31.0] - 2026-07-03
+
+### Added
+- `IWatchdogClient.EnableAsync(name)` / `DisableAsync(name)`: add/remove an instance in the
+  watchdog's persisted boot-autostart set (POST `/enable`·`/disable`; idempotent — an
+  already-enabled/disabled name returns `Ok == false` (409), never throws).
+- `IWatchdogClient.GetEnabledNamesAsync()`: query the current boot-autostart set (GET `/enabled`);
+  empty list when none, never null. Phase 1 of the KGSM Settings milestone (per-instance autostart).
+
 ## [1.30.0] - 2026-07-01
 
 ### Added
