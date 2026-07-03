@@ -228,6 +228,20 @@ public interface IInstanceService
     KgsmResult CreateBackup(string instanceName, string? actor = null, string? origin = null);
 
     /// <summary>
+    /// Prunes old backups for <paramref name="instanceName"/>, keeping the
+    /// <paramref name="keepN"/> most-recent entries and deleting the rest.
+    /// Safe to call when there are fewer than <paramref name="keepN"/> backups
+    /// (exits immediately with success). Requires the instance to have a
+    /// configured backups directory.
+    /// </summary>
+    /// <param name="instanceName">The instance whose backups to prune.</param>
+    /// <param name="keepN">Number of most-recent backups to keep (must be ≥ 1).</param>
+    /// <param name="actor">Optional audit actor label (e.g. "scheduler").</param>
+    /// <param name="origin">Optional audit origin label (e.g. "scheduler").</param>
+    /// <returns>Result of the prune operation.</returns>
+    KgsmResult PruneBackups(string instanceName, int keepN, string? actor = null, string? origin = null);
+
+    /// <summary>
     /// Restores a backup for an instance.
     /// </summary>
     /// <param name="instanceName">Instance name to restore backup for.</param>

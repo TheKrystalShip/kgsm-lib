@@ -257,6 +257,18 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
+    public KgsmResult PruneBackups(string instanceName, int keepN, string? actor = null, string? origin = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+        ArgumentOutOfRangeException.ThrowIfLessThan(keepN, 1, nameof(keepN));
+
+        IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
+        return provenance is null
+            ? _commandExecutor.Execute(_timeouts.Backup, "instances", "prune-backups", instanceName, $"--keep={keepN}")
+            : _commandExecutor.Execute(provenance, _timeouts.Backup, "instances", "prune-backups", instanceName, $"--keep={keepN}");
+    }
+
+    /// <inheritdoc/>
     public KgsmResult RestoreBackup(string instanceName, string backupName, string? actor = null, string? origin = null)
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));

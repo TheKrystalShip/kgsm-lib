@@ -187,6 +187,21 @@ public record class Instance
     public string? Timezone { get; set; }
 
     /// <summary>
+    /// Gets or sets whether a backup is taken automatically before a scheduled restart.
+    /// Null when KGSM omits <c>auto_backup_on_restart</c> — honest unknown, never fabricated.
+    /// Read by kgsm-scheduler to drive restart-window auto-backups.
+    /// </summary>
+    [JsonPropertyName("auto_backup_on_restart")]
+    public bool? AutoBackupOnRestart { get; set; }
+
+    /// <summary>
+    /// Gets or sets the number of most-recent backups to retain when pruning.
+    /// Null when KGSM omits <c>backup_retention</c> — honest unknown, never fabricated.
+    /// </summary>
+    [JsonPropertyName("backup_retention")]
+    public int? BackupRetention { get; set; }
+
+    /// <summary>
     /// Gets or sets the logs redirect pattern for the instance.
     /// </summary>
     [JsonPropertyName("log_file")]
