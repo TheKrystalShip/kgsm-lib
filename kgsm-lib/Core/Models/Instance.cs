@@ -202,6 +202,21 @@ public record class Instance
     public int? BackupRetention { get; set; }
 
     /// <summary>
+    /// Gets or sets whether the watchdog should automatically restart this instance on crash.
+    /// Null when KGSM omits <c>crash_restart</c> — consumers default to true (auto-restart on).
+    /// When false, any unintentional exit emits instance-crashed but does NOT schedule a restart.
+    /// </summary>
+    [JsonPropertyName("crash_restart")]
+    public bool? CrashRestart { get; set; }
+
+    /// <summary>
+    /// Gets or sets the per-instance max consecutive restarts before the watchdog gives up.
+    /// Null when KGSM omits <c>crash_max_restarts</c> — consumers fall back to global MaxRetries.
+    /// </summary>
+    [JsonPropertyName("crash_max_restarts")]
+    public int? CrashMaxRestarts { get; set; }
+
+    /// <summary>
     /// Gets or sets the logs redirect pattern for the instance.
     /// </summary>
     [JsonPropertyName("log_file")]

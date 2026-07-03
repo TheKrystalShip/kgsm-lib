@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `IWatchdogClient.RestartAsync` — atomic intentional restart via `POST /restart/{name}?origin=`.
 - `Instance.AutoBackupOnRestart` (bool?), `BackupRetention` (int?) — expose the Phase 4
   auto-backup config keys for kgsm-scheduler to read.
+- Added `CrashRestart` (bool?) and `CrashMaxRestarts` (int?) to `Instance` model for per-instance crash-restart policy (Phase 6)
 - `IInstanceService.PruneBackups(instanceName, keepN, actor, origin)` — prune old backups
   via the new `instances prune-backups --keep=N` kgsm primitive. Called by the scheduler
   after each auto-backup to enforce the retention policy.
