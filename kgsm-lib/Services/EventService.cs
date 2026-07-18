@@ -87,6 +87,12 @@ public class EventService : IEventService, IAsyncDisposable
     private readonly Dictionary<Type, Delegate> _eventHandlers = new();
 
     /// <summary>
+    /// Handlers registered via <see cref="RegisterRawHandler"/>, invoked with the full
+    /// envelope for every deserialized event regardless of typed dispatch.
+    /// </summary>
+    private readonly List<Func<EventWrapper, Task>> _rawHandlers = new();
+
+    /// <summary>
     /// Initializes a new instance of the EventService class.
     /// </summary>
     /// <param name="client">The Unix socket client to use for communication.</param>
@@ -238,6 +244,17 @@ public class EventService : IEventService, IAsyncDisposable
         _eventHandlers[eventType] = async (EventDataBase data) => await handler((T)data).ConfigureAwait(false);
     }
 
+    /// <inheritdoc/>
+    public void RegisterRawHandler(Func<EventWrapper, Task> handler)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, nameof(EventService));
+        ArgumentNullException.ThrowIfNull(handler, nameof(handler));
+
+        _logger.LogDebug("Registering raw event handler");
+
+        _rawHandlers.Add(handler);
+    }
+
     /// <summary>
     /// Event handler for receiving events from the Unix socket.
     /// </summary>
@@ -261,6 +278,10 @@ public class EventService : IEventService, IAsyncDisposable
             }
 
             _logger.LogDebug("Processing event of type {EventType}", eventWrapper.EventType);
+
+            // Raw handlers see every envelope — known or unknown EventType — before
+            // typed dispatch runs, and never suppress it.
+            await InvokeRawHandlersAsync(eventWrapper).ConfigureAwait(false);
 
             if (_eventTypeMapping.TryGetValue(eventWrapper.EventType, out var targetType))
             {
@@ -321,6 +342,28 @@ public class EventService : IEventService, IAsyncDisposable
         _logger.LogDebug("Successfully deserialized event data to {TargetType}", targetType.Name);
 
         return result;
+    }
+
+    /// <summary>
+    /// Invokes every registered raw handler with the full envelope, independent of
+    /// typed dispatch. Each invocation is isolated in its own try/catch so one
+    /// throwing (or slow-to-fault) handler can't stop the others or the socket read
+    /// loop.
+    /// </summary>
+    /// <param name="eventWrapper">The deserialized event envelope.</param>
+    private async Task InvokeRawHandlersAsync(EventWrapper eventWrapper)
+    {
+        foreach (Func<EventWrapper, Task> rawHandler in _rawHandlers)
+        {
+            try
+            {
+                await rawHandler(eventWrapper).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in raw event handler for {EventType}", eventWrapper.EventType);
+            }
+        }
     }
 
     /// <summary>

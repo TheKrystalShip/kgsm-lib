@@ -277,6 +277,103 @@ public class EventServiceTests
     }
 
     [Fact]
+    public async Task RegisterRawHandler_KnownEventType_ReceivesFullWrapper()
+    {
+        using EventService svc = CreateService();
+        var tcs = new TaskCompletionSource<EventWrapper>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        svc.RegisterRawHandler(wrapper =>
+        {
+            tcs.TrySetResult(wrapper);
+            return Task.CompletedTask;
+        });
+        svc.Initialize();
+
+        _mockClient.Raise(c => c.EventReceived += null,
+            Wire("instance_started", """{"InstanceName":"7dtd"}"""));
+
+        EventWrapper received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("instance_started", received.EventType);
+        Assert.Equal("hotrod", received.Hostname);
+    }
+
+    [Fact]
+    public async Task RegisterRawHandler_UnknownEventType_StillReceivesWrapper()
+    {
+        using EventService svc = CreateService();
+        var tcs = new TaskCompletionSource<EventWrapper>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var typedInvoked = false;
+
+        svc.RegisterHandler<InstanceStartedData>(_ => { typedInvoked = true; return Task.CompletedTask; });
+        svc.RegisterRawHandler(wrapper =>
+        {
+            tcs.TrySetResult(wrapper);
+            return Task.CompletedTask;
+        });
+        svc.Initialize();
+
+        // "instance_teleported" has no _eventTypeMapping entry — the raw handler is the
+        // whole point of a catch-all audit trail, so it must still fire.
+        _mockClient.Raise(c => c.EventReceived += null,
+            Wire("instance_teleported", """{"InstanceName":"7dtd"}"""));
+
+        EventWrapper received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("instance_teleported", received.EventType);
+        Assert.False(typedInvoked);
+    }
+
+    [Fact]
+    public async Task RegisterRawHandler_ThrowingHandler_DoesNotBlockOtherRawOrTypedHandlers()
+    {
+        using EventService svc = CreateService();
+        var secondRawTcs = new TaskCompletionSource<EventWrapper>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var typedTcs = new TaskCompletionSource<InstanceStartedData>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        svc.RegisterRawHandler(_ => throw new InvalidOperationException("boom"));
+        svc.RegisterRawHandler(wrapper =>
+        {
+            secondRawTcs.TrySetResult(wrapper);
+            return Task.CompletedTask;
+        });
+        svc.RegisterHandler<InstanceStartedData>(data =>
+        {
+            typedTcs.TrySetResult(data);
+            return Task.CompletedTask;
+        });
+        svc.Initialize();
+
+        Exception? ex = Record.Exception(() => _mockClient.Raise(c => c.EventReceived += null,
+            Wire("instance_started", """{"InstanceName":"7dtd"}""")));
+
+        Assert.Null(ex);
+        EventWrapper secondRaw = await secondRawTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("instance_started", secondRaw.EventType);
+        InstanceStartedData typed = await typedTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("7dtd", typed.InstanceName);
+    }
+
+    [Fact]
+    public void RegisterRawHandler_NullHandler_ThrowsArgumentNullException()
+    {
+        using EventService svc = CreateService();
+        Assert.Throws<ArgumentNullException>(() => svc.RegisterRawHandler(null!));
+    }
+
+    [Fact]
+    public void RegisterRawHandler_AfterDispose_ThrowsObjectDisposedException()
+    {
+        EventService svc = CreateService();
+        svc.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() =>
+            svc.RegisterRawHandler(_ => Task.CompletedTask));
+    }
+
+    [Fact]
     public void RegisterHandler_AfterDispose_ThrowsObjectDisposedException()
     {
         EventService svc = CreateService();
