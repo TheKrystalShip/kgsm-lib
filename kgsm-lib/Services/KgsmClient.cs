@@ -57,6 +57,9 @@ public class KgsmClient : IKgsmClient
     /// <inheritdoc/>
     public IEventManagementService EventManagement { get; }
 
+    /// <inheritdoc/>
+    public IInstanceFiles InstanceFiles { get; }
+
     /// <summary>
     /// Initializes a new instance of the KgsmClient class.
     /// </summary>
@@ -72,6 +75,7 @@ public class KgsmClient : IKgsmClient
     /// <param name="networkService">The network service to use for querying and managing network configuration.</param>
     /// <param name="systemService">The system service to use for managing system operations.</param>
     /// <param name="eventManagementService">The event management service to use for managing event transports and configuration.</param>
+    /// <param name="instanceFilesService">The jailed instance-filesystem authority.</param>
     /// <param name="logger">The logger to use for logging.</param>
     public KgsmClient(
         IKgsmCommandExecutor commandExecutor,
@@ -86,6 +90,7 @@ public class KgsmClient : IKgsmClient
         INetworkService networkService,
         ISystemService systemService,
         IEventManagementService eventManagementService,
+        IInstanceFiles instanceFilesService,
         ILogger<KgsmClient> logger)
     {
         _commandExecutor = commandExecutor ?? throw new ArgumentNullException(nameof(commandExecutor));
@@ -100,6 +105,7 @@ public class KgsmClient : IKgsmClient
         Network = networkService ?? throw new ArgumentNullException(nameof(networkService));
         System = systemService ?? throw new ArgumentNullException(nameof(systemService));
         EventManagement = eventManagementService ?? throw new ArgumentNullException(nameof(eventManagementService));
+        InstanceFiles = instanceFilesService ?? throw new ArgumentNullException(nameof(instanceFilesService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         _logger.LogDebug("KgsmClient initialized");

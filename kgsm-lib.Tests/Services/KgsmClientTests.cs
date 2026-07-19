@@ -19,6 +19,7 @@ public class KgsmClientTests
     private readonly Mock<INetworkService> _mockNetworkService;
     private readonly Mock<ISystemService> _mockSystemService;
     private readonly Mock<IEventManagementService> _mockEventManagementService;
+    private readonly Mock<IInstanceFiles> _mockInstanceFilesService;
     private readonly Mock<ILogger<KgsmClient>> _mockLogger;
     private readonly KgsmClient _kgsmClient;
 
@@ -36,6 +37,7 @@ public class KgsmClientTests
         _mockNetworkService = new Mock<INetworkService>();
         _mockSystemService = new Mock<ISystemService>();
         _mockEventManagementService = new Mock<IEventManagementService>();
+        _mockInstanceFilesService = new Mock<IInstanceFiles>();
         _mockLogger = new Mock<ILogger<KgsmClient>>();
 
         _kgsmClient = new KgsmClient(
@@ -51,6 +53,7 @@ public class KgsmClientTests
             _mockNetworkService.Object,
             _mockSystemService.Object,
             _mockEventManagementService.Object,
+            _mockInstanceFilesService.Object,
             _mockLogger.Object
         );
     }
@@ -72,6 +75,7 @@ public class KgsmClientTests
             _mockNetworkService.Object,
             _mockSystemService.Object,
             _mockEventManagementService.Object,
+            _mockInstanceFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -93,6 +97,7 @@ public class KgsmClientTests
             _mockNetworkService.Object,
             _mockSystemService.Object,
             _mockEventManagementService.Object,
+            _mockInstanceFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -114,6 +119,7 @@ public class KgsmClientTests
             _mockNetworkService.Object,
             _mockSystemService.Object,
             _mockEventManagementService.Object,
+            _mockInstanceFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -135,6 +141,7 @@ public class KgsmClientTests
             _mockNetworkService.Object,
             _mockSystemService.Object,
             _mockEventManagementService.Object,
+            _mockInstanceFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -156,6 +163,7 @@ public class KgsmClientTests
             _mockNetworkService.Object,
             _mockSystemService.Object,
             _mockEventManagementService.Object,
+            _mockInstanceFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -177,6 +185,7 @@ public class KgsmClientTests
             _mockNetworkService.Object,
             _mockSystemService.Object,
             _mockEventManagementService.Object,
+            _mockInstanceFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -198,6 +207,7 @@ public class KgsmClientTests
             _mockNetworkService.Object,
             _mockSystemService.Object,
             _mockEventManagementService.Object,
+            _mockInstanceFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -219,6 +229,7 @@ public class KgsmClientTests
             _mockNetworkService.Object,
             _mockSystemService.Object,
             _mockEventManagementService.Object,
+            _mockInstanceFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -240,6 +251,7 @@ public class KgsmClientTests
             _mockNetworkService.Object,
             _mockSystemService.Object,
             _mockEventManagementService.Object,
+            _mockInstanceFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -261,6 +273,7 @@ public class KgsmClientTests
             null!,
             _mockSystemService.Object,
             _mockEventManagementService.Object,
+            _mockInstanceFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -282,6 +295,7 @@ public class KgsmClientTests
             _mockNetworkService.Object,
             _mockSystemService.Object,
             _mockEventManagementService.Object,
+            _mockInstanceFilesService.Object,
             null!
         ));
     }
@@ -303,6 +317,7 @@ public class KgsmClientTests
             _mockNetworkService.Object,
             null!,
             _mockEventManagementService.Object,
+            _mockInstanceFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -323,6 +338,29 @@ public class KgsmClientTests
             _mockWatcherService.Object,
             _mockNetworkService.Object,
             _mockSystemService.Object,
+            null!,
+            _mockInstanceFilesService.Object,
+            _mockLogger.Object
+        ));
+    }
+
+    [Fact]
+    public void Constructor_NullInstanceFilesService_ThrowsArgumentNullException()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => new KgsmClient(
+            _mockCommandExecutor.Object,
+            _mockBlueprintService.Object,
+            _mockInstanceService.Object,
+            _mockEventService.Object,
+            _mockConfigService.Object,
+            _mockLifecycleService.Object,
+            _mockFileService.Object,
+            _mockDirectoryService.Object,
+            _mockWatcherService.Object,
+            _mockNetworkService.Object,
+            _mockSystemService.Object,
+            _mockEventManagementService.Object,
             null!,
             _mockLogger.Object
         ));
@@ -381,6 +419,14 @@ public class KgsmClientTests
         // Assert
         Assert.NotNull(_kgsmClient.EventManagement);
         Assert.Same(_mockEventManagementService.Object, _kgsmClient.EventManagement);
+    }
+
+    [Fact]
+    public void InstanceFiles_Property_ReturnsInjectedService()
+    {
+        // Assert
+        Assert.NotNull(_kgsmClient.InstanceFiles);
+        Assert.Same(_mockInstanceFilesService.Object, _kgsmClient.InstanceFiles);
     }
 
     [Fact]

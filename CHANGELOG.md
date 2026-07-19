@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `IInstanceFiles` (+ impl `InstanceFiles`) — the single jailed filesystem authority for an
+  instance's working directory: `List`, `Read`, `Write` (create/overwrite), `Delete`, `Rename`.
+  The first kgsm-lib service that does direct `System.IO` (every other service shells the
+  `kgsm` engine) and the first P/Invoke in the repo (`Native/LibC.cs`, a Native-AOT-safe
+  `LibraryImport` `lstat`/`stat` wrapper with a blittable exact-size struct). The project now
+  sets `<AllowUnsafeBlocks>` — required unconditionally by the `LibraryImport` source
+  generator regardless of parameter shape (confirmed empirically), orthogonal to AOT/trim
+  safety; no hand-written pointer code. The jail is ported from kgsm-api's `InstanceFileService` (the
+  stronger of the ecosystem's two prior jails, `instance-filesystem-authority-plan.md`): a
+  full POSIX-realpath canonicaliser resolving symlinks at EVERY path component (not just the
+  leaf), a 64-hop loop guard, NUL-path rejection, and exact-root-or-descendant ordinal
+  containment. Only regular files are opened for read/write; directories are only listed (or,
+  with `DeleteOptions.AllowDir`, deleted when empty — never recursive); FIFO/socket/device is
+  never opened. Binary detection is an 8 KB NUL scan plus a full strict-UTF-8 decode; writes
+  are atomic (temp file → fsync → mode-preserve → rename, never truncate-in-place); reads and
+  writes carry an sha256 etag for optimistic concurrency (`WriteOptions.ExpectedEtag` →
+  `EtagMismatch` on drift); `WriteOptions.Backup` writes a sibling `.kgsmbak` before
+  overwriting. Size caps are always a caller-supplied parameter, never a lib-wide default.
+  New `FileOpResult`/`FileOpResult<T>` result type and `DirListing`/`FileEntry`/`FileKind`/
+  `FileContent`/`FileStat`/`WriteOptions`/`DeleteOptions`/`RenameOptions` DTOs
+  (`Core/Models/InstanceFileModels.cs`) — deliberately NOT registered in `KgsmJsonContext`,
+  in-process only (the firewall-result precedent). Wired onto `IKgsmClient.InstanceFiles` and
+  `AddKgsmServices`. Phase 1 of the cross-repo instance-filesystem-authority plan.
 - `IWatchdogClient` gains the watchdog's on-demand UPnP control surface: `GetUpnpAsync`,
   `OpenUpnpAsync`, and `CloseUpnpAsync` (the typed client for the daemon's `GET /upnp/{name}` and
   `POST /upnp/{name}/open|close`). `GetUpnpAsync` returns `null` only when the daemon is unreachable and

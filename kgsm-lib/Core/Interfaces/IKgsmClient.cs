@@ -64,6 +64,12 @@ public interface IKgsmClient
     IEventManagementService EventManagement { get; }
 
     /// <summary>
+    /// Gets the jailed instance-filesystem authority (list/read/write/delete/rename inside an
+    /// instance's working directory).
+    /// </summary>
+    IInstanceFiles InstanceFiles { get; }
+
+    /// <summary>
     /// Prints the help message.
     /// </summary>
     /// <returns>Result of the help command execution.</returns>
