@@ -166,4 +166,57 @@ public interface IWatchdogClient : IDisposable
     /// </remarks>
     /// <param name="cancellationToken">Cancels the request.</param>
     Task<IReadOnlyDictionary<string, IReadOnlyList<WatchdogPlayer>>?> GetAllPlayersAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads the UPnP port-forward mappings the local IGD currently holds for
+    /// <paramref name="instanceName"/> (the rows the watchdog owns, tagged with the instance name).
+    /// </summary>
+    /// <remarks>
+    /// Returns <c>null</c> only when the <b>daemon</b> is unreachable or does not expose the route
+    /// (graceful, like <see cref="GetReadyAsync"/> — it does not throw). A reachable daemon whose
+    /// <b>router</b> could not be queried
+    /// (no IGD, upnpc missing, or a timeout) returns a non-null result with
+    /// <see cref="WatchdogUpnpList.State"/> = <c>"unavailable"</c> — distinct from a real query that
+    /// found no mappings (<c>"queried"</c> with an empty list). An unavailable state is never presented
+    /// as "no forwards".
+    /// </remarks>
+    /// <param name="instanceName">The instance whose UPnP mappings to read.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    Task<WatchdogUpnpList?> GetUpnpAsync(string instanceName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Opens UPnP router port-forwards for <paramref name="instanceName"/> on demand — its configured
+    /// ports, or the explicit <paramref name="ports"/> override.
+    /// </summary>
+    /// <remarks>
+    /// Honors the instance's <c>enable_port_forwarding</c> gate (config is the authority): a gated-off
+    /// instance yields <see cref="WatchdogUpnpActionResult.Outcome"/> = <c>"skipped"</c>, not a forced
+    /// open. The outcome is honest three-way — <c>"applied"</c> / <c>"skipped"</c> / <c>"failed"</c> —
+    /// never a fabricated open. A confirmed open emits an <c>instance-upnp-opened</c> audit event stamped
+    /// with <paramref name="origin"/>. Throws <see cref="System.Net.Http.HttpRequestException"/> when the
+    /// daemon is unreachable.
+    /// </remarks>
+    /// <param name="instanceName">The instance to open forwards for.</param>
+    /// <param name="ports">An explicit port set to forward; null/empty → the instance's configured ports.</param>
+    /// <param name="origin">Audit origin label stamped on the emitted event (default <c>"control"</c>).</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    Task<WatchdogUpnpActionResult> OpenUpnpAsync(
+        string instanceName,
+        IReadOnlyList<PortMapping>? ports = null,
+        string origin = "control",
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Closes <paramref name="instanceName"/>'s UPnP router port-forwards on demand. A confirmed removal
+    /// emits an <c>instance-upnp-closed</c> audit event stamped with <paramref name="origin"/>; a close
+    /// with nothing to remove is an honest <c>"skipped"</c>. Throws
+    /// <see cref="System.Net.Http.HttpRequestException"/> when the daemon is unreachable.
+    /// </summary>
+    /// <param name="instanceName">The instance to close forwards for.</param>
+    /// <param name="origin">Audit origin label stamped on the emitted event (default <c>"control"</c>).</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    Task<WatchdogUpnpActionResult> CloseUpnpAsync(
+        string instanceName,
+        string origin = "control",
+        CancellationToken cancellationToken = default);
 }

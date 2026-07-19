@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `IWatchdogClient` gains the watchdog's on-demand UPnP control surface: `GetUpnpAsync`,
+  `OpenUpnpAsync`, and `CloseUpnpAsync` (the typed client for the daemon's `GET /upnp/{name}` and
+  `POST /upnp/{name}/open|close`). `GetUpnpAsync` returns `null` only when the daemon is unreachable and
+  otherwise a `WatchdogUpnpList` whose `State` distinguishes a real query (`"queried"`, mappings possibly
+  empty) from an inability to reach the router (`"unavailable"`) — the latter is never presented as "no
+  forwards". `OpenUpnpAsync` accepts an optional explicit `PortMapping` set (else the instance's own
+  ports) and `CloseUpnpAsync` removes them; both return a `WatchdogUpnpActionResult` whose `Outcome` is
+  the honest three-way `applied` / `skipped` / `failed`, and both stamp the emitted audit event with an
+  `origin` (default `control`). New `WatchdogUpnpMapping` / `WatchdogUpnpList` / `WatchdogUpnpActionResult`
+  / `WatchdogUpnpOpenRequest` models, registered reflection-free in `KgsmJsonContext` (Native-AOT-safe).
 - `IEventService.RegisterRawHandler(Func<EventWrapper, Task>)`: a catch-all hook that fires
   with the full envelope for every event the socket delivers, including event types with no
   `RegisterHandler<T>` mapping — the foundation for a neutral, raw event-history persister

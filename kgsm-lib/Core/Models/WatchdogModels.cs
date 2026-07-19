@@ -92,6 +92,92 @@ public record class WatchdogReadyState
 }
 
 /// <summary>
+/// One UPnP port-mapping row the local IGD holds for an instance, mirroring the daemon's
+/// <c>UpnpMapping</c> (kgsm-watchdog: <c>GET /upnp/{name}</c>). Measured from the router, never
+/// fabricated — the mapping's <see cref="Description"/> equals the instance name (the ownership tag the
+/// watchdog sets when it opens the forward).
+/// </summary>
+public record class WatchdogUpnpMapping
+{
+    /// <summary>The external (WAN-side) port the router forwards.</summary>
+    [JsonPropertyName("externalPort")]
+    public int ExternalPort { get; set; }
+
+    /// <summary>Transport protocol — <c>"tcp"</c> or <c>"udp"</c>.</summary>
+    [JsonPropertyName("protocol")]
+    public string Protocol { get; set; } = string.Empty;
+
+    /// <summary>The internal (LAN-side) port the forward targets.</summary>
+    [JsonPropertyName("internalPort")]
+    public int InternalPort { get; set; }
+
+    /// <summary>The internal (LAN-side) client address the forward targets.</summary>
+    [JsonPropertyName("internalClient")]
+    public string InternalClient { get; set; } = string.Empty;
+
+    /// <summary>The mapping description — equals the owning instance's name (the ownership tag).</summary>
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// An instance's current UPnP mappings on the local IGD (kgsm-watchdog: <c>GET /upnp/{name}</c>).
+/// <see cref="State"/> is load-bearing for honesty: <c>"queried"</c> means the router was asked and
+/// <see cref="Mappings"/> is what it owns (possibly empty — a real "none"); <c>"unavailable"</c> means
+/// the router could not be asked at all (upnpc missing, no IGD, or a timeout) and is NEVER "no mappings".
+/// This in-body <c>"unavailable"</c> (the daemon is reachable, the router is not) is distinct from a null
+/// return (the daemon itself unreachable).
+/// </summary>
+public record class WatchdogUpnpList
+{
+    /// <summary>The instance the mappings belong to.</summary>
+    [JsonPropertyName("instance")]
+    public string Instance { get; set; } = string.Empty;
+
+    /// <summary>Query state: <c>"queried"</c> (asked the router) or <c>"unavailable"</c> (couldn't).</summary>
+    [JsonPropertyName("state")]
+    public string State { get; set; } = string.Empty;
+
+    /// <summary>The mappings the router owns for this instance; empty when queried-and-none.</summary>
+    [JsonPropertyName("mappings")]
+    public List<WatchdogUpnpMapping> Mappings { get; set; } = [];
+}
+
+/// <summary>
+/// Outcome of an on-demand UPnP open/close (kgsm-watchdog: <c>POST /upnp/{name}/open|close</c>).
+/// <see cref="Outcome"/> is <c>"applied"</c> (the IGD confirmed the change), <c>"skipped"</c>
+/// (port-forwarding disabled for the instance, or it has no ports — nothing changed), or <c>"failed"</c>
+/// (upnpc could not deliver). A skipped or failed open is never reported as an open — the three-way
+/// distinction is preserved rather than collapsed into a boolean.
+/// </summary>
+public record class WatchdogUpnpActionResult
+{
+    /// <summary>The instance the action targeted.</summary>
+    [JsonPropertyName("instance")]
+    public string Instance { get; set; } = string.Empty;
+
+    /// <summary>The honest outcome: <c>"applied"</c>, <c>"skipped"</c>, or <c>"failed"</c>.</summary>
+    [JsonPropertyName("outcome")]
+    public string Outcome { get; set; } = string.Empty;
+
+    /// <summary>Human-readable detail describing the outcome.</summary>
+    [JsonPropertyName("detail")]
+    public string Detail { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Request body for <c>POST /upnp/{name}/open</c> when forwarding an explicit port set instead of the
+/// instance's configured ports (parity with the firewall's <c>ensure-open &lt;instance&gt; &lt;ports&gt;</c>).
+/// Serialized by <c>IWatchdogClient.OpenUpnpAsync</c> only when ports are supplied.
+/// </summary>
+public record class WatchdogUpnpOpenRequest
+{
+    /// <summary>The explicit ports to forward; the daemon uses the instance's own ports when this is null/empty.</summary>
+    [JsonPropertyName("ports")]
+    public List<PortMapping>? Ports { get; set; }
+}
+
+/// <summary>
 /// A single player session tracked by the watchdog's in-memory session map. Served by
 /// <c>GET /players</c> so consumers (kgsm-api) can reconcile their roster on startup.
 /// </summary>

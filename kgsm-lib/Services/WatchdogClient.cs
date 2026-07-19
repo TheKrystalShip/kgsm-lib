@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.KGSM.Core.Interfaces;
@@ -292,6 +293,90 @@ public sealed class WatchdogClient : IWatchdogClient
         foreach (var kvp in raw)
             result[kvp.Key] = kvp.Value;
         return result;
+    }
+
+    /// <inheritdoc/>
+    public async Task<WatchdogUpnpList?> GetUpnpAsync(string instanceName, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+
+        try
+        {
+            using var response = await _http
+                .GetAsync($"/upnp/{Uri.EscapeDataString(instanceName)}", cancellationToken)
+                .ConfigureAwait(false);
+
+            // A daemon without the UPnP route (older build) answers 404 → treat as "unreachable" (null),
+            // not an error. A reachable daemon always answers 200 with an in-body state (queried vs
+            // unavailable) — an unreachable *router* is "unavailable" in-body, never a null.
+            if (response.StatusCode == HttpStatusCode.NotFound)
+                return null;
+
+            response.EnsureSuccessStatusCode();
+            return await ReadJsonAsync(response, KgsmJsonContext.Default.WatchdogUpnpList, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (HttpRequestException ex)
+        {
+            // The daemon itself is down/unreachable — a graceful null (distinct from the in-body
+            // "unavailable" a reachable daemon returns when the router can't be queried).
+            _logger.LogDebug(ex, "Watchdog /upnp fetch failed to connect for {Instance}", instanceName);
+            return null;
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<WatchdogUpnpActionResult> OpenUpnpAsync(
+        string instanceName,
+        IReadOnlyList<PortMapping>? ports = null,
+        string origin = "control",
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+
+        var url = $"/upnp/{Uri.EscapeDataString(instanceName)}/open?origin={Uri.EscapeDataString(origin)}";
+
+        // A JSON body carrying an explicit port set is sent ONLY when ports are supplied; otherwise the
+        // POST is bodyless and the daemon forwards the instance's own configured ports.
+        HttpContent? content = null;
+        if (ports is { Count: > 0 })
+        {
+            var request = new WatchdogUpnpOpenRequest { Ports = [.. ports] };
+            string json = JsonSerializer.Serialize(request, KgsmJsonContext.Default.WatchdogUpnpOpenRequest);
+            content = new StringContent(json, Encoding.UTF8, "application/json");
+        }
+
+        try
+        {
+            using var response = await _http.PostAsync(url, content, cancellationToken).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            return await ReadJsonAsync(response, KgsmJsonContext.Default.WatchdogUpnpActionResult, cancellationToken)
+                       .ConfigureAwait(false)
+                   ?? new WatchdogUpnpActionResult { Instance = instanceName, Outcome = "failed", Detail = "empty response" };
+        }
+        finally
+        {
+            content?.Dispose();
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<WatchdogUpnpActionResult> CloseUpnpAsync(
+        string instanceName,
+        string origin = "control",
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+
+        var url = $"/upnp/{Uri.EscapeDataString(instanceName)}/close?origin={Uri.EscapeDataString(origin)}";
+        using var response = await _http.PostAsync(url, content: null, cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        return await ReadJsonAsync(response, KgsmJsonContext.Default.WatchdogUpnpActionResult, cancellationToken)
+                   .ConfigureAwait(false)
+               ?? new WatchdogUpnpActionResult { Instance = instanceName, Outcome = "failed", Detail = "empty response" };
     }
 
     /// <inheritdoc/>
