@@ -86,7 +86,7 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
-    public KgsmResult Install(string blueprintName, string? installDir = null, string? version = null, string? name = null, string? actor = null, string? origin = null, int? port = null)
+    public KgsmResult Install(string blueprintName, string? installDir = null, string? version = null, string? name = null, string? actor = null, string? origin = null, int? port = null, bool? start = null)
     {
         ArgumentNullException.ThrowIfNull(blueprintName, nameof(blueprintName));
 
@@ -114,6 +114,11 @@ public class InstanceService : IInstanceService
         {
             args.Add("--port");
             args.Add(port.Value.ToString());
+        }
+
+        if (start == true)
+        {
+            args.Add("--start");
         }
 
         IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);

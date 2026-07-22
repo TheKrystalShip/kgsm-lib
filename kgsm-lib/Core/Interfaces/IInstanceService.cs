@@ -93,8 +93,10 @@ public interface IInstanceService
     /// <param name="port">Optional override for the blueprint's primary game port (1-65535), passed to KGSM
     /// as <c>--port</c>. Null = keep the blueprint's declared port(s). Trailing-optional (after provenance) so
     /// existing positional callers are unaffected.</param>
+    /// <param name="start">If <c>true</c>, start the server immediately after install (one-shot, not
+    /// watchdog boot-autostart).</param>
     /// <returns>Result of the instance installation operation.</returns>
-    KgsmResult Install(string blueprintName, string? installDir = null, string? version = null, string? name = null, string? actor = null, string? origin = null, int? port = null);
+    KgsmResult Install(string blueprintName, string? installDir = null, string? version = null, string? name = null, string? actor = null, string? origin = null, int? port = null, bool? start = null);
 
     /// <summary>
     /// Uninstalls an instance.
