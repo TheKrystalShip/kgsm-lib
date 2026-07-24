@@ -1,0 +1,457 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using TheKrystalShip.KGSM.Core.Models;
+
+namespace TheKrystalShip.KGSM.Tests.Services;
+
+/// <summary>
+/// Tests for <see cref="BlueprintFiles"/> — the write-side authority for native-runtime blueprint files.
+/// Like <see cref="InstanceFilesTests"/>, this runs against a REAL temp-dir jail rather than mocked
+/// <c>System.IO</c> (the jail IS the security boundary under test); only the engine query
+/// (<c>kgsm --paths</c>, via <see cref="IKgsmCommandExecutor"/>) is mocked.
+/// </summary>
+public sealed class BlueprintFilesTests : IDisposable
+{
+    private readonly string _userDir;
+    private readonly Mock<IKgsmCommandExecutor> _mockExecutor;
+    private readonly BlueprintFiles _sut;
+
+    public BlueprintFilesTests()
+    {
+        _userDir = Directory.CreateTempSubdirectory("kgsm-blueprintfiles-user-").FullName;
+        _mockExecutor = new Mock<IKgsmCommandExecutor>();
+        SetPathsOutput(_userDir);
+
+        _sut = new BlueprintFiles(_mockExecutor.Object, NullLogger<BlueprintFiles>.Instance);
+    }
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_userDir, recursive: true); } catch { /* best-effort cleanup */ }
+    }
+
+    /// <summary>Mocks <c>kgsm --paths</c>'s stdout the way the real CLI formats it (see
+    /// <c>kgsm.sh</c>'s <c>_cmd_paths</c>) — only the <c>KGSM_USER_BLUEPRINTS_DIR:</c> line is
+    /// load-bearing for the parser under test; the rest is realistic noise.</summary>
+    private void SetPathsOutput(string userBlueprintsDir, int exitCode = 0)
+    {
+        string stdout = "KGSM Directory Layout:\n\n" +
+            "System Paths (Read-only):\n" +
+            "  KGSM_ROOT:                            /opt/kgsm\n" +
+            "  KGSM_SYSTEM_BLUEPRINTS_DIR:           /opt/kgsm/blueprints\n\n" +
+            "User Paths (Writable):\n" +
+            "  KGSM_DATA_DIR:                        /home/x/.local/share/kgsm\n" +
+            $"  KGSM_USER_BLUEPRINTS_DIR:             {userBlueprintsDir}\n" +
+            "  KGSM_USER_OVERRIDES_DIR:               /home/x/.local/share/kgsm/overrides\n";
+
+        _mockExecutor.Setup(x => x.Execute("--paths"))
+            .Returns(new KgsmResult(exitCode, stdout, exitCode == 0 ? "" : "boom"));
+    }
+
+    private string Path_(string name) => Path.Combine(_userDir, name + ".bp.yaml");
+
+    private static NativeBlueprintDraft MinimalDraft(string name, string executableFile = "run.sh") =>
+        new()
+        {
+            Name = name,
+            Native = new NativeBlueprintNativeDraft { ExecutableFile = executableFile },
+        };
+
+    // ---- constructor guards ------------------------------------------------------------------------
+
+    [Fact]
+    public void Constructor_NullCommandExecutor_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => new BlueprintFiles(null!, NullLogger<BlueprintFiles>.Instance));
+    }
+
+    [Fact]
+    public void Constructor_NullLogger_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => new BlueprintFiles(_mockExecutor.Object, null!));
+    }
+
+    // ---- argument validation -------------------------------------------------------------------------
+
+    [Fact]
+    public void Create_NullDraft_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _sut.Create(null!));
+    }
+
+    [Fact]
+    public void Remove_NullName_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _sut.Remove(null!));
+    }
+
+    [Fact]
+    public void Remove_WhitespaceName_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentException>(() => _sut.Remove("   "));
+    }
+
+    [Fact]
+    public void Exists_NullName_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _sut.Exists(null!));
+    }
+
+    // ---- structural validation (guardrail #1: structural only, never semantic) -----------------------
+
+    [Fact]
+    public void Create_BlankExecutableFile_ReturnsInvalidDraft_AndWritesNothing()
+    {
+        var draft = new NativeBlueprintDraft
+        {
+            Name = "noexe",
+            Native = new NativeBlueprintNativeDraft { ExecutableFile = "" },
+        };
+
+        var result = _sut.Create(draft);
+
+        Assert.Equal(FileOpOutcome.InvalidDraft, result.Outcome);
+        Assert.False(File.Exists(Path_("noexe")));
+    }
+
+    [Fact]
+    public void Create_WhitespaceExecutableFile_ReturnsInvalidDraft()
+    {
+        var draft = new NativeBlueprintDraft
+        {
+            Name = "noexe2",
+            Native = new NativeBlueprintNativeDraft { ExecutableFile = "   " },
+        };
+
+        var result = _sut.Create(draft);
+
+        Assert.Equal(FileOpOutcome.InvalidDraft, result.Outcome);
+    }
+
+    // ---- name safety (rejected BEFORE any disk access) ------------------------------------------------
+
+    [Theory]
+    [InlineData("../evil")]
+    [InlineData("/etc/x")]
+    [InlineData("Foo Bar")]
+    [InlineData("")]
+    [InlineData("-leading")]
+    [InlineData("trailing-")]
+    [InlineData("has/slash")]
+    [InlineData("has..dots")]
+    public void Create_UnsafeName_ReturnsOutOfJail_AndWritesNothing(string badName)
+    {
+        var result = _sut.Create(MinimalDraft(badName));
+
+        Assert.Equal(FileOpOutcome.OutOfJail, result.Outcome);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(_userDir));
+    }
+
+    [Fact]
+    public void Create_NameOverMaxLength_ReturnsOutOfJail()
+    {
+        string tooLong = new string('a', 65);
+
+        var result = _sut.Create(MinimalDraft(tooLong));
+
+        Assert.Equal(FileOpOutcome.OutOfJail, result.Outcome);
+    }
+
+    [Theory]
+    [InlineData("../evil")]
+    [InlineData("/etc/x")]
+    [InlineData("Foo Bar")]
+    public void Remove_UnsafeName_ReturnsOutOfJail(string badName)
+    {
+        var result = _sut.Remove(badName);
+        Assert.Equal(FileOpOutcome.OutOfJail, result.Outcome);
+    }
+
+    [Theory]
+    [InlineData("../evil")]
+    [InlineData("Foo Bar")]
+    public void Exists_UnsafeName_ReturnsOutOfJail(string badName)
+    {
+        var result = _sut.Exists(badName);
+        Assert.Equal(FileOpOutcome.OutOfJail, result.Outcome);
+    }
+
+    // ---- user-blueprints-dir resolution (learned from the engine) ------------------------------------
+
+    [Fact]
+    public void Create_PathsCommandFails_ReturnsBlueprintsDirUnavailable()
+    {
+        SetPathsOutput(_userDir, exitCode: 1);
+
+        var result = _sut.Create(MinimalDraft("anything"));
+
+        Assert.Equal(FileOpOutcome.BlueprintsDirUnavailable, result.Outcome);
+    }
+
+    [Fact]
+    public void Create_PathsOutputMissingMarkerLine_ReturnsBlueprintsDirUnavailable()
+    {
+        _mockExecutor.Setup(x => x.Execute("--paths"))
+            .Returns(new KgsmResult(0, "KGSM Directory Layout:\n(nothing useful here)\n", ""));
+
+        var result = _sut.Create(MinimalDraft("anything"));
+
+        Assert.Equal(FileOpOutcome.BlueprintsDirUnavailable, result.Outcome);
+    }
+
+    [Fact]
+    public void Create_PathsCommandThrows_ReturnsBlueprintsDirUnavailable()
+    {
+        _mockExecutor.Setup(x => x.Execute("--paths")).Throws(new InvalidOperationException("no kgsm on PATH"));
+
+        var result = _sut.Create(MinimalDraft("anything"));
+
+        Assert.Equal(FileOpOutcome.BlueprintsDirUnavailable, result.Outcome);
+    }
+
+    [Fact]
+    public void Create_ReportedDirDoesNotExistOnDisk_ReturnsBlueprintsDirUnavailable()
+    {
+        string missing = Path.Combine(_userDir, "does-not-exist-subdir");
+        SetPathsOutput(missing);
+
+        var result = _sut.Create(MinimalDraft("anything"));
+
+        Assert.Equal(FileOpOutcome.BlueprintsDirUnavailable, result.Outcome);
+    }
+
+    // ---- create: happy path + collision policy ---------------------------------------------------
+
+    [Fact]
+    public void Create_NewBlueprint_WritesFileIntoUserDir()
+    {
+        var result = _sut.Create(MinimalDraft("newgame"));
+
+        Assert.True(result.IsOk);
+        Assert.True(File.Exists(Path_("newgame")));
+        Assert.StartsWith("sha256:", result.Value!.Etag);
+        Assert.Equal(new FileInfo(Path_("newgame")).Length, result.Value.SizeBytes);
+        // no leftover temp files from the atomic rename
+        Assert.DoesNotContain(Directory.EnumerateFiles(_userDir), f => Path.GetFileName(f).Contains(".tmp-"));
+    }
+
+    [Fact]
+    public void Create_NameCollision_OverwriteFalse_ReturnsAlreadyExists_AndDoesNotModifyFile()
+    {
+        _sut.Create(MinimalDraft("dup", "first.sh"));
+        string originalContent = File.ReadAllText(Path_("dup"));
+
+        var result = _sut.Create(MinimalDraft("dup", "second.sh"));
+
+        Assert.Equal(FileOpOutcome.AlreadyExists, result.Outcome);
+        Assert.Equal(originalContent, File.ReadAllText(Path_("dup")));
+    }
+
+    [Fact]
+    public void Create_NameCollision_OverwriteTrue_Replaces()
+    {
+        _sut.Create(MinimalDraft("dup2", "first.sh"));
+
+        var result = _sut.Create(MinimalDraft("dup2", "second.sh"), overwrite: true);
+
+        Assert.True(result.IsOk);
+        Assert.Contains("second.sh", File.ReadAllText(Path_("dup2")));
+    }
+
+    // ---- exists ------------------------------------------------------------------------------------
+
+    [Fact]
+    public void Exists_AfterCreate_ReturnsTrue()
+    {
+        _sut.Create(MinimalDraft("existcheck"));
+
+        var result = _sut.Exists("existcheck");
+
+        Assert.True(result.IsOk);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void Exists_NeverCreated_ReturnsFalse()
+    {
+        var result = _sut.Exists("neverexisted");
+
+        Assert.True(result.IsOk);
+        Assert.False(result.Value);
+    }
+
+    // ---- remove --------------------------------------------------------------------------------------
+
+    [Fact]
+    public void Remove_ExistingUserBlueprint_Deletes()
+    {
+        _sut.Create(MinimalDraft("removeme"));
+
+        var result = _sut.Remove("removeme");
+
+        Assert.True(result.IsOk);
+        Assert.False(File.Exists(Path_("removeme")));
+    }
+
+    [Fact]
+    public void Remove_NeverExisted_ReturnsNotFound()
+    {
+        var result = _sut.Remove("ghost");
+        Assert.Equal(FileOpOutcome.NotFound, result.Outcome);
+    }
+
+    [Fact]
+    public void Remove_NameOnlyPresentInADifferentDirectory_NeverTouchesIt_ReturnsNotFound()
+    {
+        // Simulates a same-named SYSTEM blueprint living in a completely different directory
+        // (KGSM_SYSTEM_BLUEPRINTS_DIR) — Remove's target path is always <userDir>/<name>.bp.yaml, so it
+        // structurally cannot resolve into this other directory regardless of what's in it.
+        string systemLikeDir = Directory.CreateTempSubdirectory("kgsm-blueprintfiles-system-").FullName;
+        try
+        {
+            string decoy = Path.Combine(systemLikeDir, "shared.bp.yaml");
+            File.WriteAllText(decoy, "schema_version: 1\nname: shared\n");
+
+            var result = _sut.Remove("shared");
+
+            Assert.Equal(FileOpOutcome.NotFound, result.Outcome);
+            Assert.True(File.Exists(decoy)); // untouched
+        }
+        finally { try { Directory.Delete(systemLikeDir, recursive: true); } catch { } }
+    }
+
+    // ---- YAML templating: golden output (guardrail #3 — deterministic string, no YAML library) -------
+
+    [Fact]
+    public void Create_FullyPopulatedDraft_RendersExpectedYaml()
+    {
+        var draft = new NativeBlueprintDraft
+        {
+            Name = "mygame",
+            PlayerJoinedRegex = "Got char (?<name>.+)",
+            PlayerLeftRegex = "Lost char (?<name>.+)",
+            Metadata = new NativeBlueprintMetadataDraft
+            {
+                DisplayName = "My Game",
+                Description = "A test game.",
+                RawgSlug = "my-game",
+                MaxPlayers = 10,
+                MinRamMb = 512,
+                RecommendedRamMb = 1024,
+                BaseDiskMb = 2048,
+            },
+            Native = new NativeBlueprintNativeDraft
+            {
+                Ports = "1234:1234/tcp",
+                SteamAppId = 111,
+                ClientSteamAppId = 222,
+                SteamcmdArguments = "+beta test",
+                IsSteamAccountRequired = true,
+                Platform = "linux",
+                LevelName = "world1",
+                ExecutableSubdirectory = "bin/x64",
+                ExecutableFile = "start.sh",
+                ExecutableArguments = "--port 1234 $instance_name",
+                StopCommand = "quit",
+                SaveCommand = "save",
+                StartupSuccessRegex = "Server started",
+            },
+        };
+
+        var result = _sut.Create(draft);
+        Assert.True(result.IsOk);
+
+        const string expected =
+            "schema_version: 1\n" +
+            "name: mygame\n" +
+            "runtime: native\n" +
+            "metadata:\n" +
+            "  display_name: 'My Game'\n" +
+            "  description: 'A test game.'\n" +
+            "  rawg_slug: 'my-game'\n" +
+            "  max_players: 10\n" +
+            "  min_ram_mb: 512\n" +
+            "  recommended_ram_mb: 1024\n" +
+            "  base_disk_mb: 2048\n" +
+            "player_joined_regex: 'Got char (?<name>.+)'\n" +
+            "player_left_regex: 'Lost char (?<name>.+)'\n" +
+            "native:\n" +
+            "  ports: '1234:1234/tcp'\n" +
+            "  steam_app_id: 111\n" +
+            "  client_steam_app_id: 222\n" +
+            "  steamcmd_arguments: '+beta test'\n" +
+            "  is_steam_account_required: true\n" +
+            "  platform: 'linux'\n" +
+            "  level_name: 'world1'\n" +
+            "  executable_subdirectory: 'bin/x64'\n" +
+            "  executable_file: 'start.sh'\n" +
+            "  executable_arguments: '--port 1234 $instance_name'\n" +
+            "  stop_command: 'quit'\n" +
+            "  save_command: 'save'\n" +
+            "  startup_success_regex: 'Server started'\n";
+
+        Assert.Equal(expected, File.ReadAllText(Path_("mygame")));
+    }
+
+    [Fact]
+    public void Create_MinimalDraft_RendersNullMetadata_NeverFabricatedZero()
+    {
+        var draft = new NativeBlueprintDraft
+        {
+            Name = "minimal",
+            Native = new NativeBlueprintNativeDraft { ExecutableFile = "run.sh" },
+        };
+
+        var result = _sut.Create(draft);
+        Assert.True(result.IsOk);
+
+        const string expected =
+            "schema_version: 1\n" +
+            "name: minimal\n" +
+            "runtime: native\n" +
+            "metadata:\n" +
+            "  display_name: null\n" +
+            "  description: null\n" +
+            "  rawg_slug: null\n" +
+            "  max_players: null\n" +
+            "  min_ram_mb: null\n" +
+            "  recommended_ram_mb: null\n" +
+            "  base_disk_mb: null\n" +
+            "native:\n" +
+            "  ports: ''\n" +
+            "  steam_app_id: 0\n" +
+            "  client_steam_app_id: 0\n" +
+            "  steamcmd_arguments: ''\n" +
+            "  is_steam_account_required: false\n" +
+            "  platform: 'linux'\n" +
+            "  level_name: 'default'\n" +
+            "  executable_subdirectory: ''\n" +
+            "  executable_file: 'run.sh'\n" +
+            "  executable_arguments: ''\n" +
+            "  stop_command: ''\n" +
+            "  save_command: ''\n" +
+            "  startup_success_regex: ''\n";
+
+        string actual = File.ReadAllText(Path_("minimal"));
+        Assert.Equal(expected, actual);
+        Assert.DoesNotContain("max_players: 0", actual); // the no-fabricate invariant, spelled out
+    }
+
+    [Fact]
+    public void Create_ValueContainingSingleQuote_EscapesByDoubling()
+    {
+        var draft = new NativeBlueprintDraft
+        {
+            Name = "quotetest",
+            Native = new NativeBlueprintNativeDraft
+            {
+                ExecutableFile = "run.sh",
+                ExecutableArguments = "it's a test",
+            },
+        };
+
+        var result = _sut.Create(draft);
+
+        Assert.True(result.IsOk);
+        Assert.Contains("executable_arguments: 'it''s a test'", File.ReadAllText(Path_("quotetest")));
+    }
+}

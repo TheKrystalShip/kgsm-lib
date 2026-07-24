@@ -48,6 +48,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<ISystemService, SystemService>();
         services.AddTransient<IEventManagementService, EventManagementService>();
         services.AddTransient<IInstanceFiles, InstanceFiles>();
+        services.AddTransient<IBlueprintFiles, BlueprintFiles>();
 
         // Singleton services
         services.AddSingleton<IUnixSocketClient, UnixSocketClient>();

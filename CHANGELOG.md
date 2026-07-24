@@ -8,6 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `IBlueprintFiles` (+ impl `BlueprintFiles`) — the write-side authority for native-runtime
+  blueprint files: `Create(NativeBlueprintDraft, overwrite)` templates a draft into a valid
+  `<name>.bp.yaml` string and atomically writes it into the user blueprints directory; `Remove`
+  deletes one from the user dir ONLY (structurally incapable of touching the read-only system
+  blueprints dir); `Exists` checks without reading. The SECOND kgsm-lib service that does direct
+  `System.IO` (the first is `IInstanceFiles`, whose shape this mirrors: atomic temp→fsync→rename
+  write, a jail, `FileOpResult`/`FileOpOutcome` outcome-not-exception). No semantic validation —
+  only structural checks (a required `native.executable_file`, a safe lowercase-slug `name`); the
+  engine stays the schema authority (validated by reading back through `IBlueprintService.GetInfo`
+  in a later phase). The jail root — the user blueprints directory — is learned from the engine
+  fresh on every call by running `kgsm --paths` and parsing its `KGSM_USER_BLUEPRINTS_DIR:` line
+  (there is no `--json` variant of that command), never re-derived from XDG rules in C#. The YAML
+  is a deterministic string template (no YamlDotNet/reflection-based serializer — Native-AOT-safe),
+  field order matching `templates/blueprint.tp`; every string scalar is single-quoted (YAML's one
+  escape, doubling an embedded `'`), and every nullable field renders the literal `null` — never a
+  fabricated placeholder. New `NativeBlueprintDraft`/`NativeBlueprintMetadataDraft`/
+  `NativeBlueprintNativeDraft` DTOs (`Core/Models/NativeBlueprintDraft.cs`) and two new
+  `FileOpOutcome` members (`BlueprintsDirUnavailable`, `InvalidDraft`) reusing the existing
+  `FileOpResult`/`FileOpOutcome` channel from `IInstanceFiles`. Wired onto
+  `IKgsmClient.BlueprintFiles` and `AddKgsmServices`. Phase 1 of the assistant-blueprint-authoring
+  plan (`assistant-blueprint-authoring-plan.md`) — kgsm engine untouched.
 - `IInstanceFiles` (+ impl `InstanceFiles`) — the single jailed filesystem authority for an
   instance's working directory: `List`, `Read`, `Write` (create/overwrite), `Delete`, `Rename`.
   The first kgsm-lib service that does direct `System.IO` (every other service shells the

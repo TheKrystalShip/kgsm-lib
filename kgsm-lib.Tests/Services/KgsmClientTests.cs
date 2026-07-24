@@ -20,6 +20,7 @@ public class KgsmClientTests
     private readonly Mock<ISystemService> _mockSystemService;
     private readonly Mock<IEventManagementService> _mockEventManagementService;
     private readonly Mock<IInstanceFiles> _mockInstanceFilesService;
+    private readonly Mock<IBlueprintFiles> _mockBlueprintFilesService;
     private readonly Mock<ILogger<KgsmClient>> _mockLogger;
     private readonly KgsmClient _kgsmClient;
 
@@ -38,6 +39,7 @@ public class KgsmClientTests
         _mockSystemService = new Mock<ISystemService>();
         _mockEventManagementService = new Mock<IEventManagementService>();
         _mockInstanceFilesService = new Mock<IInstanceFiles>();
+        _mockBlueprintFilesService = new Mock<IBlueprintFiles>();
         _mockLogger = new Mock<ILogger<KgsmClient>>();
 
         _kgsmClient = new KgsmClient(
@@ -54,6 +56,7 @@ public class KgsmClientTests
             _mockSystemService.Object,
             _mockEventManagementService.Object,
             _mockInstanceFilesService.Object,
+            _mockBlueprintFilesService.Object,
             _mockLogger.Object
         );
     }
@@ -76,6 +79,7 @@ public class KgsmClientTests
             _mockSystemService.Object,
             _mockEventManagementService.Object,
             _mockInstanceFilesService.Object,
+            _mockBlueprintFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -98,6 +102,7 @@ public class KgsmClientTests
             _mockSystemService.Object,
             _mockEventManagementService.Object,
             _mockInstanceFilesService.Object,
+            _mockBlueprintFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -120,6 +125,7 @@ public class KgsmClientTests
             _mockSystemService.Object,
             _mockEventManagementService.Object,
             _mockInstanceFilesService.Object,
+            _mockBlueprintFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -142,6 +148,7 @@ public class KgsmClientTests
             _mockSystemService.Object,
             _mockEventManagementService.Object,
             _mockInstanceFilesService.Object,
+            _mockBlueprintFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -164,6 +171,7 @@ public class KgsmClientTests
             _mockSystemService.Object,
             _mockEventManagementService.Object,
             _mockInstanceFilesService.Object,
+            _mockBlueprintFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -186,6 +194,7 @@ public class KgsmClientTests
             _mockSystemService.Object,
             _mockEventManagementService.Object,
             _mockInstanceFilesService.Object,
+            _mockBlueprintFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -208,6 +217,7 @@ public class KgsmClientTests
             _mockSystemService.Object,
             _mockEventManagementService.Object,
             _mockInstanceFilesService.Object,
+            _mockBlueprintFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -230,6 +240,7 @@ public class KgsmClientTests
             _mockSystemService.Object,
             _mockEventManagementService.Object,
             _mockInstanceFilesService.Object,
+            _mockBlueprintFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -252,6 +263,7 @@ public class KgsmClientTests
             _mockSystemService.Object,
             _mockEventManagementService.Object,
             _mockInstanceFilesService.Object,
+            _mockBlueprintFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -274,6 +286,7 @@ public class KgsmClientTests
             _mockSystemService.Object,
             _mockEventManagementService.Object,
             _mockInstanceFilesService.Object,
+            _mockBlueprintFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -296,6 +309,7 @@ public class KgsmClientTests
             _mockSystemService.Object,
             _mockEventManagementService.Object,
             _mockInstanceFilesService.Object,
+            _mockBlueprintFilesService.Object,
             null!
         ));
     }
@@ -318,6 +332,7 @@ public class KgsmClientTests
             null!,
             _mockEventManagementService.Object,
             _mockInstanceFilesService.Object,
+            _mockBlueprintFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -340,6 +355,7 @@ public class KgsmClientTests
             _mockSystemService.Object,
             null!,
             _mockInstanceFilesService.Object,
+            _mockBlueprintFilesService.Object,
             _mockLogger.Object
         ));
     }
@@ -361,6 +377,30 @@ public class KgsmClientTests
             _mockNetworkService.Object,
             _mockSystemService.Object,
             _mockEventManagementService.Object,
+            null!,
+            _mockBlueprintFilesService.Object,
+            _mockLogger.Object
+        ));
+    }
+
+    [Fact]
+    public void Constructor_NullBlueprintFilesService_ThrowsArgumentNullException()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => new KgsmClient(
+            _mockCommandExecutor.Object,
+            _mockBlueprintService.Object,
+            _mockInstanceService.Object,
+            _mockEventService.Object,
+            _mockConfigService.Object,
+            _mockLifecycleService.Object,
+            _mockFileService.Object,
+            _mockDirectoryService.Object,
+            _mockWatcherService.Object,
+            _mockNetworkService.Object,
+            _mockSystemService.Object,
+            _mockEventManagementService.Object,
+            _mockInstanceFilesService.Object,
             null!,
             _mockLogger.Object
         ));
@@ -427,6 +467,14 @@ public class KgsmClientTests
         // Assert
         Assert.NotNull(_kgsmClient.InstanceFiles);
         Assert.Same(_mockInstanceFilesService.Object, _kgsmClient.InstanceFiles);
+    }
+
+    [Fact]
+    public void BlueprintFiles_Property_ReturnsInjectedService()
+    {
+        // Assert
+        Assert.NotNull(_kgsmClient.BlueprintFiles);
+        Assert.Same(_mockBlueprintFilesService.Object, _kgsmClient.BlueprintFiles);
     }
 
     [Fact]

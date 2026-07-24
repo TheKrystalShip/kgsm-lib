@@ -70,6 +70,12 @@ public interface IKgsmClient
     IInstanceFiles InstanceFiles { get; }
 
     /// <summary>
+    /// Gets the blueprint write authority (create/remove native <c>&lt;name&gt;.bp.yaml</c> files in the
+    /// user blueprints directory).
+    /// </summary>
+    IBlueprintFiles BlueprintFiles { get; }
+
+    /// <summary>
     /// Prints the help message.
     /// </summary>
     /// <returns>Result of the help command execution.</returns>

@@ -60,6 +60,9 @@ public class KgsmClient : IKgsmClient
     /// <inheritdoc/>
     public IInstanceFiles InstanceFiles { get; }
 
+    /// <inheritdoc/>
+    public IBlueprintFiles BlueprintFiles { get; }
+
     /// <summary>
     /// Initializes a new instance of the KgsmClient class.
     /// </summary>
@@ -76,6 +79,7 @@ public class KgsmClient : IKgsmClient
     /// <param name="systemService">The system service to use for managing system operations.</param>
     /// <param name="eventManagementService">The event management service to use for managing event transports and configuration.</param>
     /// <param name="instanceFilesService">The jailed instance-filesystem authority.</param>
+    /// <param name="blueprintFilesService">The blueprint write authority.</param>
     /// <param name="logger">The logger to use for logging.</param>
     public KgsmClient(
         IKgsmCommandExecutor commandExecutor,
@@ -91,6 +95,7 @@ public class KgsmClient : IKgsmClient
         ISystemService systemService,
         IEventManagementService eventManagementService,
         IInstanceFiles instanceFilesService,
+        IBlueprintFiles blueprintFilesService,
         ILogger<KgsmClient> logger)
     {
         _commandExecutor = commandExecutor ?? throw new ArgumentNullException(nameof(commandExecutor));
@@ -106,6 +111,7 @@ public class KgsmClient : IKgsmClient
         System = systemService ?? throw new ArgumentNullException(nameof(systemService));
         EventManagement = eventManagementService ?? throw new ArgumentNullException(nameof(eventManagementService));
         InstanceFiles = instanceFilesService ?? throw new ArgumentNullException(nameof(instanceFilesService));
+        BlueprintFiles = blueprintFilesService ?? throw new ArgumentNullException(nameof(blueprintFilesService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         _logger.LogDebug("KgsmClient initialized");

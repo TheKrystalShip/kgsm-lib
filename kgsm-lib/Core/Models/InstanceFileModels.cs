@@ -1,9 +1,11 @@
 namespace TheKrystalShip.KGSM.Core.Models;
 
-// Result + DTO types for IInstanceFiles — the jailed instance-filesystem authority. Unlike the wire
-// models (Instance, Blueprint, ...) these never cross the KGSM process boundary: InstanceFiles builds
-// them directly from System.IO/lstat, so they carry no [JsonPropertyName] and are deliberately NOT
-// registered in KgsmJsonContext (the firewall-result precedent, FirewallModels.cs) — in-process only.
+// Result + DTO types shared by kgsm-lib's direct-System.IO authorities — IInstanceFiles (the jailed
+// instance-filesystem authority) AND IBlueprintFiles (the user-blueprints-dir create/remove authority).
+// Unlike the wire models (Instance, Blueprint, ...) these never cross the KGSM process boundary: both
+// services build them directly from System.IO/lstat, so they carry no [JsonPropertyName] and are
+// deliberately NOT registered in KgsmJsonContext (the firewall-result precedent, FirewallModels.cs) —
+// in-process only.
 
 /// <summary>
 /// The precise outcome of a jailed file operation — a closed set each consumer maps to its own surface
@@ -39,8 +41,10 @@ public enum FileOpOutcome
     /// since it was read) — optimistic-concurrency rejection.</summary>
     EtagMismatch,
 
-    /// <summary>Reserved for a future create-must-not-clobber mode; not emitted by the current <c>Write</c>
-    /// (which folds "exists" into either an overwrite or, for a directory target, <see cref="NotAFile"/>).</summary>
+    /// <summary>Not emitted by <see cref="Interfaces.IInstanceFiles.Write"/> (which folds "exists" into
+    /// either an overwrite or, for a directory target, <see cref="NotAFile"/>). Emitted by
+    /// <see cref="Interfaces.IBlueprintFiles.Create"/> when a same-named blueprint already exists in the
+    /// user dir and the caller did not opt into <c>overwrite</c>.</summary>
     AlreadyExists,
 
     /// <summary>Rename: the destination exists and <c>RenameOptions.Overwrite</c> is false.</summary>
@@ -53,6 +57,16 @@ public enum FileOpOutcome
     /// <summary>A filesystem operation failed for a reason not covered above (permission denied, disk
     /// full, a non-empty directory on a files-only delete, ...).</summary>
     IoError,
+
+    /// <summary><see cref="Interfaces.IBlueprintFiles"/>'s analogue of <see cref="InstanceUnavailable"/>:
+    /// the engine-reported user blueprints directory (<c>kgsm --paths</c>'s <c>KGSM_USER_BLUEPRINTS_DIR</c>)
+    /// could not be resolved — there is no jail root to operate against.</summary>
+    BlueprintsDirUnavailable,
+
+    /// <summary>A blueprint draft failed a STRUCTURAL check (e.g. a blank/missing
+    /// <c>native.executable_file</c>) — refused before any write. Never a semantic/schema judgment (that
+    /// stays the engine's authority via <see cref="Interfaces.IBlueprintService.GetInfo(string)"/>).</summary>
+    InvalidDraft,
 }
 
 /// <summary>
