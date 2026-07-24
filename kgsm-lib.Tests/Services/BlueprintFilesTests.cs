@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using TheKrystalShip.KGSM.Core.Models;
 
@@ -7,7 +8,7 @@ namespace TheKrystalShip.KGSM.Tests.Services;
 /// Tests for <see cref="BlueprintFiles"/> — the write-side authority for native-runtime blueprint files.
 /// Like <see cref="InstanceFilesTests"/>, this runs against a REAL temp-dir jail rather than mocked
 /// <c>System.IO</c> (the jail IS the security boundary under test); only the engine query
-/// (<c>kgsm --paths</c>, via <see cref="IKgsmCommandExecutor"/>) is mocked.
+/// (<c>kgsm --paths --json</c>, via <see cref="IKgsmCommandExecutor"/>) is mocked.
 /// </summary>
 public sealed class BlueprintFilesTests : IDisposable
 {
@@ -29,22 +30,35 @@ public sealed class BlueprintFilesTests : IDisposable
         try { Directory.Delete(_userDir, recursive: true); } catch { /* best-effort cleanup */ }
     }
 
-    /// <summary>Mocks <c>kgsm --paths</c>'s stdout the way the real CLI formats it (see
-    /// <c>kgsm.sh</c>'s <c>_cmd_paths</c>) — only the <c>KGSM_USER_BLUEPRINTS_DIR:</c> line is
-    /// load-bearing for the parser under test; the rest is realistic noise.</summary>
-    private void SetPathsOutput(string userBlueprintsDir, int exitCode = 0)
+    /// <summary>Mocks the deserialized <c>kgsm --paths --json</c> result the way the real CLI emits it
+    /// (see <c>kgsm.sh</c>'s <c>_cmd_paths</c>) — only <c>user.KGSM_USER_BLUEPRINTS_DIR</c> is load-bearing
+    /// for the resolver under test; the rest is realistic filler. Pass a null dir to model a JSON payload
+    /// that omits the user blueprints directory.</summary>
+    private void SetPathsOutput(string? userBlueprintsDir)
     {
-        string stdout = "KGSM Directory Layout:\n\n" +
-            "System Paths (Read-only):\n" +
-            "  KGSM_ROOT:                            /opt/kgsm\n" +
-            "  KGSM_SYSTEM_BLUEPRINTS_DIR:           /opt/kgsm/blueprints\n\n" +
-            "User Paths (Writable):\n" +
-            "  KGSM_DATA_DIR:                        /home/x/.local/share/kgsm\n" +
-            $"  KGSM_USER_BLUEPRINTS_DIR:             {userBlueprintsDir}\n" +
-            "  KGSM_USER_OVERRIDES_DIR:               /home/x/.local/share/kgsm/overrides\n";
+        var paths = new KgsmPaths
+        {
+            System = new KgsmSystemPaths { Root = "/opt/kgsm", SystemBlueprintsDir = "/opt/kgsm/blueprints" },
+            User = new KgsmUserPaths
+            {
+                DataDir = "/home/x/.local/share/kgsm",
+                UserBlueprintsDir = userBlueprintsDir,
+                UserOverridesDir = "/home/x/.local/share/kgsm/overrides",
+            },
+        };
+        SetPathsResult(paths);
+    }
 
-        _mockExecutor.Setup(x => x.Execute("--paths"))
-            .Returns(new KgsmResult(exitCode, stdout, exitCode == 0 ? "" : "boom"));
+    /// <summary>Low-level setup for the mocked <c>kgsm --paths --json</c> deserialization — a
+    /// <see langword="null"/> models any engine/parse failure (incl. an engine too old for --json).</summary>
+    private void SetPathsResult(KgsmPaths? paths)
+    {
+        _mockExecutor
+            .Setup(x => x.ExecuteForJson<KgsmPaths>(
+                It.IsAny<string[]>(),
+                It.IsAny<Action<JsonSerializerOptions>?>(),
+                It.IsAny<KgsmPaths?>()))
+            .Returns(paths);
     }
 
     private string Path_(string name) => Path.Combine(_userDir, name + ".bp.yaml");
@@ -180,7 +194,8 @@ public sealed class BlueprintFilesTests : IDisposable
     [Fact]
     public void Create_PathsCommandFails_ReturnsBlueprintsDirUnavailable()
     {
-        SetPathsOutput(_userDir, exitCode: 1);
+        // Null models a failed exec / JSON parse failure / an engine too old to know --json.
+        SetPathsResult(null);
 
         var result = _sut.Create(MinimalDraft("anything"));
 
@@ -188,10 +203,9 @@ public sealed class BlueprintFilesTests : IDisposable
     }
 
     [Fact]
-    public void Create_PathsOutputMissingMarkerLine_ReturnsBlueprintsDirUnavailable()
+    public void Create_PathsJsonOmitsUserBlueprintsDir_ReturnsBlueprintsDirUnavailable()
     {
-        _mockExecutor.Setup(x => x.Execute("--paths"))
-            .Returns(new KgsmResult(0, "KGSM Directory Layout:\n(nothing useful here)\n", ""));
+        SetPathsResult(new KgsmPaths { System = new KgsmSystemPaths { Root = "/opt/kgsm" }, User = null });
 
         var result = _sut.Create(MinimalDraft("anything"));
 
@@ -201,7 +215,12 @@ public sealed class BlueprintFilesTests : IDisposable
     [Fact]
     public void Create_PathsCommandThrows_ReturnsBlueprintsDirUnavailable()
     {
-        _mockExecutor.Setup(x => x.Execute("--paths")).Throws(new InvalidOperationException("no kgsm on PATH"));
+        _mockExecutor
+            .Setup(x => x.ExecuteForJson<KgsmPaths>(
+                It.IsAny<string[]>(),
+                It.IsAny<Action<JsonSerializerOptions>?>(),
+                It.IsAny<KgsmPaths?>()))
+            .Throws(new InvalidOperationException("no kgsm on PATH"));
 
         var result = _sut.Create(MinimalDraft("anything"));
 

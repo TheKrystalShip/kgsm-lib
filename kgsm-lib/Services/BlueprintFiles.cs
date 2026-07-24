@@ -12,22 +12,20 @@ namespace TheKrystalShip.KGSM.Services;
 /// <summary>
 /// The default <see cref="IBlueprintFiles"/> — the write-side authority for native-runtime blueprint
 /// files. Injects <see cref="IKgsmCommandExecutor"/> (to learn the user blueprints directory from
-/// <c>kgsm --paths</c> — see the interface remarks) and <see cref="ILogger{TCategoryName}"/>, exactly the
-/// way <see cref="BlueprintService"/> resolves the read side; deliberately NOT
+/// <c>kgsm --paths --json</c> — see the interface remarks) and <see cref="ILogger{TCategoryName}"/>,
+/// exactly the way <see cref="BlueprintService"/> resolves the read side; deliberately NOT
 /// <see cref="IInstanceService"/>, since this authority has no instance to consult.
 /// </summary>
 /// <remarks>
 /// Mirrors <see cref="InstanceFiles"/>'s pattern end to end:
 /// <list type="number">
 /// <item>The root — the user blueprints directory — is resolved fresh on every call (no caching) by
-///   running <c>kgsm --paths</c> and parsing its <c>KGSM_USER_BLUEPRINTS_DIR:</c> line, then
-///   canonicalising it via <see cref="CanonicalRealPath"/>. There is no <c>--json</c> variant of this
-///   command (verified against <c>kgsm.sh</c>/<c>core/paths.sh</c>/<c>commands/blueprints.sh</c>); parsing
-///   the one line this command's human-readable output guarantees is still asking the engine, not
-///   re-deriving the XDG rule in C#. <b>Drift risk:</b> if a future engine version changes this fixed
-///   text format (as opposed to adding a machine-readable path query), this parser breaks — a JSON
-///   <c>kgsm --paths --json</c> (or similar) would remove that coupling and should replace this the day
-///   it exists.</item>
+///   running <c>kgsm --paths --json</c> and reading <see cref="KgsmUserPaths.UserBlueprintsDir"/> off the
+///   deserialized <see cref="KgsmPaths"/>, then canonicalising it via <see cref="CanonicalRealPath"/>.
+///   This asks the engine for the path (rather than re-deriving the XDG rule in C#) via a stable,
+///   machine-readable contract — no free-form text parsing. An engine too old to know <c>--json</c>
+///   returns a non-zero exit, which deserializes to <see langword="null"/> and is reported honestly as
+///   <see cref="FileOpOutcome.BlueprintsDirUnavailable"/> — never a fabricated path.</item>
 /// <item>The only caller input is a single-segment <see cref="NativeBlueprintDraft.Name"/>/<c>name</c> —
 ///   rejected as <see cref="FileOpOutcome.OutOfJail"/> before any disk access unless it matches
 ///   <see cref="SafeName"/> (lowercase slug, no path separators). The resulting
@@ -44,7 +42,6 @@ namespace TheKrystalShip.KGSM.Services;
 /// </remarks>
 public sealed class BlueprintFiles : IBlueprintFiles
 {
-    private const string PathsMarker = "KGSM_USER_BLUEPRINTS_DIR:";
     private const int MaxSymlinkHops = 64; // symlink-loop guard, same bound as InstanceFiles
     private const int MaxNameLength = 64;
 
@@ -174,32 +171,27 @@ public sealed class BlueprintFiles : IBlueprintFiles
     // ---- jail root: learned from the engine, never re-derived ------------------------------------
 
     /// <summary>Resolves the user blueprints directory fresh on every call by asking the engine
-    /// (<c>kgsm --paths</c>) rather than re-deriving the XDG rule in C# — see the type remarks.</summary>
+    /// (<c>kgsm --paths --json</c>) rather than re-deriving the XDG rule in C# — see the type remarks.</summary>
     private bool TryUserBlueprintsDir(out string dir, out FileOpOutcome failure)
     {
         dir = string.Empty;
         failure = FileOpOutcome.Ok;
 
-        KgsmResult result;
-        try { result = _commandExecutor.Execute("--paths"); }
+        KgsmPaths? paths;
+        try { paths = _commandExecutor.ExecuteForJson<KgsmPaths>(["--paths", "--json"]); }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to query kgsm --paths for the user blueprints directory");
+            _logger.LogWarning(ex, "Failed to query kgsm --paths --json for the user blueprints directory");
             failure = FileOpOutcome.BlueprintsDirUnavailable;
             return false;
         }
 
-        if (result.ExitCode != 0)
-        {
-            _logger.LogWarning("kgsm --paths exited {ExitCode}: {Stderr}", result.ExitCode, result.Stderr);
-            failure = FileOpOutcome.BlueprintsDirUnavailable;
-            return false;
-        }
-
-        string? raw = ParseUserBlueprintsDirLine(result.Stdout);
+        string? raw = paths?.User?.UserBlueprintsDir;
         if (string.IsNullOrWhiteSpace(raw))
         {
-            _logger.LogWarning("kgsm --paths output did not contain a {Marker} line", PathsMarker);
+            // Null/empty covers a failed exec, a JSON parse failure, and an engine too old to know
+            // --json (non-zero exit → default). All are honestly "unavailable", never a guessed path.
+            _logger.LogWarning("kgsm --paths --json did not report a user blueprints directory");
             failure = FileOpOutcome.BlueprintsDirUnavailable;
             return false;
         }
@@ -215,26 +207,13 @@ public sealed class BlueprintFiles : IBlueprintFiles
         {
             // kgsm's bootstrap creates this directory on every invocation (see core/paths.sh's
             // __init_user_directories, called unconditionally from core/bootstrap.sh) — so by the time
-            // `kgsm --paths` has already run and returned it, it should exist. If it doesn't, something
-            // is wrong on the engine side; report rather than silently mkdir-ing it from C#.
+            // `kgsm --paths --json` has already run and returned it, it should exist. If it doesn't,
+            // something is wrong on the engine side; report rather than silently mkdir-ing it from C#.
             failure = FileOpOutcome.BlueprintsDirUnavailable;
             return false;
         }
 
         return true;
-    }
-
-    /// <summary>Extracts the value after <c>KGSM_USER_BLUEPRINTS_DIR:</c> from <c>kgsm --paths</c>'s
-    /// human-readable stdout (there is no <c>--json</c> variant — see the type remarks).</summary>
-    private static string? ParseUserBlueprintsDirLine(string stdout)
-    {
-        foreach (string rawLine in stdout.Split('\n'))
-        {
-            string line = rawLine.Trim();
-            if (line.StartsWith(PathsMarker, StringComparison.Ordinal))
-                return line[PathsMarker.Length..].Trim();
-        }
-        return null;
     }
 
     // ---- the jail (defense in depth over the name-safety check above) ----------------------------

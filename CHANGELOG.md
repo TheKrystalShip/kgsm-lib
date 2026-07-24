@@ -18,8 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only structural checks (a required `native.executable_file`, a safe lowercase-slug `name`); the
   engine stays the schema authority (validated by reading back through `IBlueprintService.GetInfo`
   in a later phase). The jail root — the user blueprints directory — is learned from the engine
-  fresh on every call by running `kgsm --paths` and parsing its `KGSM_USER_BLUEPRINTS_DIR:` line
-  (there is no `--json` variant of that command), never re-derived from XDG rules in C#. The YAML
+  fresh on every call from `kgsm --paths --json`'s `user.KGSM_USER_BLUEPRINTS_DIR` (deserialized to
+  the new `KgsmPaths` model via `KgsmJsonContext`), never re-derived from XDG rules in C#. The YAML
   is a deterministic string template (no YamlDotNet/reflection-based serializer — Native-AOT-safe),
   field order matching `templates/blueprint.tp`; every string scalar is single-quoted (YAML's one
   escape, doubling an embedded `'`), and every nullable field renders the literal `null` — never a

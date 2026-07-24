@@ -18,13 +18,11 @@ namespace TheKrystalShip.KGSM.Core.Interfaces;
 ///   the engine's existing read path (<see cref="IBlueprintService.GetInfo(string)"/>) — the engine stays
 ///   the schema authority.</item>
 /// <item><b>The jail root is learned from the engine, never re-derived in C#.</b> The user blueprints
-///   directory is resolved fresh on every call via <c>kgsm --paths</c>'s reported
-///   <c>KGSM_USER_BLUEPRINTS_DIR</c> line (parsed from that command's stdout — the only engine surface
-///   that emits this path; there is no <c>--json</c> variant of it, and <c>blueprints find &lt;name&gt;</c>
-///   only resolves an ALREADY-EXISTING blueprint's file, not the directory itself, so it cannot answer
-///   this before a blueprint exists). This mirrors how <see cref="IInstanceFiles"/> learns its jail root
-///   from <see cref="IInstanceService.GetInstanceInfo(string)"/>'s <c>WorkingDir</c> rather than
-///   re-deriving XDG paths in C#.</item>
+///   directory is resolved fresh on every call from <c>kgsm --paths --json</c>'s
+///   <c>user.KGSM_USER_BLUEPRINTS_DIR</c> (deserialized to <see cref="KgsmPaths"/> — a stable,
+///   machine-readable contract, no free-form text parsing). This mirrors how <see cref="IInstanceFiles"/>
+///   learns its jail root from <see cref="IInstanceService.GetInstanceInfo(string)"/>'s <c>WorkingDir</c>
+///   rather than re-deriving XDG paths in C#.</item>
 /// <item><b>AOT-safe YAML.</b> No YamlDotNet or other reflection-based serializer — the native schema is
 ///   small and flat, so <see cref="Create"/> string-templates it directly (deterministic, diff-stable
 ///   field order matching <c>kgsm/templates/blueprint.tp</c>).</item>
