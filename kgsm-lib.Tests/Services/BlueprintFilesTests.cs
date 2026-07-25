@@ -473,4 +473,162 @@ public sealed class BlueprintFilesTests : IDisposable
         Assert.True(result.IsOk);
         Assert.Contains("executable_arguments: 'it''s a test'", File.ReadAllText(Path_("quotetest")));
     }
+
+    // ---- Render / TryParse (the editable-review round-trip) ---------------------------------------
+
+    [Fact]
+    public void Render_MatchesWhatCreateWrites_WithoutTouchingDisk()
+    {
+        var draft = FullDraft();
+
+        // Render is the exact text Create would persist — but pure (no engine call, no file).
+        _sut.Create(draft);
+        Assert.Equal(File.ReadAllText(Path_("roundtrip")), _sut.Render(draft));
+    }
+
+    [Fact]
+    public void RenderThenParse_RoundTripsEveryField()
+    {
+        var draft = FullDraft();
+
+        var parsed = _sut.TryParse(_sut.Render(draft));
+
+        Assert.True(parsed.IsOk);
+        var d = parsed.Value!;
+        Assert.Equal(draft.Name, d.Name);
+        Assert.Equal(draft.Metadata.DisplayName, d.Metadata.DisplayName);
+        Assert.Equal(draft.Metadata.MaxPlayers, d.Metadata.MaxPlayers);
+        Assert.Equal(draft.Metadata.BaseDiskMb, d.Metadata.BaseDiskMb);
+        Assert.Equal(draft.Native.Ports, d.Native.Ports);
+        Assert.Equal(draft.Native.SteamAppId, d.Native.SteamAppId);
+        Assert.Equal(draft.Native.ClientSteamAppId, d.Native.ClientSteamAppId);
+        Assert.Equal(draft.Native.ExecutableFile, d.Native.ExecutableFile);
+        Assert.Equal(draft.Native.ExecutableSubdirectory, d.Native.ExecutableSubdirectory);
+        Assert.Equal(draft.Native.ExecutableArguments, d.Native.ExecutableArguments);
+        Assert.Equal(draft.Native.LevelName, d.Native.LevelName);
+        Assert.Equal(draft.Native.StartupSuccessRegex, d.Native.StartupSuccessRegex);
+        Assert.Equal(draft.Native.Platform, d.Native.Platform);
+    }
+
+    [Fact]
+    public void Parse_PreservesInstancePlaceholdersAndColonsInQuotedScalars()
+    {
+        // The $instance_* placeholders and a port RANGE (colon inside the value) must survive — the
+        // single-quote un-escaping and the anchored-key colon split are what make that work.
+        var draft = FullDraft() with
+        {
+            Native = FullDraft().Native with
+            {
+                Ports = "2456:2458/tcp|2456:2458/udp",
+                ExecutableArguments = "-world $instance_level_name -port 2456 -name it's",
+            },
+        };
+
+        var d = _sut.TryParse(_sut.Render(draft)).Value!;
+
+        Assert.Equal("2456:2458/tcp|2456:2458/udp", d.Native.Ports);
+        // The apostrophe survives YAML single-quote escaping (rendered as ''), and $instance_* is intact.
+        Assert.Equal("-world $instance_level_name -port 2456 -name it's", d.Native.ExecutableArguments);
+    }
+
+    [Fact]
+    public void Parse_ToleratesHandEdits_UnquotedAndDoubleQuotedAndComments()
+    {
+        const string yaml = """
+            # a user's hand-edited draft
+            schema_version: 1
+            name: handedit
+            runtime: native
+            metadata:
+              display_name: "Hand Edit"
+              max_players: 8
+            native:
+              ports: 7777/tcp|7777/udp
+              steam_app_id: 1234
+              executable_file: start.sh
+              executable_arguments: -batchmode -nographics
+              startup_success_regex: Server started
+            """;
+
+        var parsed = _sut.TryParse(yaml);
+
+        Assert.True(parsed.IsOk);
+        var d = parsed.Value!;
+        Assert.Equal("Hand Edit", d.Metadata.DisplayName);       // double-quoted
+        Assert.Equal(8, d.Metadata.MaxPlayers);
+        Assert.Equal("7777/tcp|7777/udp", d.Native.Ports);        // unquoted
+        Assert.Equal("start.sh", d.Native.ExecutableFile);
+        Assert.Equal("-batchmode -nographics", d.Native.ExecutableArguments);
+        Assert.Equal("Server started", d.Native.StartupSuccessRegex);
+    }
+
+    [Fact]
+    public void Parse_NullLiterals_BecomeNullMetadata_NotFabricatedZero()
+    {
+        var draft = _sut.TryParse(_sut.Render(new NativeBlueprintDraft
+        {
+            Name = "sparse",
+            Native = new NativeBlueprintNativeDraft { ExecutableFile = "run.sh" },
+        })).Value!;
+
+        Assert.Null(draft.Metadata.DisplayName);
+        Assert.Null(draft.Metadata.MaxPlayers);
+        Assert.Null(draft.Metadata.BaseDiskMb);
+    }
+
+    [Fact]
+    public void Parse_MissingExecutableFile_IsInvalidDraft()
+    {
+        const string yaml = "name: broken\nruntime: native\nnative:\n  ports: 7777/tcp\n";
+
+        var parsed = _sut.TryParse(yaml);
+
+        Assert.False(parsed.IsOk);
+        Assert.Equal(FileOpOutcome.InvalidDraft, parsed.Outcome);
+    }
+
+    [Fact]
+    public void Parse_NonNativeRuntime_IsRefused()
+    {
+        const string yaml = "name: dockergame\nruntime: container\nnative:\n  executable_file: run.sh\n";
+
+        var parsed = _sut.TryParse(yaml);
+
+        Assert.False(parsed.IsOk);
+        Assert.Equal(FileOpOutcome.InvalidDraft, parsed.Outcome);
+    }
+
+    [Fact]
+    public void Parse_UnsafeName_IsRefused()
+    {
+        const string yaml = "name: ../escape\nruntime: native\nnative:\n  executable_file: run.sh\n";
+
+        var parsed = _sut.TryParse(yaml);
+
+        Assert.False(parsed.IsOk);
+        Assert.Equal(FileOpOutcome.InvalidDraft, parsed.Outcome);
+    }
+
+    private static NativeBlueprintDraft FullDraft() => new()
+    {
+        Name = "roundtrip",
+        Metadata = new NativeBlueprintMetadataDraft
+        {
+            DisplayName = "Round Trip",
+            MaxPlayers = 16,
+            BaseDiskMb = 2048,
+        },
+        Native = new NativeBlueprintNativeDraft
+        {
+            Ports = "7777/tcp|7777/udp",
+            SteamAppId = 1000,
+            ClientSteamAppId = 1001,
+            Platform = "linux",
+            LevelName = "world",
+            ExecutableSubdirectory = "bin/x64",
+            ExecutableFile = "server.x86_64",
+            ExecutableArguments = "-config serverconfig.txt",
+            StartupSuccessRegex = "Server started",
+        },
+    };
 }

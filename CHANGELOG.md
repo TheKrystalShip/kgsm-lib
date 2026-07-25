@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `IBlueprintFiles.Render(draft)` + `IBlueprintFiles.TryParse(yaml)` — a matched render↔parse pair for
+  the native blueprint YAML template, so an authoring surface can show a user the editable draft text and
+  read their edits back. `Render` is the exact string `Create` writes, but pure (no filesystem, no engine);
+  `TryParse` is its inverse — a deterministic, AOT-safe line parser (no reflection-based YAML library),
+  tolerant of light hand-edits (unquoted/double-quoted scalars, whole-line comments) and preserving
+  `$instance_*` placeholders and colons inside quoted scalars. Structural checks only (safe name, native
+  runtime, required `executable_file`); semantic validity stays the engine's authority via readback.
 - `IWatchdogClient.ForgetAsync(instanceName)` — deregisters an instance from the watchdog entirely
   (supervision table entry, cgroup, boot-autostart intent, persisted restart counters), mapping to the
   daemon's new `DELETE /instance/{name}` (kgsm-watchdog 1.9.0). This is the typed path for the uninstall

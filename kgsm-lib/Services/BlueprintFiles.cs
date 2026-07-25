@@ -163,6 +163,20 @@ public sealed class BlueprintFiles : IBlueprintFiles
         return FileOpResult<bool>.Ok(LibC.Lstat(real) == LstatKind.Regular);
     }
 
+    /// <inheritdoc/>
+    public string Render(NativeBlueprintDraft draft)
+    {
+        ArgumentNullException.ThrowIfNull(draft, nameof(draft));
+        return RenderYaml(draft);
+    }
+
+    /// <inheritdoc/>
+    public FileOpResult<NativeBlueprintDraft> TryParse(string yaml)
+    {
+        ArgumentNullException.ThrowIfNull(yaml, nameof(yaml));
+        return ParseYaml(yaml);
+    }
+
     // ---- name safety -----------------------------------------------------------------------------
 
     private static bool IsSafeName(string? name) =>
@@ -343,4 +357,138 @@ public sealed class BlueprintFiles : IBlueprintFiles
         value is null ? "null" : value.Value.ToString(CultureInfo.InvariantCulture);
 
     private static string YamlQuoted(string value) => "'" + value.Replace("'", "''") + "'";
+
+    // ---- YAML parsing (the exact inverse of RenderYaml — deterministic, no reflection-based parser) --
+
+    // A `key: value` line. The key is a bare identifier anchored at the (trimmed) line start, so the first
+    // colon after it always separates key from value — a colon INSIDE a quoted value (e.g. a port range
+    // "2456:2458/tcp") never confuses the split.
+    private static readonly Regex KeyLine = new(@"^([A-Za-z0-9_]+)\s*:\s?(.*)$", RegexOptions.Compiled);
+
+    /// <summary>Parses native blueprint YAML back into a <see cref="NativeBlueprintDraft"/>. The flat
+    /// two-level schema (top-level keys + a <c>metadata:</c> block + a <c>native:</c> block) is walked line
+    /// by line, tracking which block each indented key belongs to; scalars are un-quoted as the inverse of
+    /// <see cref="YamlQuoted"/>/<see cref="YamlNullableString"/>. Structural checks only — see
+    /// <see cref="IBlueprintFiles.TryParse"/>.</summary>
+    private static FileOpResult<NativeBlueprintDraft> ParseYaml(string yaml)
+    {
+        var top = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var meta = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var nat = new Dictionary<string, string?>(StringComparer.Ordinal);
+
+        string? section = null; // null = top-level, "metadata", or "native"
+        foreach (string raw in yaml.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
+        {
+            if (string.IsNullOrWhiteSpace(raw) || raw.TrimStart().StartsWith('#'))
+                continue;
+
+            bool indented = raw[0] is ' ' or '\t';
+            Match m = KeyLine.Match(raw.Trim());
+            if (!m.Success)
+                continue; // not a key line (a stray list item, say) — ignore
+
+            string key = m.Groups[1].Value;
+            string value = m.Groups[2].Value.TrimEnd();
+
+            // A non-indented header with no value opens a block; a recognised one switches section, an
+            // unrecognised one drops back to top so its (indented) children are ignored.
+            if (!indented && value.Length == 0)
+            {
+                section = key switch { "metadata" => "metadata", "native" => "native", _ => null };
+                continue;
+            }
+
+            if (!indented)
+            {
+                section = null; // a fresh top-level key ends any open block
+                top[key] = value;
+            }
+            else
+            {
+                (section == "metadata" ? meta : section == "native" ? nat : top)[key] = value;
+            }
+        }
+
+        // Structural gates (mirroring Create): a non-native runtime is out of scope; name + executable_file
+        // are the two required identity fields.
+        string? runtime = Unquote(top.GetValueOrDefault("runtime"));
+        if (!string.IsNullOrEmpty(runtime) && !string.Equals(runtime, "native", StringComparison.OrdinalIgnoreCase))
+            return FileOpResult<NativeBlueprintDraft>.Fail(FileOpOutcome.InvalidDraft,
+                $"only native blueprints are supported here (runtime was '{runtime}')");
+
+        string name = Unquote(top.GetValueOrDefault("name")) ?? string.Empty;
+        if (!IsSafeName(name))
+            return FileOpResult<NativeBlueprintDraft>.Fail(FileOpOutcome.InvalidDraft,
+                "name must be a safe lowercase slug ([a-z0-9_-], 1–64 chars)");
+
+        string executableFile = Str(nat, "executable_file");
+        if (string.IsNullOrWhiteSpace(executableFile))
+            return FileOpResult<NativeBlueprintDraft>.Fail(FileOpOutcome.InvalidDraft,
+                "native.executable_file is required");
+
+        var draft = new NativeBlueprintDraft
+        {
+            Name = name,
+            PlayerJoinedRegex = Unquote(top.GetValueOrDefault("player_joined_regex")),
+            PlayerLeftRegex = Unquote(top.GetValueOrDefault("player_left_regex")),
+            Metadata = new NativeBlueprintMetadataDraft
+            {
+                DisplayName = Unquote(meta.GetValueOrDefault("display_name")),
+                Description = Unquote(meta.GetValueOrDefault("description")),
+                RawgSlug = Unquote(meta.GetValueOrDefault("rawg_slug")),
+                MaxPlayers = Int(meta, "max_players"),
+                MinRamMb = Int(meta, "min_ram_mb"),
+                RecommendedRamMb = Int(meta, "recommended_ram_mb"),
+                BaseDiskMb = Int(meta, "base_disk_mb"),
+            },
+            Native = new NativeBlueprintNativeDraft
+            {
+                Ports = Str(nat, "ports"),
+                SteamAppId = Int(nat, "steam_app_id") ?? 0,
+                ClientSteamAppId = Int(nat, "client_steam_app_id") ?? 0,
+                SteamcmdArguments = Str(nat, "steamcmd_arguments"),
+                IsSteamAccountRequired = string.Equals(Str(nat, "is_steam_account_required"), "true", StringComparison.OrdinalIgnoreCase),
+                Platform = nat.ContainsKey("platform") ? Str(nat, "platform") : "linux",
+                LevelName = nat.ContainsKey("level_name") ? Str(nat, "level_name") : "default",
+                ExecutableSubdirectory = Str(nat, "executable_subdirectory"),
+                ExecutableFile = executableFile,
+                ExecutableArguments = Str(nat, "executable_arguments"),
+                StopCommand = Str(nat, "stop_command"),
+                SaveCommand = Str(nat, "save_command"),
+                StartupSuccessRegex = Str(nat, "startup_success_regex"),
+            },
+        };
+
+        return FileOpResult<NativeBlueprintDraft>.Ok(draft);
+    }
+
+    /// <summary>Un-quotes one scalar as the inverse of <see cref="YamlQuoted"/>: single-quoted (doubling
+    /// the one escape), double-quoted (common hand-edit), a bare <c>null</c> → <see langword="null"/>, or a
+    /// plain scalar returned verbatim. A missing key (<see langword="null"/> input) stays null.</summary>
+    private static string? Unquote(string? value)
+    {
+        if (value is null) return null;
+        string v = value.Trim();
+        if (v.Length == 0) return string.Empty;
+        if (string.Equals(v, "null", StringComparison.Ordinal)) return null;
+        if (v.Length >= 2 && v[0] == '\'' && v[^1] == '\'')
+            return v[1..^1].Replace("''", "'");
+        if (v.Length >= 2 && v[0] == '"' && v[^1] == '"')
+            return v[1..^1].Replace("\\\"", "\"").Replace("\\\\", "\\");
+        return v;
+    }
+
+    /// <summary>A required-string native field: the un-quoted value, or the empty string when the key is
+    /// absent or was written as <c>null</c> (these fields render empty, never as a fabricated placeholder).</summary>
+    private static string Str(Dictionary<string, string?> d, string key) =>
+        d.TryGetValue(key, out string? v) ? Unquote(v) ?? string.Empty : string.Empty;
+
+    /// <summary>A nullable-int field: null when absent or <c>null</c>, else the parsed integer (an
+    /// unparseable value is treated as unknown → null, never a fabricated 0).</summary>
+    private static int? Int(Dictionary<string, string?> d, string key)
+    {
+        string? v = d.TryGetValue(key, out string? raw) ? Unquote(raw) : null;
+        if (string.IsNullOrEmpty(v)) return null;
+        return int.TryParse(v, NumberStyles.Integer, CultureInfo.InvariantCulture, out int n) ? n : null;
+    }
 }

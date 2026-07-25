@@ -83,6 +83,41 @@ public interface IBlueprintFiles
     FileOpResult<FileStat> Create(NativeBlueprintDraft draft, bool overwrite = false);
 
     /// <summary>
+    /// Renders <paramref name="draft"/> to the exact native <c>&lt;name&gt;.bp.yaml</c> string
+    /// <see cref="Create"/> would write, WITHOUT touching the filesystem or the engine — the editable
+    /// text an authoring surface shows a user for in-chat review. Pure and deterministic: identical field
+    /// order and single-quoted scalar style to <see cref="Create"/>, so <see cref="TryParse"/> is its exact
+    /// inverse. Performs no validation (a draft with a blank <c>executable_file</c> still renders).
+    /// </summary>
+    /// <param name="draft">The blueprint draft to template into YAML.</param>
+    /// <returns>The rendered <c>&lt;name&gt;.bp.yaml</c> content.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="draft"/> is null.</exception>
+    string Render(NativeBlueprintDraft draft);
+
+    /// <summary>
+    /// Parses a native blueprint YAML string — as produced by <see cref="Render"/>, tolerant of light
+    /// hand-edits (unquoted or double-quoted scalars, extra blank lines, whole-line <c>#</c> comments,
+    /// trailing spaces) — back into a <see cref="NativeBlueprintDraft"/>. The inverse of <see cref="Render"/>,
+    /// for a review surface that let a user edit the rendered text before it is finalized.
+    /// <para>
+    /// STRUCTURAL only, exactly like <see cref="Create"/>: it requires a safe <c>name</c>, a
+    /// <c>runtime</c> of <c>native</c> (a non-native runtime is refused — this authority only handles
+    /// native blueprints), and a non-blank <c>native.executable_file</c>. It NEVER judges semantic validity
+    /// (a legal port format, a real app id, …) — that stays the engine's authority, applied by reading the
+    /// draft back via <see cref="IBlueprintService.GetInfo(string)"/> after it is written.
+    /// </para>
+    /// </summary>
+    /// <param name="yaml">The native blueprint YAML to parse.</param>
+    /// <returns>
+    /// <see cref="FileOpOutcome.Ok"/> with the parsed draft;
+    /// <see cref="FileOpOutcome.InvalidDraft"/> (with a human-readable message) if a required field is
+    /// missing/blank, the <c>runtime</c> is present but not <c>native</c>, or the <c>name</c> is not a safe
+    /// slug.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="yaml"/> is null.</exception>
+    FileOpResult<NativeBlueprintDraft> TryParse(string yaml);
+
+    /// <summary>
     /// Deletes <c>&lt;name&gt;.bp.yaml</c> from the user blueprints directory ONLY — see the interface
     /// remarks for why this can never reach a system blueprint.
     /// </summary>
