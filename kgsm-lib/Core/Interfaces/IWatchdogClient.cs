@@ -73,6 +73,21 @@ public interface IWatchdogClient : IDisposable
     Task<IReadOnlyList<string>> GetEnabledNamesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Deregisters <paramref name="instanceName"/> from the watchdog entirely — the supervision table
+    /// entry, its cgroup, its boot-autostart intent, and its persisted restart counters. The counterpart
+    /// to an uninstall: an instance that no longer exists must stop being supervised, or the daemon holds
+    /// a <c>desired=running</c> record forever and every consumer of its state keeps seeing a condition
+    /// for a server that is gone.
+    /// <para>
+    /// Idempotent and existence-free — an unknown name returns <see cref="WatchdogActionResult.Ok"/> =
+    /// true as a no-op, since the instance's kgsm spec is normally already deleted by the time this is
+    /// called. <see cref="WatchdogActionResult.Ok"/> = false (409) means the instance is still running
+    /// and was NOT deregistered (deregistering it would orphan the process).
+    /// </para>
+    /// </summary>
+    Task<WatchdogActionResult> ForgetAsync(string instanceName, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Live-applies a CPU scheduling priority to the running instance's cgroup.
     /// Translates the priority string to a cgroup <c>cpu.weight</c> value
     /// (low=50, normal=100, high=400) and writes it. Returns <c>Ok=false</c>

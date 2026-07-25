@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `IWatchdogClient.ForgetAsync(instanceName)` — deregisters an instance from the watchdog entirely
+  (supervision table entry, cgroup, boot-autostart intent, persisted restart counters), mapping to the
+  daemon's new `DELETE /instance/{name}` (kgsm-watchdog 1.9.0). This is the typed path for the uninstall
+  counterpart: without it there was no way to un-supervise an instance, so the daemon held a
+  `desired=running` record for every uninstalled native server forever. Idempotent — an unknown name is
+  a successful no-op (the instance's kgsm spec is normally already deleted by the time it is called);
+  `Ok = false` (409) means the instance is still running and was deliberately NOT deregistered, rather
+  than orphaning the process.
+  - **Interface change:** implementors of `IWatchdogClient` (test fakes included) must add the member.
+
+### Added
 - `IBlueprintFiles` (+ impl `BlueprintFiles`) — the write-side authority for native-runtime
   blueprint files: `Create(NativeBlueprintDraft, overwrite)` templates a draft into a valid
   `<name>.bp.yaml` string and atomically writes it into the user blueprints directory; `Remove`

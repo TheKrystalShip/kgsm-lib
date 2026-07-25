@@ -291,6 +291,23 @@ public class WatchdogClientTests
         Assert.Equal("skipped", result.Outcome);
     }
 
+    [Fact]
+    public async Task ForgetAsync_SendsDeleteToInstanceRoute()
+    {
+        var handler = new CapturingHandler(
+            """{"instance":"factorio-test","ok":true,"message":"deregistered"}""");
+        using var client = new WatchdogClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") },
+            NullLogger<WatchdogClient>.Instance);
+
+        var result = await client.ForgetAsync("factorio-test");
+
+        Assert.Equal(HttpMethod.Delete, handler.LastMethod);
+        Assert.Equal("/instance/factorio-test", handler.LastPath);
+        Assert.Equal("", handler.LastBody);
+        Assert.True(result.Ok);
+        Assert.Equal("deregistered", result.Message);
+    }
+
     /// <summary>
     /// A stub <see cref="HttpMessageHandler"/> that captures the request shape and returns a canned JSON
     /// body — so the UPnP request routing/serialization and response parsing are unit-tested without a

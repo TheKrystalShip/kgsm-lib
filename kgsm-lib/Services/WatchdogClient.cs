@@ -162,6 +162,16 @@ public sealed class WatchdogClient : IWatchdogClient
         => await PostActionAsync("disable", instanceName, cancellationToken).ConfigureAwait(false);
 
     /// <inheritdoc/>
+    public async Task<WatchdogActionResult> ForgetAsync(string instanceName, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+
+        var path = $"/instance/{Uri.EscapeDataString(instanceName)}";
+        return await SendActionAsync(HttpMethod.Delete, path, instanceName, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc/>
     public async Task<WatchdogActionResult> SetCpuPriorityAsync(string instanceName, string priority, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
@@ -425,11 +435,16 @@ public sealed class WatchdogClient : IWatchdogClient
     }
 
     private async Task<WatchdogActionResult> PostPathAsync(string path, string instanceName, CancellationToken cancellationToken)
+        => await SendActionAsync(HttpMethod.Post, path, instanceName, cancellationToken).ConfigureAwait(false);
+
+    private async Task<WatchdogActionResult> SendActionAsync(
+        HttpMethod method, string path, string instanceName, CancellationToken cancellationToken)
     {
         // Both 200 (acted) and 409 (already in the desired state) carry an
         // ActionResult body; only a transport/5xx failure throws.
+        using var request = new HttpRequestMessage(method, path);
         using var response = await _http
-            .PostAsync(path, content: null, cancellationToken)
+            .SendAsync(request, cancellationToken)
             .ConfigureAwait(false);
 
         if (response.StatusCode != HttpStatusCode.OK && response.StatusCode != HttpStatusCode.Conflict)
