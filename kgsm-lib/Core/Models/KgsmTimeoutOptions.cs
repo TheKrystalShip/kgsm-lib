@@ -22,6 +22,17 @@ public class KgsmTimeoutOptions
     /// </summary>
     public TimeSpan Default { get; set; } = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// Lifecycle verbs (start / stop / restart). These are not quick commands: a stop writes the
+    /// instance's stop command and drains for up to its <c>stop_command_timeout_seconds</c> before the
+    /// supervisor hard-kills, and a restart pays that plus a start. KGSM's own ceilings bound the work
+    /// well under this (its control-socket calls allow 60s for a start and 120s for a stop), so the
+    /// default here sits above the stop+start worst case: the INNER timeout must be the one that fires,
+    /// or this one kills the caller mid-stop and reports a failure for an operation that then completes
+    /// anyway.
+    /// </summary>
+    public TimeSpan Lifecycle { get; set; } = TimeSpan.FromMinutes(5);
+
     /// <summary>Installing a new instance — downloads and extraction, can run for minutes.</summary>
     public TimeSpan Install { get; set; } = TimeSpan.FromMinutes(30);
 

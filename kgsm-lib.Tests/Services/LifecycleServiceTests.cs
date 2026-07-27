@@ -17,6 +17,12 @@ public class LifecycleServiceTests
 
     private const string Instance = "my-server";
 
+    /// <summary>
+    /// The tier start/stop/restart must run on. Read from the defaults rather than hardcoded, so this
+    /// pins "lifecycle verbs use the Lifecycle tier" without re-asserting its value.
+    /// </summary>
+    private static readonly TimeSpan Lifecycle = new KgsmTimeoutOptions().Lifecycle;
+
     public LifecycleServiceTests()
     {
         _mockCommandExecutor = new Mock<IKgsmCommandExecutor>();
@@ -41,7 +47,9 @@ public class LifecycleServiceTests
             new LifecycleService(_mockCommandExecutor.Object, null!));
     }
 
-    // --- start / stop / restart / status : Execute("lifecycle", <verb>, name) ---
+    // --- start / stop / restart : Execute(Lifecycle timeout, "lifecycle", <verb>, name) ---
+    // status stays on the default tier (it's a quick query); only the three lifecycle verbs, which can
+    // drain for the instance's full stop timeout, carry the longer one.
 
     [Theory]
     [InlineData("start")]
@@ -65,21 +73,21 @@ public class LifecycleServiceTests
     public void Start_ValidInstance_IssuesLifecycleStart()
     {
         _mockCommandExecutor
-            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "lifecycle", "start", Instance))))
+            .Setup(x => x.Execute(Lifecycle, It.Is<string[]>(a => ArgsAre(a, "lifecycle", "start", Instance))))
             .Returns(new KgsmResult(new ProcessResult(0, "started", string.Empty)));
 
         KgsmResult result = _lifecycleService.Start(Instance);
 
         Assert.True(result.IsSuccess);
         _mockCommandExecutor.Verify(
-            x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "lifecycle", "start", Instance))), Times.Once);
+            x => x.Execute(Lifecycle, It.Is<string[]>(a => ArgsAre(a, "lifecycle", "start", Instance))), Times.Once);
     }
 
     [Fact]
     public void Stop_ValidInstance_IssuesLifecycleStop()
     {
         _mockCommandExecutor
-            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "lifecycle", "stop", Instance))))
+            .Setup(x => x.Execute(Lifecycle, It.Is<string[]>(a => ArgsAre(a, "lifecycle", "stop", Instance))))
             .Returns(new KgsmResult(new ProcessResult(0, "stopped", string.Empty)));
 
         KgsmResult result = _lifecycleService.Stop(Instance);
@@ -91,7 +99,7 @@ public class LifecycleServiceTests
     public void Restart_ValidInstance_IssuesLifecycleRestart()
     {
         _mockCommandExecutor
-            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "lifecycle", "restart", Instance))))
+            .Setup(x => x.Execute(Lifecycle, It.Is<string[]>(a => ArgsAre(a, "lifecycle", "restart", Instance))))
             .Returns(new KgsmResult(new ProcessResult(0, "restarted", string.Empty)));
 
         KgsmResult result = _lifecycleService.Restart(Instance);
@@ -110,6 +118,7 @@ public class LifecycleServiceTests
                     e.Count == 2
                     && e.ContainsKey("KGSM_EVENT_ACTOR") && e["KGSM_EVENT_ACTOR"] == "discord:haru"
                     && e.ContainsKey("KGSM_EVENT_ORIGIN") && e["KGSM_EVENT_ORIGIN"] == "ui"),
+                Lifecycle,
                 It.Is<string[]>(a => ArgsAre(a, "lifecycle", "start", Instance))))
             .Returns(new KgsmResult(new ProcessResult(0, "started", string.Empty)));
 
@@ -119,6 +128,7 @@ public class LifecycleServiceTests
         _mockCommandExecutor.Verify(x => x.Execute(
             It.Is<IReadOnlyDictionary<string, string>>(e =>
                 e["KGSM_EVENT_ACTOR"] == "discord:haru" && e["KGSM_EVENT_ORIGIN"] == "ui"),
+            Lifecycle,
             It.Is<string[]>(a => ArgsAre(a, "lifecycle", "start", Instance))), Times.Once);
     }
 
@@ -133,6 +143,7 @@ public class LifecycleServiceTests
                     e.Count == 1
                     && e.ContainsKey("KGSM_EVENT_ACTOR") && e["KGSM_EVENT_ACTOR"] == "system:watchdog"
                     && !e.ContainsKey("KGSM_EVENT_ORIGIN")),
+                Lifecycle,
                 It.Is<string[]>(a => ArgsAre(a, "lifecycle", "stop", Instance))))
             .Returns(new KgsmResult(new ProcessResult(0, "stopped", string.Empty)));
 
@@ -150,6 +161,7 @@ public class LifecycleServiceTests
                     e.Count == 1
                     && e.ContainsKey("KGSM_EVENT_ORIGIN") && e["KGSM_EVENT_ORIGIN"] == "assistant"
                     && !e.ContainsKey("KGSM_EVENT_ACTOR")),
+                Lifecycle,
                 It.Is<string[]>(a => ArgsAre(a, "lifecycle", "restart", Instance))))
             .Returns(new KgsmResult(new ProcessResult(0, "restarted", string.Empty)));
 
@@ -164,14 +176,15 @@ public class LifecycleServiceTests
         // Neither actor nor origin supplied: the no-env command path is used so KGSM
         // applies its own honest fallbacks — the environment overload is never called.
         _mockCommandExecutor
-            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "lifecycle", "start", Instance))))
+            .Setup(x => x.Execute(Lifecycle, It.Is<string[]>(a => ArgsAre(a, "lifecycle", "start", Instance))))
             .Returns(new KgsmResult(new ProcessResult(0, "started", string.Empty)));
 
         KgsmResult result = _lifecycleService.Start(Instance);
 
         Assert.True(result.IsSuccess);
         _mockCommandExecutor.Verify(
-            x => x.Execute(It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<string[]>()), Times.Never);
+            x => x.Execute(It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<TimeSpan>(), It.IsAny<string[]>()),
+            Times.Never);
     }
 
     [Fact]

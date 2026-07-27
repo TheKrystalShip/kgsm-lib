@@ -11,6 +11,7 @@ namespace TheKrystalShip.KGSM.Services;
 public class LifecycleService : ILifecycleService
 {
     private readonly IKgsmCommandExecutor _commandExecutor;
+    private readonly KgsmTimeoutOptions _timeouts;
     private readonly ILogger<LifecycleService> _logger;
 
     /// <summary>
@@ -18,11 +19,18 @@ public class LifecycleService : ILifecycleService
     /// </summary>
     /// <param name="commandExecutor">The command executor to use for executing KGSM commands.</param>
     /// <param name="logger">The logger to use for logging.</param>
+    /// <param name="kgsmOptions">
+    /// KGSM options, used here for the per-operation timeouts. Optional: when null
+    /// (e.g. in tests that don't exercise timeouts), generous defaults are used.
+    /// The DI container injects the registered instance.
+    /// </param>
     public LifecycleService(
         IKgsmCommandExecutor commandExecutor,
-        ILogger<LifecycleService> logger)
+        ILogger<LifecycleService> logger,
+        KgsmOptions? kgsmOptions = null)
     {
         _commandExecutor = commandExecutor ?? throw new ArgumentNullException(nameof(commandExecutor));
+        _timeouts = kgsmOptions?.Timeouts ?? new KgsmTimeoutOptions();
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         _logger.LogDebug("LifecycleService initialized");
@@ -45,6 +53,12 @@ public class LifecycleService : ILifecycleService
     /// as environment variables so the event it emits is attributable. When neither is
     /// supplied, the plain (no-env) command path is used so KGSM applies its own honest
     /// fallbacks (actor → OS user; origin → none).
+    /// <para>
+    /// Runs on the <see cref="KgsmTimeoutOptions.Lifecycle"/> tier, not the default one: a stop drains
+    /// for the instance's full stop timeout before its supervisor hard-kills, which the 30s default
+    /// cannot cover. Timing out here kills the KGSM process tree mid-stop and reports a failure for work
+    /// that completes regardless — the caller learns nothing true.
+    /// </para>
     /// </summary>
     private KgsmResult RunLifecycle(string verb, string instanceName, string? actor, string? origin)
     {
@@ -53,8 +67,8 @@ public class LifecycleService : ILifecycleService
         IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
 
         return provenance is null
-            ? _commandExecutor.Execute("lifecycle", verb, instanceName)
-            : _commandExecutor.Execute(provenance, "lifecycle", verb, instanceName);
+            ? _commandExecutor.Execute(_timeouts.Lifecycle, "lifecycle", verb, instanceName)
+            : _commandExecutor.Execute(provenance, _timeouts.Lifecycle, "lifecycle", verb, instanceName);
     }
 
     /// <inheritdoc/>

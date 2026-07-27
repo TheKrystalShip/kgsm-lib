@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Lifecycle verbs get their own timeout tier — `KgsmTimeoutOptions.Lifecycle` (default 5 minutes).**
+  `start`/`stop`/`restart` ran on the 30s `Default` tier, but a stop writes the instance's stop command
+  and drains for up to its `stop_command_timeout_seconds` before the supervisor hard-kills. With the
+  shipped default of 30s the two deadlines coincided exactly, so `ProcessRunner` killed the KGSM process
+  tree at the very moment the stop was completing: the caller was told the stop FAILED, and — because
+  killing KGSM tore down the control-socket connection — the watchdog's own stop was aborted mid-drain
+  too. The new tier sits above KGSM's internal ceilings (60s for a start, 120s for a stop) so the inner
+  timeout is always the one that fires.
+
 ### Added
 - `IBlueprintFiles.Render(draft)` + `IBlueprintFiles.TryParse(yaml)` — a matched render↔parse pair for
   the native blueprint YAML template, so an authoring surface can show a user the editable draft text and
