@@ -108,6 +108,15 @@ public sealed record FileOpResult<T>
     /// <summary>Optional human-readable detail — see <see cref="FileOpResult.Message"/>.</summary>
     public string? Message { get; init; }
 
+    /// <summary>
+    /// The individual reasons behind <see cref="Message"/> when a failure has SEVERAL of them, kept
+    /// structured so a surface can render them as a list instead of splitting the joined string back
+    /// apart. Today the one producer is <see cref="Interfaces.IBlueprintFiles.WriteRaw"/>'s
+    /// <see cref="FileOpOutcome.InvalidDraft"/>, carrying the engine validator's own error strings
+    /// verbatim; every other outcome leaves this empty and says everything in <see cref="Message"/>.
+    /// </summary>
+    public IReadOnlyList<string> Errors { get; init; } = [];
+
     /// <summary>The payload — populated only when <see cref="IsOk"/>; default otherwise.</summary>
     public T? Value { get; init; }
 
@@ -120,6 +129,12 @@ public sealed record FileOpResult<T>
     /// <summary>Builds a failure result carrying the precise <paramref name="outcome"/>.</summary>
     public static FileOpResult<T> Fail(FileOpOutcome outcome, string? message = null) =>
         new() { Outcome = outcome, Message = message };
+
+    /// <summary>Builds a failure whose reasons are a list: <paramref name="errors"/> is kept intact on
+    /// <see cref="Errors"/> and joined into <see cref="Message"/> so a caller that only reads the
+    /// message still sees all of them.</summary>
+    public static FileOpResult<T> Fail(FileOpOutcome outcome, IReadOnlyList<string> errors) =>
+        new() { Outcome = outcome, Message = string.Join("; ", errors), Errors = errors };
 }
 
 /// <summary>The wire-agnostic kind of a listed directory entry, per its OWN (un-followed) <c>lstat</c>

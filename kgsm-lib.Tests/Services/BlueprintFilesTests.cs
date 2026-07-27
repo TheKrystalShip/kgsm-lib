@@ -967,6 +967,31 @@ public sealed class BlueprintFilesTests : IDisposable
     }
 
     [Fact]
+    public void WriteRaw_Rejection_KeepsTheEngineErrorsAsAList_NotOnlyAJoinedMessage()
+    {
+        SetCandidates("broken");
+        SetValidation(valid: false, "first problem", "second problem");
+
+        FileOpResult<FileStat> result = _sut.WriteRaw("broken", "name: broken\n", Opts());
+
+        // A surface that renders one bullet per error must not have to split Message back apart.
+        Assert.Equal(["first problem", "second problem"], result.Errors);
+    }
+
+    [Fact]
+    public void WriteRaw_NonValidationFailure_CarriesNoErrorList()
+    {
+        SetCandidates("factorio");
+        SetValidation(valid: true);
+
+        FileOpResult<FileStat> result = _sut.WriteRaw(
+            "factorio", "name: factorio\n", Opts(etag: "sha256:notthecurrentone"));
+
+        Assert.Equal(FileOpOutcome.EtagMismatch, result.Outcome);
+        Assert.Empty(result.Errors); // only a multi-reason failure populates the list
+    }
+
+    [Fact]
     public void WriteRaw_RejectionMessage_NamesTheBlueprintNotTheTempFile()
     {
         SetCandidates("broken");

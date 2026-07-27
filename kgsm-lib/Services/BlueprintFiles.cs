@@ -274,8 +274,8 @@ public sealed class BlueprintFiles : IBlueprintFiles
             // will never see again. Say which blueprint the errors are about instead — the same errors,
             // pointing at something the caller can act on.
             string target = name + ".bp.yaml";
-            string message = string.Join("; ", verdict.Errors.Select(e => e.Replace(tmp, target)));
-            return FileOpResult<FileStat>.Fail(FileOpOutcome.InvalidDraft, message);
+            string[] errors = [.. verdict.Errors.Select(e => e.Replace(tmp, target))];
+            return FileOpResult<FileStat>.Fail(FileOpOutcome.InvalidDraft, errors);
         }
 
         try { File.Move(tmp, real, overwrite: true); } // rename(2) — atomic on the same filesystem

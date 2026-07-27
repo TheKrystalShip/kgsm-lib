@@ -183,8 +183,9 @@ public interface IBlueprintFiles
     /// <see cref="FileOpOutcome.TooLarge"/> if the UTF-8 content exceeds <see cref="BlueprintWriteOptions.MaxBytes"/>;
     /// <see cref="FileOpOutcome.EtagMismatch"/> if <see cref="BlueprintWriteOptions.ExpectedEtag"/> no
     /// longer matches the currently resolved file;
-    /// <see cref="FileOpOutcome.InvalidDraft"/> if the engine rejected the content, with its full error
-    /// list in <see cref="FileOpResult{T}.Message"/> — nothing was written;
+    /// <see cref="FileOpOutcome.InvalidDraft"/> if the engine rejected the content, with its errors listed
+    /// individually on <see cref="FileOpResult{T}.Errors"/> (and joined into
+    /// <see cref="FileOpResult{T}.Message"/>) — nothing was written;
     /// <see cref="FileOpOutcome.BlueprintsDirUnavailable"/> if the user blueprints directory could not be
     /// resolved from the engine, or the engine returned no verdict at all;
     /// <see cref="FileOpOutcome.IoError"/> for any other filesystem failure.

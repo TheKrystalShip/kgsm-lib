@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`FileOpResult<T>.Errors`** — the individual reasons behind a multi-reason failure, kept as a list so a
+  surface can render one line per reason instead of splitting `Message` back apart. `WriteRaw`'s
+  `InvalidDraft` is the one producer today, carrying the engine validator's own error strings verbatim;
+  every other outcome leaves it empty and says everything in `Message`.
 - **`IBlueprintFiles.ReadRaw(name, maxBytes)` + `WriteRaw(name, content, opts)` — byte-level blueprint
   file I/O.** The typed path (`Create`/`Render`/`TryParse`) handles native blueprints only and strips
   every comment, so a container blueprint or a commented one cannot survive a round-trip through it.
