@@ -53,12 +53,21 @@ public class EventServiceTests
     }
 
     [Fact]
-    public void Initialize_SubscribesToSocketAndStartsListening()
+    public async Task Initialize_SubscribesToSocketAndStartsListening()
     {
+        // Initialize starts the listener on a background task and returns without awaiting it, so the
+        // call may not have landed by the time Initialize returns — assert it eventually does rather
+        // than assuming the scheduler ran it first.
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _mockClient
+            .Setup(c => c.StartListeningAsync(It.IsAny<CancellationToken>()))
+            .Returns(() => { started.TrySetResult(); return Task.CompletedTask; });
+
         using EventService svc = CreateService();
 
         svc.Initialize();
 
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
         _mockClient.Verify(c => c.StartListeningAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -390,5 +399,60 @@ public class EventServiceTests
         svc.Dispose();
 
         Assert.Throws<ObjectDisposedException>(() => svc.Initialize());
+    }
+
+    [Fact]
+    public async Task ReceivedEvent_BlueprintUpdated_DispatchesToABlueprintScopedHandler()
+    {
+        // The full route for a subject that is NOT an instance: wire → envelope → name→type →
+        // typed deserialize → handler. Nothing about the dispatch path is instance-specific.
+        using EventService svc = CreateService();
+        var tcs = new TaskCompletionSource<BlueprintUpdatedData>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        svc.RegisterHandler<BlueprintUpdatedData>(data =>
+        {
+            tcs.TrySetResult(data);
+            return Task.CompletedTask;
+        });
+        svc.Initialize();
+
+        _mockClient.Raise(c => c.EventReceived += null,
+            Wire("blueprint_updated",
+                """{"BlueprintName":"terraria","Tier":"user","OverridesSystem":true,"Runtime":"native"}"""));
+
+        BlueprintUpdatedData received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("terraria", received.BlueprintName);
+        Assert.Equal(BlueprintTier.User, received.Tier);
+        Assert.True(received.OverridesSystem);
+    }
+
+    [Fact]
+    public async Task ReceivedEvent_BlueprintRemoved_CarriesEnvelopeProvenanceOntoTheData()
+    {
+        // The envelope's who/when/through-what is stamped onto the data object by EventService, and
+        // that now happens on the subject-neutral root — so a blueprint handler sees it too.
+        using EventService svc = CreateService();
+        var tcs = new TaskCompletionSource<BlueprintRemovedData>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        svc.RegisterHandler<BlueprintRemovedData>(data =>
+        {
+            tcs.TrySetResult(data);
+            return Task.CompletedTask;
+        });
+        svc.Initialize();
+
+        _mockClient.Raise(c => c.EventReceived += null,
+            """
+            {"EventType":"blueprint_removed","Data":{"BlueprintName":"palworld","Tier":"user","RevertedToSystem":true},"Timestamp":"2026-07-27T18:46:51Z","Actor":"user:heisen","Origin":"api","Hostname":"hotrod","KGSMVersion":"3.1.2-rc9"}
+            """);
+
+        BlueprintRemovedData received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("palworld", received.BlueprintName);
+        Assert.True(received.RevertedToSystem);
+        Assert.Equal("user:heisen", received.Actor);
+        Assert.Equal("api", received.Origin);
+        Assert.NotNull(received.Timestamp);
     }
 }
