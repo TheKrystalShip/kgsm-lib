@@ -224,3 +224,67 @@ public sealed record RenameOptions
     /// destination is refused with <see cref="FileOpOutcome.TargetExists"/>.</summary>
     public bool Overwrite { get; init; }
 }
+
+/// <summary>Result of <see cref="Interfaces.IBlueprintFiles.ReadRaw"/> — a blueprint file's exact bytes
+/// as text, plus where the engine resolved it and whether an override is in play. The content is the
+/// file verbatim: comments, ordering, and container blueprints all survive, because nothing here goes
+/// through a typed model.</summary>
+public sealed record BlueprintFileContent
+{
+    /// <summary>The blueprint name that was read.</summary>
+    public string Name { get; init; } = string.Empty;
+
+    /// <summary>The decoded UTF-8 text, byte-for-byte what is on disk.</summary>
+    public string Content { get; init; } = string.Empty;
+
+    /// <summary>The absolute path the engine resolved the name to.</summary>
+    public string Path { get; init; } = string.Empty;
+
+    /// <summary>Which directory the resolved file lives in — read from where the engine's answer landed,
+    /// never inferred from the name.</summary>
+    public BlueprintTier Tier { get; init; }
+
+    /// <summary>Whether a shipped original exists for this name. When true and <see cref="Tier"/> is
+    /// <see cref="BlueprintTier.User"/>, deleting the user file restores the original; when false, it is
+    /// the only copy.</summary>
+    public bool HasSystemOriginal { get; init; }
+
+    /// <summary>Whether the file being read is a user copy shadowing a shipped original.</summary>
+    public bool OverridesSystem => Tier == BlueprintTier.User && HasSystemOriginal;
+
+    /// <summary>The file's size in bytes on disk.</summary>
+    public long SizeBytes { get; init; }
+
+    /// <summary>The file's last-write time (UTC).</summary>
+    public DateTimeOffset Mtime { get; init; }
+
+    /// <summary>Content identity for optimistic concurrency — <c>"sha256:&lt;hex&gt;"</c> over the raw
+    /// bytes. Round-trip this as <see cref="BlueprintWriteOptions.ExpectedEtag"/> to guard a subsequent
+    /// write.</summary>
+    public string Etag { get; init; } = string.Empty;
+}
+
+/// <summary>Options for <see cref="Interfaces.IBlueprintFiles.WriteRaw"/>. Like <see cref="WriteOptions"/>
+/// this is policy-free on limits — every cap is the caller's to set. <see cref="Actor"/>/<see cref="Origin"/>
+/// are passed through to the event the engine emits, never defaulted to a fabricated principal.</summary>
+public sealed record BlueprintWriteOptions
+{
+    /// <summary>Optimistic-concurrency guard: when non-null and the CURRENTLY RESOLVED blueprint file's
+    /// etag differs, the write is refused with <see cref="FileOpOutcome.EtagMismatch"/>. It guards the
+    /// file that was read — which for a first override is the SYSTEM file, not the user target that is
+    /// about to be created. Null = last-writer-wins.</summary>
+    public string? ExpectedEtag { get; init; }
+
+    /// <summary>The byte-length ceiling for the new content (UTF-8 encoded). No caller-independent
+    /// default is safe, so this must be set deliberately by every caller.</summary>
+    public long MaxBytes { get; init; }
+
+    /// <summary>The audit principal to stamp on the emitted event (<c>$KGSM_EVENT_ACTOR</c>). Null leaves
+    /// the engine to apply its OS-user fallback.</summary>
+    public string? Actor { get; init; }
+
+    /// <summary>The surface that drove the write (<c>ui</c>/<c>assistant</c>/<c>discord</c>/<c>api</c>),
+    /// stamped on the emitted event (<c>$KGSM_EVENT_ORIGIN</c>). Null emits no origin — the engine has no
+    /// honest fallback for one and never fabricates a surface.</summary>
+    public string? Origin { get; init; }
+}

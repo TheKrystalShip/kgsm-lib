@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
@@ -141,5 +142,70 @@ public class BlueprintService : IBlueprintService
 
         _logger.LogDebug("Found blueprint path for {Name}: {Path}", blueprintName, path);
         return path;
+    }
+
+    /// <inheritdoc/>
+    public BlueprintCandidates? FindAll(string blueprintName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(blueprintName, nameof(blueprintName));
+
+        _logger.LogDebug("Resolving blueprint candidates for: {Name}", blueprintName);
+
+        // A name that exists in neither tier exits non-zero with no JSON, which surfaces here as null —
+        // the honest "resolves to nothing", not an empty candidate set.
+        BlueprintCandidates? candidates = _commandExecutor
+            .ExecuteForJson<BlueprintCandidates>(["blueprints", "find", blueprintName, "--json"]);
+
+        if (candidates is null)
+        {
+            _logger.LogDebug("No blueprint candidates found for: {Name}", blueprintName);
+            return null;
+        }
+
+        _logger.LogDebug("Resolved {Name} to {Path} ({Count} candidates)",
+            blueprintName, candidates.Resolved, candidates.Candidates.Count);
+        return candidates;
+    }
+
+    /// <inheritdoc/>
+    public BlueprintValidation? Validate(string blueprintNameOrPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(blueprintNameOrPath, nameof(blueprintNameOrPath));
+
+        _logger.LogDebug("Validating blueprint: {NameOrPath}", blueprintNameOrPath);
+
+        // Probe, not Execute: an INVALID blueprint is a successful check with a negative verdict, and the
+        // engine reports it as a non-zero exit carrying the JSON verdict on stdout. ExecuteForJson would
+        // discard exactly the answer that matters, so the verdict is deserialized here instead.
+        KgsmResult result = _commandExecutor
+            .Probe("blueprints", "validate", blueprintNameOrPath, "--json");
+
+        if (string.IsNullOrWhiteSpace(result.Stdout))
+        {
+            // No JSON at all — the name resolved to nothing, or the engine failed before it could judge.
+            // Unknown, never an assumed pass.
+            _logger.LogWarning("Blueprint validation for {NameOrPath} returned no verdict (exit {ExitCode}): {Error}",
+                blueprintNameOrPath, result.ExitCode, result.Stderr);
+            return null;
+        }
+
+        BlueprintValidation? validation;
+        try
+        {
+            validation = JsonSerializer.Deserialize(result.Stdout, KgsmJsonContext.Default.BlueprintValidation);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Failed to deserialize blueprint validation verdict for {NameOrPath}", blueprintNameOrPath);
+            return null;
+        }
+
+        if (validation is not null)
+        {
+            _logger.LogDebug("Blueprint {NameOrPath} valid={Valid} ({Count} errors)",
+                blueprintNameOrPath, validation.Valid, validation.Errors.Count);
+        }
+
+        return validation;
     }
 }

@@ -7,7 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`IBlueprintFiles.ReadRaw(name, maxBytes)` + `WriteRaw(name, content, opts)` — byte-level blueprint
+  file I/O.** The typed path (`Create`/`Render`/`TryParse`) handles native blueprints only and strips
+  every comment, so a container blueprint or a commented one cannot survive a round-trip through it.
+  These read and write the exact bytes instead, which is what lets a surface edit any blueprint as text.
+  `ReadRaw` is the one method whose jail spans BOTH engine-reported blueprints directories — a shipped
+  blueprint has to be readable to be edited into an override — while every write stays user-dir-only:
+  saving an edit to a shipped blueprint creates an override that shadows it, and the system directory is
+  structurally unreachable. `WriteRaw` validates through the ENGINE on a temp file the engine's
+  `*.bp.yaml` glob cannot see, so an invalid draft never occupies the real filename; a rejection returns
+  `InvalidDraft` carrying the engine's full error list. `BlueprintWriteOptions` carries `ExpectedEtag`
+  (guarding the file that was READ, which for a first override is the system file), `MaxBytes`, and the
+  `Actor`/`Origin` stamped on the emitted event.
+- **`IBlueprintService.FindAll(name)` + `Validate(nameOrPath)`** — the engine's path-resolution and
+  schema-check surfaces, typed. `FindAll` reports every candidate path with whether it exists, which is
+  how a consumer tells a purely custom blueprint apart from a user copy shadowing a shipped one; unlike
+  `FindPath` it reports on existence alone, so a MALFORMED blueprint stays locatable — precisely the file
+  an editor is opened to repair. `Validate` probes rather than executes, because the engine reports an
+  invalid blueprint as a non-zero exit carrying the verdict on stdout: executing would discard exactly
+  the answer that matters. No verdict at all returns null — unknown, never an assumed pass.
+- **Blueprint lifecycle events — `blueprint_created` / `blueprint_updated` / `blueprint_removed`.**
+  `WriteRaw`, `Create` and `Remove` emit them with the caller's provenance threaded through. A failed
+  emit never fails the file operation: the bytes are already committed and valid, so reporting an error
+  would claim a save that did happen did not. Payloads carry name, tier, override state and runtime —
+  never the file body or a diff.
+- `RecordingEventManagementService` (test-only) — an `IEventManagementService` that records emissions so
+  a test can assert the event type, provenance, and parameters an authority actually threaded through.
+
+### Changed
+- **The event data hierarchy grew a subject-neutral root, `KgsmEventDataBase`.** `EventDataBase` was
+  instance-scoped by contract ("all events have an InstanceName"), which held only because every event so
+  far happened to concern an instance. Blueprints are the first subject that is not one, and forcing them
+  through `InstanceName` would fabricate an instance relationship that does not exist. `EventDataBase`
+  (instance-scoped) and the new `BlueprintEventDataBase` (blueprint-scoped) are now siblings beneath the
+  root, which carries the emission metadata every event has regardless of subject. Adding the next
+  non-instance subject means adding one sibling rather than revisiting the root again.
+  - **Interface change:** `IEventService.RegisterHandler<T>`'s constraint moves from `EventDataBase` to
+    `KgsmEventDataBase`. Call sites are typed per-event and are unaffected; an IMPLEMENTOR of
+    `IEventService` (including a test fake) must restate the new constraint to compile.
+  - **Interface change:** implementors of `IBlueprintFiles` must add `ReadRaw`/`WriteRaw`, and `Remove`
+    gains optional `actor`/`origin` parameters. `BlueprintFiles`'s constructor now also takes
+    `IBlueprintService` and `IEventManagementService`.
+
 ### Fixed
+- `EventServiceTests.Initialize_SubscribesToSocketAndStartsListening` asserted a call made on a
+  fire-and-forget background task the moment `Initialize` returned, so it failed intermittently under a
+  loaded scheduler. It now waits for the listener to actually start.
 - **Lifecycle verbs get their own timeout tier — `KgsmTimeoutOptions.Lifecycle` (default 5 minutes).**
   `start`/`stop`/`restart` ran on the 30s `Default` tier, but a stop writes the instance's stop command
   and drains for up to its `stop_command_timeout_seconds` before the supervisor hard-kills. With the

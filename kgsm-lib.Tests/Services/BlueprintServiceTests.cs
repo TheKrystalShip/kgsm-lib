@@ -174,4 +174,134 @@ public class BlueprintServiceTests
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.AtLeastOnce);
     }
+
+    // --- FindAll : every candidate path, existence only ---
+
+    [Fact]
+    public void FindAll_NullName_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _blueprintService.FindAll(null!));
+    }
+
+    [Fact]
+    public void FindAll_OverriddenBlueprint_ReportsBothCandidatesExisting()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteForJson<BlueprintCandidates>(
+                It.Is<string[]>(a => a.SequenceEqual(new[] { "blueprints", "find", "palworld", "--json" })),
+                It.IsAny<Action<JsonSerializerOptions>?>(),
+                It.IsAny<BlueprintCandidates?>()))
+            .Returns(new BlueprintCandidates
+            {
+                Name = "palworld",
+                Resolved = "/home/x/.local/share/kgsm/blueprints/palworld.bp.yaml",
+                Candidates =
+                [
+                    new BlueprintCandidate { Tier = BlueprintTier.User, Path = "/home/x/.local/share/kgsm/blueprints/palworld.bp.yaml", Exists = true },
+                    new BlueprintCandidate { Tier = BlueprintTier.System, Path = "/opt/kgsm/blueprints/palworld.bp.yaml", Exists = true },
+                ],
+            });
+
+        BlueprintCandidates? result = _blueprintService.FindAll("palworld");
+
+        Assert.NotNull(result);
+        Assert.True(result.OverridesSystem);
+        Assert.True(result.HasSystemOriginal);
+        Assert.Equal(BlueprintTier.User, result.User!.Tier);
+    }
+
+    [Fact]
+    public void FindAll_UserOnlyBlueprint_ReportsNoSystemOriginal()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteForJson<BlueprintCandidates>(
+                It.IsAny<string[]>(), It.IsAny<Action<JsonSerializerOptions>?>(), It.IsAny<BlueprintCandidates?>()))
+            .Returns(new BlueprintCandidates
+            {
+                Name = "teamfortress2",
+                Resolved = "/home/x/.local/share/kgsm/blueprints/teamfortress2.bp.yaml",
+                Candidates =
+                [
+                    new BlueprintCandidate { Tier = BlueprintTier.User, Path = "/home/x/.local/share/kgsm/blueprints/teamfortress2.bp.yaml", Exists = true },
+                    new BlueprintCandidate { Tier = BlueprintTier.System, Path = "/opt/kgsm/blueprints/teamfortress2.bp.yaml", Exists = false },
+                ],
+            });
+
+        BlueprintCandidates? result = _blueprintService.FindAll("teamfortress2");
+
+        Assert.NotNull(result);
+        Assert.False(result.HasSystemOriginal); // nothing to revert to
+        Assert.False(result.OverridesSystem);
+    }
+
+    [Fact]
+    public void FindAll_NameResolvesToNothing_ReturnsNull()
+    {
+        // The engine exits non-zero with no JSON, which the executor surfaces as the default.
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteForJson<BlueprintCandidates>(
+                It.IsAny<string[]>(), It.IsAny<Action<JsonSerializerOptions>?>(), It.IsAny<BlueprintCandidates?>()))
+            .Returns((BlueprintCandidates?)null);
+
+        Assert.Null(_blueprintService.FindAll("ghost"));
+    }
+
+    // --- Validate : an invalid verdict is a successful check, not a failed command ---
+
+    [Fact]
+    public void Validate_NullNameOrPath_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _blueprintService.Validate(null!));
+    }
+
+    [Fact]
+    public void Validate_ValidBlueprint_ReturnsPassingVerdict()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Probe(It.Is<string[]>(a => a.SequenceEqual(new[] { "blueprints", "validate", "factorio", "--json" }))))
+            .Returns(new KgsmResult(0, """{"Valid": true, "Path": "/opt/kgsm/blueprints/factorio.bp.yaml", "Errors": []}"""));
+
+        BlueprintValidation? result = _blueprintService.Validate("factorio");
+
+        Assert.NotNull(result);
+        Assert.True(result.Valid);
+        Assert.Empty(result.Errors);
+    }
+
+    [Fact]
+    public void Validate_InvalidBlueprint_ReturnsTheErrorListDespiteTheNonZeroExit()
+    {
+        // The engine reports an invalid blueprint as EC_INVALID_BLUEPRINT (28) with the verdict on
+        // stdout. Probing rather than executing is what keeps that verdict from being discarded.
+        _mockCommandExecutor
+            .Setup(x => x.Probe(It.IsAny<string[]>()))
+            .Returns(new KgsmResult(28, """{"Valid": false, "Path": "/tmp/draft.bp.yaml", "Errors": ["missing runtime", "missing name"]}"""));
+
+        BlueprintValidation? result = _blueprintService.Validate("/tmp/draft.bp.yaml");
+
+        Assert.NotNull(result);
+        Assert.False(result.Valid);
+        Assert.Equal(["missing runtime", "missing name"], result.Errors);
+    }
+
+    [Fact]
+    public void Validate_NoVerdictAtAll_ReturnsNullRatherThanAssumingAPass()
+    {
+        // A name that resolves to nothing exits non-zero with only stderr — unknown, never a pass.
+        _mockCommandExecutor
+            .Setup(x => x.Probe(It.IsAny<string[]>()))
+            .Returns(new KgsmResult(27, "", "Blueprint not found: ghost"));
+
+        Assert.Null(_blueprintService.Validate("ghost"));
+    }
+
+    [Fact]
+    public void Validate_UnparseableVerdict_ReturnsNull()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Probe(It.IsAny<string[]>()))
+            .Returns(new KgsmResult(0, "not json at all"));
+
+        Assert.Null(_blueprintService.Validate("factorio"));
+    }
 }

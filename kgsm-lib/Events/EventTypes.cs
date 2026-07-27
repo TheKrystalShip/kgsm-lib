@@ -5,17 +5,14 @@ using TheKrystalShip.KGSM.Core.Models;
 namespace TheKrystalShip.KGSM.Events;
 
 /// <summary>
-/// Base class for all event data types.
-/// This class contains common properties that all event data will inherit.
-/// All events have an InstanceName property to identify the instance they are related to.
+/// The root of every event data type — the emission metadata every KGSM event carries, independent of
+/// what the event is ABOUT. Its subject-specific subclasses name that subject:
+/// <see cref="EventDataBase"/> for instance-scoped events, <see cref="BlueprintEventDataBase"/> for
+/// blueprint-scoped ones. A new kind of subject (host-scoped, leaf-scoped) adds one more sibling here
+/// rather than borrowing a subject it does not have.
 /// </summary>
-public abstract class EventDataBase
+public abstract class KgsmEventDataBase
 {
-    /// <summary>
-    /// Gets or sets the name of the instance associated with the event.
-    /// </summary>
-    public string InstanceName { get; set; } = string.Empty;
-
     /// <summary>
     /// Gets or sets when the event was emitted (UTC). Populated from the event
     /// envelope's top-level <c>Timestamp</c> by <c>EventService</c>, not from the
@@ -41,6 +38,32 @@ public abstract class EventDataBase
     /// call, so <see langword="null"/> means no surface was declared — never fabricated.
     /// </summary>
     public string? Origin { get; set; }
+}
+
+/// <summary>
+/// Base class for instance-scoped event data — every event whose subject is one game server instance.
+/// The <see cref="InstanceName"/> identifies it.
+/// </summary>
+public abstract class EventDataBase : KgsmEventDataBase
+{
+    /// <summary>
+    /// Gets or sets the name of the instance associated with the event.
+    /// </summary>
+    public string InstanceName { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Base class for blueprint-scoped event data — every event whose subject is a blueprint file rather
+/// than an instance. Blueprints exist independently of any instance, so these carry a
+/// <see cref="BlueprintName"/> where instance events carry an <c>InstanceName</c>.
+/// </summary>
+public abstract class BlueprintEventDataBase : KgsmEventDataBase
+{
+    /// <summary>
+    /// Gets or sets the name of the blueprint the event is about (the file's basename without
+    /// <c>.bp.yaml</c>).
+    /// </summary>
+    public string BlueprintName { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -588,4 +611,74 @@ public class InstancePlayerLeftData : EventDataBase
     /// future version.
     /// </summary>
     public string? Reason { get; set; }
+}
+
+/// <summary>
+/// Data for the <c>blueprint_created</c> event — a blueprint file was written under a name that had no
+/// user file before. The blueprint's CONTENT is deliberately absent: no event payload ever carries a file
+/// body or a diff.
+/// </summary>
+public class BlueprintCreatedData : BlueprintEventDataBase
+{
+    /// <summary>
+    /// Gets or sets which directory the file was written to. Always
+    /// <see cref="BlueprintTier.User"/> — the system directory is never written to.
+    /// </summary>
+    public BlueprintTier Tier { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the new file shadows a same-named shipped blueprint.
+    /// <see langword="null"/> when the emitter could not determine it — never a defaulted false.
+    /// </summary>
+    public bool? OverridesSystem { get; set; }
+
+    /// <summary>
+    /// Gets or sets the runtime the written blueprint declares (<c>native</c>/<c>container</c>).
+    /// <see langword="null"/> when the emitter could not read one out of the file.
+    /// </summary>
+    public string? Runtime { get; set; }
+}
+
+/// <summary>
+/// Data for the <c>blueprint_updated</c> event — an existing user blueprint file was overwritten. Carries
+/// no content or diff, for the same reason as <see cref="BlueprintCreatedData"/>.
+/// </summary>
+public class BlueprintUpdatedData : BlueprintEventDataBase
+{
+    /// <summary>
+    /// Gets or sets which directory the file was written to. Always
+    /// <see cref="BlueprintTier.User"/>.
+    /// </summary>
+    public BlueprintTier Tier { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the file shadows a same-named shipped blueprint.
+    /// <see langword="null"/> when the emitter could not determine it.
+    /// </summary>
+    public bool? OverridesSystem { get; set; }
+
+    /// <summary>
+    /// Gets or sets the runtime the written blueprint declares (<c>native</c>/<c>container</c>).
+    /// <see langword="null"/> when the emitter could not read one out of the file.
+    /// </summary>
+    public string? Runtime { get; set; }
+}
+
+/// <summary>
+/// Data for the <c>blueprint_removed</c> event — a user blueprint file was deleted.
+/// </summary>
+public class BlueprintRemovedData : BlueprintEventDataBase
+{
+    /// <summary>
+    /// Gets or sets which directory the file was deleted from. Always
+    /// <see cref="BlueprintTier.User"/> — a shipped blueprint can never be removed.
+    /// </summary>
+    public BlueprintTier Tier { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether a shipped original is now in effect again. <see langword="true"/> means the
+    /// removal reverted an override; <see langword="false"/> means the blueprint is gone entirely.
+    /// <see langword="null"/> when the emitter could not determine it.
+    /// </summary>
+    public bool? RevertedToSystem { get; set; }
 }

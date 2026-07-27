@@ -13,32 +13,44 @@ namespace TheKrystalShip.KGSM.Tests.Services;
 public sealed class BlueprintFilesTests : IDisposable
 {
     private readonly string _userDir;
+    private readonly string _systemDir;
     private readonly Mock<IKgsmCommandExecutor> _mockExecutor;
+    private readonly Mock<IBlueprintService> _mockBlueprints;
+    private readonly RecordingEventManagementService _events;
     private readonly BlueprintFiles _sut;
 
     public BlueprintFilesTests()
     {
         _userDir = Directory.CreateTempSubdirectory("kgsm-blueprintfiles-user-").FullName;
+        _systemDir = Directory.CreateTempSubdirectory("kgsm-blueprintfiles-system-").FullName;
         _mockExecutor = new Mock<IKgsmCommandExecutor>();
+        _mockBlueprints = new Mock<IBlueprintService>();
+        _events = new RecordingEventManagementService();
         SetPathsOutput(_userDir);
 
-        _sut = new BlueprintFiles(_mockExecutor.Object, NullLogger<BlueprintFiles>.Instance);
+        _sut = new BlueprintFiles(
+            _mockExecutor.Object, _mockBlueprints.Object, _events, NullLogger<BlueprintFiles>.Instance);
     }
 
     public void Dispose()
     {
         try { Directory.Delete(_userDir, recursive: true); } catch { /* best-effort cleanup */ }
+        try { Directory.Delete(_systemDir, recursive: true); } catch { /* best-effort cleanup */ }
     }
 
     /// <summary>Mocks the deserialized <c>kgsm --paths --json</c> result the way the real CLI emits it
-    /// (see <c>kgsm.sh</c>'s <c>_cmd_paths</c>) — only <c>user.KGSM_USER_BLUEPRINTS_DIR</c> is load-bearing
-    /// for the resolver under test; the rest is realistic filler. Pass a null dir to model a JSON payload
+    /// (see <c>kgsm.sh</c>'s <c>_cmd_paths</c>) — only the two blueprint directories are load-bearing for
+    /// the resolvers under test; the rest is realistic filler. Pass a null user dir to model a JSON payload
     /// that omits the user blueprints directory.</summary>
-    private void SetPathsOutput(string? userBlueprintsDir)
+    private void SetPathsOutput(string? userBlueprintsDir, string? systemBlueprintsDir = null)
     {
         var paths = new KgsmPaths
         {
-            System = new KgsmSystemPaths { Root = "/opt/kgsm", SystemBlueprintsDir = "/opt/kgsm/blueprints" },
+            System = new KgsmSystemPaths
+            {
+                Root = "/opt/kgsm",
+                SystemBlueprintsDir = systemBlueprintsDir ?? _systemDir,
+            },
             User = new KgsmUserPaths
             {
                 DataDir = "/home/x/.local/share/kgsm",
@@ -47,6 +59,43 @@ public sealed class BlueprintFilesTests : IDisposable
             },
         };
         SetPathsResult(paths);
+    }
+
+    /// <summary>Mocks the engine's candidate resolution (<c>kgsm blueprints find &lt;name&gt; --json</c>)
+    /// from whichever of the two temp dirs actually hold the file, so the mock never claims something the
+    /// filesystem contradicts. Re-evaluated on EVERY call, exactly like the real CLI: an authority that
+    /// asks again after writing must see the file it just wrote.</summary>
+    private void SetCandidates(string name)
+    {
+        string userPath = Path.Combine(_userDir, name + ".bp.yaml");
+        string systemPath = Path.Combine(_systemDir, name + ".bp.yaml");
+
+        _mockBlueprints.Setup(x => x.FindAll(name)).Returns(() =>
+        {
+            bool userExists = File.Exists(userPath);
+            bool systemExists = File.Exists(systemPath);
+
+            return !userExists && !systemExists
+                ? null // the engine exits non-zero with no JSON when a name resolves to nothing
+                : new BlueprintCandidates
+                {
+                    Name = name,
+                    Resolved = userExists ? userPath : systemPath,
+                    Candidates =
+                    [
+                        new BlueprintCandidate { Tier = BlueprintTier.User, Path = userPath, Exists = userExists },
+                        new BlueprintCandidate { Tier = BlueprintTier.System, Path = systemPath, Exists = systemExists },
+                    ],
+                };
+        });
+    }
+
+    /// <summary>Mocks the engine's schema check for any path. Valid by default — an individual test opts
+    /// into a rejection.</summary>
+    private void SetValidation(bool valid, params string[] errors)
+    {
+        _mockBlueprints.Setup(x => x.Validate(It.IsAny<string>()))
+            .Returns((string p) => new BlueprintValidation { Valid = valid, Path = p, Errors = [.. errors] });
     }
 
     /// <summary>Low-level setup for the mocked <c>kgsm --paths --json</c> deserialization — a
@@ -75,13 +124,29 @@ public sealed class BlueprintFilesTests : IDisposable
     [Fact]
     public void Constructor_NullCommandExecutor_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() => new BlueprintFiles(null!, NullLogger<BlueprintFiles>.Instance));
+        Assert.Throws<ArgumentNullException>(() => new BlueprintFiles(
+            null!, _mockBlueprints.Object, _events, NullLogger<BlueprintFiles>.Instance));
+    }
+
+    [Fact]
+    public void Constructor_NullBlueprintService_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => new BlueprintFiles(
+            _mockExecutor.Object, null!, _events, NullLogger<BlueprintFiles>.Instance));
+    }
+
+    [Fact]
+    public void Constructor_NullEventService_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => new BlueprintFiles(
+            _mockExecutor.Object, _mockBlueprints.Object, null!, NullLogger<BlueprintFiles>.Instance));
     }
 
     [Fact]
     public void Constructor_NullLogger_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() => new BlueprintFiles(_mockExecutor.Object, null!));
+        Assert.Throws<ArgumentNullException>(() => new BlueprintFiles(
+            _mockExecutor.Object, _mockBlueprints.Object, _events, null!));
     }
 
     // ---- argument validation -------------------------------------------------------------------------
@@ -631,4 +696,505 @@ public sealed class BlueprintFilesTests : IDisposable
             StartupSuccessRegex = "Server started",
         },
     };
+
+    // ---- ReadRaw: the read jail spans BOTH blueprint directories -----------------------------------
+
+    /// <summary>A container blueprint with comments, blank lines, and a block scalar — the exact shape a
+    /// typed round-trip destroys (Create/Render handle native only and strip every comment). ReadRaw must
+    /// return it byte for byte.</summary>
+    private const string ContainerBlueprintWithComments =
+        "schema_version: 1\n" +
+        "name: abioticfactor\n" +
+        "runtime: container\n" +
+        "metadata:\n" +
+        "  # TODO: curate — advisory values researched per game; null = unknown/unbounded, NEVER 0\n" +
+        "  display_name: \"Abiotic Factor\"\n" +
+        "  max_players: 6\n" +
+        "\n" +
+        "container:\n" +
+        "  compose: |-\n" +
+        "    services:\n" +
+        "      abioticfactor:\n" +
+        "\n" +
+        "        # Official KGSM Abiotic Factor Docker image\n" +
+        "        image: ghcr.io/thekrystalship/abioticfactor:latest\n" +
+        "\n" +
+        "        # Use the host's network stack directly\n" +
+        "        network_mode: host\n" +
+        "\n" +
+        "        # Ensure these ports are forwarded to allow external access\n" +
+        "        ports:\n" +
+        "          - 7777:7777/udp\n" +
+        "          - 27015:27015/udp\n";
+
+    private string WriteUser(string name, string content)
+    {
+        string path = Path.Combine(_userDir, name + ".bp.yaml");
+        File.WriteAllText(path, content);
+        return path;
+    }
+
+    private string WriteSystem(string name, string content)
+    {
+        string path = Path.Combine(_systemDir, name + ".bp.yaml");
+        File.WriteAllText(path, content);
+        return path;
+    }
+
+    [Fact]
+    public void ReadRaw_NullName_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _sut.ReadRaw(null!, 1024));
+    }
+
+    [Theory]
+    [InlineData("../escape")]
+    [InlineData("Bad-Name")]
+    [InlineData("with/slash")]
+    public void ReadRaw_UnsafeName_ReturnsOutOfJail(string name)
+    {
+        FileOpResult<BlueprintFileContent> result = _sut.ReadRaw(name, 1024);
+
+        Assert.Equal(FileOpOutcome.OutOfJail, result.Outcome);
+        // Refused before the engine is ever consulted.
+        _mockBlueprints.Verify(x => x.FindAll(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void ReadRaw_NameResolvesToNothing_ReturnsNotFound()
+    {
+        SetCandidates("ghost");
+
+        FileOpResult<BlueprintFileContent> result = _sut.ReadRaw("ghost", 1024);
+
+        Assert.Equal(FileOpOutcome.NotFound, result.Outcome);
+    }
+
+    [Fact]
+    public void ReadRaw_ContainerBlueprintWithComments_ReturnsBytesVerbatim()
+    {
+        WriteSystem("abioticfactor", ContainerBlueprintWithComments);
+        SetCandidates("abioticfactor");
+
+        FileOpResult<BlueprintFileContent> result = _sut.ReadRaw("abioticfactor", 64 * 1024);
+
+        Assert.Equal(FileOpOutcome.Ok, result.Outcome);
+        Assert.Equal(ContainerBlueprintWithComments, result.Value!.Content);
+    }
+
+    [Fact]
+    public void ReadRaw_SystemBlueprintWithNoUserCopy_ReportsSystemTierAndNoOverride()
+    {
+        WriteSystem("factorio", "schema_version: 1\nname: factorio\nruntime: native\n");
+        SetCandidates("factorio");
+
+        FileOpResult<BlueprintFileContent> result = _sut.ReadRaw("factorio", 1024);
+
+        Assert.Equal(FileOpOutcome.Ok, result.Outcome);
+        Assert.Equal(BlueprintTier.System, result.Value!.Tier);
+        Assert.True(result.Value.HasSystemOriginal);
+        Assert.False(result.Value.OverridesSystem); // a system file does not override anything
+    }
+
+    [Fact]
+    public void ReadRaw_UserCopyShadowingSystem_ReportsUserTierAndOverride()
+    {
+        WriteSystem("palworld", "schema_version: 1\nname: palworld\nruntime: native\n# shipped\n");
+        WriteUser("palworld", "schema_version: 1\nname: palworld\nruntime: native\n# edited\n");
+        SetCandidates("palworld");
+
+        FileOpResult<BlueprintFileContent> result = _sut.ReadRaw("palworld", 1024);
+
+        Assert.Equal(FileOpOutcome.Ok, result.Outcome);
+        Assert.Equal(BlueprintTier.User, result.Value!.Tier);
+        Assert.True(result.Value.OverridesSystem);
+        Assert.Contains("# edited", result.Value.Content); // the USER copy won, as the engine resolved it
+    }
+
+    [Fact]
+    public void ReadRaw_UserOnlyBlueprint_ReportsNoSystemOriginal()
+    {
+        WriteUser("teamfortress2", "schema_version: 1\nname: teamfortress2\nruntime: native\n");
+        SetCandidates("teamfortress2");
+
+        FileOpResult<BlueprintFileContent> result = _sut.ReadRaw("teamfortress2", 1024);
+
+        Assert.Equal(FileOpOutcome.Ok, result.Outcome);
+        Assert.Equal(BlueprintTier.User, result.Value!.Tier);
+        // No original exists, so deleting this file would destroy the only copy rather than revert.
+        Assert.False(result.Value.HasSystemOriginal);
+        Assert.False(result.Value.OverridesSystem);
+    }
+
+    [Fact]
+    public void ReadRaw_EngineResolvesPathOutsideBothDirs_ReturnsOutOfJail()
+    {
+        string outside = Path.Combine(Path.GetTempPath(), "kgsm-outside-" + Guid.NewGuid().ToString("N")[..8] + ".bp.yaml");
+        File.WriteAllText(outside, "schema_version: 1\nname: sneaky\nruntime: native\n");
+        try
+        {
+            _mockBlueprints.Setup(x => x.FindAll("sneaky")).Returns(new BlueprintCandidates
+            {
+                Name = "sneaky",
+                Resolved = outside,
+                Candidates = [new BlueprintCandidate { Tier = BlueprintTier.User, Path = outside, Exists = true }],
+            });
+
+            FileOpResult<BlueprintFileContent> result = _sut.ReadRaw("sneaky", 1024);
+
+            // The engine's answer is checked, not trusted.
+            Assert.Equal(FileOpOutcome.OutOfJail, result.Outcome);
+        }
+        finally { File.Delete(outside); }
+    }
+
+    [Fact]
+    public void ReadRaw_FileExceedsMaxBytes_ReturnsTooLarge()
+    {
+        WriteUser("big", new string('x', 5000));
+        SetCandidates("big");
+
+        FileOpResult<BlueprintFileContent> result = _sut.ReadRaw("big", 1024);
+
+        Assert.Equal(FileOpOutcome.TooLarge, result.Outcome);
+    }
+
+    [Fact]
+    public void ReadRaw_BinaryContent_ReturnsBinary()
+    {
+        File.WriteAllBytes(Path.Combine(_userDir, "blob.bp.yaml"), [0x00, 0x01, 0x02, 0x03]);
+        SetCandidates("blob");
+
+        FileOpResult<BlueprintFileContent> result = _sut.ReadRaw("blob", 1024);
+
+        Assert.Equal(FileOpOutcome.Binary, result.Outcome);
+    }
+
+    [Fact]
+    public void ReadRaw_EtagRoundTripsIntoWriteRaw()
+    {
+        WriteUser("terraria", "schema_version: 1\nname: terraria\nruntime: native\n");
+        SetCandidates("terraria");
+        SetValidation(valid: true);
+
+        FileOpResult<BlueprintFileContent> read = _sut.ReadRaw("terraria", 1024);
+        FileOpResult<FileStat> write = _sut.WriteRaw("terraria",
+            "schema_version: 1\nname: terraria\nruntime: native\n# edited\n",
+            new BlueprintWriteOptions { MaxBytes = 1024, ExpectedEtag = read.Value!.Etag });
+
+        Assert.Equal(FileOpOutcome.Ok, write.Outcome);
+    }
+
+    // ---- WriteRaw ----------------------------------------------------------------------------------
+
+    private static BlueprintWriteOptions Opts(
+        long maxBytes = 64 * 1024, string? etag = null, string? actor = null, string? origin = null) =>
+        new() { MaxBytes = maxBytes, ExpectedEtag = etag, Actor = actor, Origin = origin };
+
+    [Fact]
+    public void WriteRaw_NullContent_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _sut.WriteRaw("factorio", null!, Opts()));
+    }
+
+    [Fact]
+    public void WriteRaw_NullOptions_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _sut.WriteRaw("factorio", "x", null!));
+    }
+
+    [Fact]
+    public void WriteRaw_UnsafeName_ReturnsOutOfJailAndWritesNothing()
+    {
+        FileOpResult<FileStat> result = _sut.WriteRaw("../escape", "content", Opts());
+
+        Assert.Equal(FileOpOutcome.OutOfJail, result.Outcome);
+        Assert.Empty(Directory.GetFiles(_userDir));
+        Assert.Empty(_events.Emissions);
+    }
+
+    [Fact]
+    public void WriteRaw_ContentExceedsMaxBytes_ReturnsTooLarge()
+    {
+        FileOpResult<FileStat> result = _sut.WriteRaw("big", new string('x', 500), Opts(maxBytes: 100));
+
+        Assert.Equal(FileOpOutcome.TooLarge, result.Outcome);
+        Assert.Empty(Directory.GetFiles(_userDir));
+    }
+
+    [Fact]
+    public void WriteRaw_ContainerBlueprintWithComments_WritesBytesVerbatim()
+    {
+        SetCandidates("abioticfactor");
+        SetValidation(valid: true);
+
+        FileOpResult<FileStat> result = _sut.WriteRaw("abioticfactor", ContainerBlueprintWithComments, Opts());
+
+        Assert.Equal(FileOpOutcome.Ok, result.Outcome);
+        // Byte-identical: comments, blank lines, block scalar and field order all survive.
+        Assert.Equal(ContainerBlueprintWithComments, File.ReadAllText(Path.Combine(_userDir, "abioticfactor.bp.yaml")));
+    }
+
+    [Fact]
+    public void WriteRaw_EditingASystemBlueprint_CreatesUserOverrideAndLeavesTheOriginalUntouched()
+    {
+        const string shipped = "schema_version: 1\nname: factorio\nruntime: native\n";
+        string systemPath = WriteSystem("factorio", shipped);
+        SetCandidates("factorio");
+        SetValidation(valid: true);
+
+        FileOpResult<FileStat> result = _sut.WriteRaw("factorio", shipped + "# my edit\n", Opts());
+
+        Assert.Equal(FileOpOutcome.Ok, result.Outcome);
+        Assert.Equal(shipped, File.ReadAllText(systemPath)); // the shipped file is never written to
+        Assert.Contains("# my edit", File.ReadAllText(Path.Combine(_userDir, "factorio.bp.yaml")));
+    }
+
+    [Fact]
+    public void WriteRaw_EngineRejectsContent_ReturnsInvalidDraftWithErrorsAndWritesNothing()
+    {
+        SetCandidates("broken");
+        SetValidation(valid: false, "Blueprint has invalid or missing 'runtime'", "and another problem");
+
+        FileOpResult<FileStat> result = _sut.WriteRaw("broken", "name: broken\n", Opts());
+
+        Assert.Equal(FileOpOutcome.InvalidDraft, result.Outcome);
+        Assert.Contains("invalid or missing 'runtime'", result.Message);
+        Assert.Contains("and another problem", result.Message); // every error, not just the first
+        // Neither the real filename NOR the temp file survives a rejection.
+        Assert.Empty(Directory.GetFileSystemEntries(_userDir));
+        Assert.Empty(_events.Emissions);
+    }
+
+    [Fact]
+    public void WriteRaw_RejectionMessage_NamesTheBlueprintNotTheTempFile()
+    {
+        SetCandidates("broken");
+        // The engine appends the path it judged to each error — which here is a temp file the caller
+        // never chose and cannot act on.
+        _mockBlueprints.Setup(x => x.Validate(It.IsAny<string>()))
+            .Returns((string p) => new BlueprintValidation
+            {
+                Valid = false,
+                Path = p,
+                Errors = [$"Blueprint has invalid or missing 'runtime' (expected native|container): {p}"],
+            });
+
+        FileOpResult<FileStat> result = _sut.WriteRaw("broken", "name: broken\n", Opts());
+
+        Assert.Equal(FileOpOutcome.InvalidDraft, result.Outcome);
+        Assert.Contains("broken.bp.yaml", result.Message);
+        Assert.DoesNotContain(".tmp", result.Message);
+    }
+
+    [Fact]
+    public void WriteRaw_EngineReturnsNoVerdict_RefusesRatherThanAssumingValid()
+    {
+        SetCandidates("unknown");
+        _mockBlueprints.Setup(x => x.Validate(It.IsAny<string>())).Returns((BlueprintValidation?)null);
+
+        FileOpResult<FileStat> result = _sut.WriteRaw("unknown", "name: unknown\n", Opts());
+
+        Assert.Equal(FileOpOutcome.BlueprintsDirUnavailable, result.Outcome);
+        Assert.Empty(Directory.GetFileSystemEntries(_userDir));
+    }
+
+    [Fact]
+    public void WriteRaw_ValidationRunsOnATempFileTheEngineGlobCannotSee()
+    {
+        SetCandidates("hidden");
+        string? validatedPath = null;
+        _mockBlueprints.Setup(x => x.Validate(It.IsAny<string>()))
+            .Returns((string p) =>
+            {
+                validatedPath = p;
+                return new BlueprintValidation { Valid = true, Path = p };
+            });
+
+        _sut.WriteRaw("hidden", "schema_version: 1\nname: hidden\nruntime: native\n", Opts());
+
+        Assert.NotNull(validatedPath);
+        string validatedName = Path.GetFileName(validatedPath!);
+        Assert.NotEqual("hidden.bp.yaml", validatedName);
+        Assert.StartsWith(".", validatedName);       // dotfile — excluded from the engine's glob
+        Assert.EndsWith(".tmp", validatedName);      // and not a *.bp.yaml name either
+    }
+
+    [Fact]
+    public void WriteRaw_StaleExpectedEtag_ReturnsEtagMismatchAndLeavesTheFileAlone()
+    {
+        const string onDisk = "schema_version: 1\nname: terraria\nruntime: native\n";
+        WriteUser("terraria", onDisk);
+        SetCandidates("terraria");
+        SetValidation(valid: true);
+
+        FileOpResult<FileStat> result = _sut.WriteRaw("terraria", "# clobbered\n",
+            Opts(etag: "sha256:0000000000000000000000000000000000000000000000000000000000000000"));
+
+        Assert.Equal(FileOpOutcome.EtagMismatch, result.Outcome);
+        Assert.Equal(onDisk, File.ReadAllText(Path.Combine(_userDir, "terraria.bp.yaml")));
+        Assert.Empty(_events.Emissions);
+    }
+
+    [Fact]
+    public void WriteRaw_ExpectedEtagGuardsTheRESOLVEDFileNotTheUserTarget()
+    {
+        // The first override of a shipped blueprint: the caller read the SYSTEM file, so that is the
+        // etag they hold, and it is what the guard has to compare against — the user target does not
+        // exist yet.
+        const string shipped = "schema_version: 1\nname: factorio\nruntime: native\n";
+        WriteSystem("factorio", shipped);
+        SetCandidates("factorio");
+        SetValidation(valid: true);
+        string systemEtag = _sut.ReadRaw("factorio", 1024).Value!.Etag;
+
+        FileOpResult<FileStat> result = _sut.WriteRaw("factorio", shipped + "# override\n", Opts(etag: systemEtag));
+
+        Assert.Equal(FileOpOutcome.Ok, result.Outcome);
+    }
+
+    // ---- events ------------------------------------------------------------------------------------
+
+    [Fact]
+    public void WriteRaw_NewUserFile_EmitsBlueprintCreatedWithProvenance()
+    {
+        SetCandidates("necesse");
+        SetValidation(valid: true);
+
+        _sut.WriteRaw("necesse", "schema_version: 1\nname: necesse\nruntime: native\n",
+            Opts(actor: "discord:987654321", origin: "ui"));
+
+        RecordingEventManagementService.Emission emitted = _events.Single();
+        Assert.Equal("blueprint-created", emitted.EventType);
+        Assert.Equal("discord:987654321", emitted.Actor);
+        Assert.Equal("ui", emitted.Origin);
+        Assert.Equal(["necesse", "user", "false", "native"], emitted.Parameters);
+    }
+
+    [Fact]
+    public void WriteRaw_ExistingUserFile_EmitsBlueprintUpdated()
+    {
+        WriteUser("necesse", "schema_version: 1\nname: necesse\nruntime: native\n");
+        SetCandidates("necesse");
+        SetValidation(valid: true);
+
+        _sut.WriteRaw("necesse", "schema_version: 1\nname: necesse\nruntime: native\n# v2\n", Opts());
+
+        Assert.Equal("blueprint-updated", _events.Single().EventType);
+    }
+
+    [Fact]
+    public void WriteRaw_OverridingAShippedBlueprint_EmitsOverridesSystemTrue()
+    {
+        WriteSystem("palworld", "schema_version: 1\nname: palworld\nruntime: container\n");
+        SetCandidates("palworld");
+        SetValidation(valid: true);
+
+        _sut.WriteRaw("palworld", "schema_version: 1\nname: palworld\nruntime: container\n# mine\n", Opts());
+
+        RecordingEventManagementService.Emission emitted = _events.Single();
+        Assert.Equal("blueprint-created", emitted.EventType); // no USER file existed before
+        Assert.Equal(["palworld", "user", "true", "container"], emitted.Parameters);
+    }
+
+    [Fact]
+    public void WriteRaw_ContentWithNoReadableRuntime_EmitsAnEmptyRuntimeRatherThanGuessing()
+    {
+        SetCandidates("odd");
+        SetValidation(valid: true); // the engine is the authority; this test is about the emitter
+
+        _sut.WriteRaw("odd", "schema_version: 1\nname: odd\n", Opts());
+
+        // The engine renders an empty argument as JSON null — unknown, never a defaulted "native".
+        Assert.Equal(string.Empty, _events.Single().Parameters[3]);
+    }
+
+    [Fact]
+    public void WriteRaw_IndentedRuntimeKey_IsNotMistakenForTheTopLevelOne()
+    {
+        SetCandidates("nested");
+        SetValidation(valid: true);
+
+        _sut.WriteRaw("nested", "schema_version: 1\nname: nested\ncontainer:\n  runtime: sneaky\n", Opts());
+
+        Assert.Equal(string.Empty, _events.Single().Parameters[3]);
+    }
+
+    [Fact]
+    public void WriteRaw_FailedEmit_DoesNotFailTheWrite()
+    {
+        SetCandidates("necesse");
+        SetValidation(valid: true);
+        _events.Throws = new InvalidOperationException("engine unreachable");
+
+        FileOpResult<FileStat> result = _sut.WriteRaw("necesse", "schema_version: 1\nname: necesse\nruntime: native\n", Opts());
+
+        // The bytes are committed and valid — reporting a failure here would claim the save did not happen.
+        Assert.Equal(FileOpOutcome.Ok, result.Outcome);
+        Assert.True(File.Exists(Path.Combine(_userDir, "necesse.bp.yaml")));
+    }
+
+    [Fact]
+    public void Remove_WithAShippedOriginal_EmitsRevertedToSystemTrue()
+    {
+        WriteSystem("palworld", "schema_version: 1\nname: palworld\nruntime: native\n");
+        WriteUser("palworld", "schema_version: 1\nname: palworld\nruntime: native\n# mine\n");
+        SetCandidates("palworld");
+
+        FileOpResult result = _sut.Remove("palworld", actor: "user:heisen", origin: "api");
+
+        Assert.Equal(FileOpOutcome.Ok, result.Outcome);
+        RecordingEventManagementService.Emission emitted = _events.Single();
+        Assert.Equal("blueprint-removed", emitted.EventType);
+        Assert.Equal("user:heisen", emitted.Actor);
+        Assert.Equal("api", emitted.Origin);
+        Assert.Equal(["palworld", "user", "true"], emitted.Parameters);
+    }
+
+    [Fact]
+    public void Remove_WithNoShippedOriginal_EmitsRevertedToSystemFalse()
+    {
+        WriteUser("teamfortress2", "schema_version: 1\nname: teamfortress2\nruntime: native\n");
+        SetCandidates("teamfortress2");
+
+        _sut.Remove("teamfortress2");
+
+        // Nothing was restored — the blueprint is gone entirely, and the event says so.
+        Assert.Equal(["teamfortress2", "user", "false"], _events.Single().Parameters);
+    }
+
+    [Fact]
+    public void Remove_MissingFile_EmitsNothing()
+    {
+        SetCandidates("ghost");
+
+        FileOpResult result = _sut.Remove("ghost");
+
+        Assert.Equal(FileOpOutcome.NotFound, result.Outcome);
+        Assert.Empty(_events.Emissions);
+    }
+
+    [Fact]
+    public void Create_EmitsBlueprintCreatedToo()
+    {
+        SetCandidates("templated");
+
+        _sut.Create(MinimalDraft("templated"), overwrite: false, actor: "assistant", origin: "assistant");
+
+        RecordingEventManagementService.Emission emitted = _events.Single();
+        Assert.Equal("blueprint-created", emitted.EventType);
+        Assert.Equal("assistant", emitted.Actor);
+        Assert.Equal(["templated", "user", "false", "native"], emitted.Parameters);
+    }
+
+    [Fact]
+    public void Create_OverwritingAnExistingUserFile_EmitsBlueprintUpdated()
+    {
+        WriteUser("templated", "schema_version: 1\nname: templated\nruntime: native\n");
+        SetCandidates("templated");
+
+        _sut.Create(MinimalDraft("templated"), overwrite: true);
+
+        Assert.Equal("blueprint-updated", _events.Single().EventType);
+    }
 }

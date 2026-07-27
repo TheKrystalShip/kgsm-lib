@@ -44,25 +44,50 @@ public sealed class BlueprintFiles : IBlueprintFiles
 {
     private const int MaxSymlinkHops = 64; // symlink-loop guard, same bound as InstanceFiles
     private const int MaxNameLength = 64;
+    private const int BinaryScanBytes = 8192; // NUL-byte scan window, same as InstanceFiles
+
+    // The engine's CLI event names (dash-separated; the JSON `EventType` is the underscore form).
+    private const string EventBlueprintCreated = "blueprint-created";
+    private const string EventBlueprintUpdated = "blueprint-updated";
+    private const string EventBlueprintRemoved = "blueprint-removed";
+
+    // The top-level `runtime:` key of a blueprint, read off content the ENGINE has already approved — so
+    // by the time this runs the value is known to be one of the runtimes kgsm accepts. Anchored at the
+    // line start so an indented `runtime:` inside a nested block is never mistaken for the real one.
+    private static readonly Regex RuntimeLine =
+        new(@"^runtime:\s*[""']?([A-Za-z0-9_-]+)[""']?\s*$", RegexOptions.Compiled | RegexOptions.Multiline);
 
     // Lowercase slug: starts/ends alphanumeric, `-`/`_` allowed only between alphanumerics — never a
     // path separator, `.`/`..`, whitespace, or an absolute-path leading `/`.
     private static readonly Regex SafeName = new(@"^[a-z0-9]+(?:[-_][a-z0-9]+)*$", RegexOptions.Compiled);
 
     private readonly IKgsmCommandExecutor _commandExecutor;
+    private readonly IBlueprintService _blueprints;
+    private readonly IEventManagementService _events;
     private readonly ILogger<BlueprintFiles> _logger;
 
     /// <summary>Initializes a new instance of the <see cref="BlueprintFiles"/> class.</summary>
-    /// <param name="commandExecutor">Used to resolve the user blueprints directory via <c>kgsm --paths</c>.</param>
+    /// <param name="commandExecutor">Used to resolve the blueprints directories via <c>kgsm --paths</c>.</param>
+    /// <param name="blueprints">The read side — used to resolve a name to its candidate paths and to run
+    /// the engine's schema check. Both stay the engine's answers, never re-derived here.</param>
+    /// <param name="events">Used to emit the blueprint lifecycle events, with the caller's provenance
+    /// threaded through rather than a hardcoded principal.</param>
     /// <param name="logger">The logger to use for logging.</param>
-    public BlueprintFiles(IKgsmCommandExecutor commandExecutor, ILogger<BlueprintFiles> logger)
+    public BlueprintFiles(
+        IKgsmCommandExecutor commandExecutor,
+        IBlueprintService blueprints,
+        IEventManagementService events,
+        ILogger<BlueprintFiles> logger)
     {
         _commandExecutor = commandExecutor ?? throw new ArgumentNullException(nameof(commandExecutor));
+        _blueprints = blueprints ?? throw new ArgumentNullException(nameof(blueprints));
+        _events = events ?? throw new ArgumentNullException(nameof(events));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <inheritdoc/>
-    public FileOpResult<FileStat> Create(NativeBlueprintDraft draft, bool overwrite = false)
+    public FileOpResult<FileStat> Create(
+        NativeBlueprintDraft draft, bool overwrite = false, string? actor = null, string? origin = null)
     {
         ArgumentNullException.ThrowIfNull(draft, nameof(draft));
 
@@ -83,6 +108,8 @@ public sealed class BlueprintFiles : IBlueprintFiles
             return FileOpResult<FileStat>.Fail(FileOpOutcome.AlreadyExists);
         if (kind != LstatKind.Missing && kind != LstatKind.Regular)
             return FileOpResult<FileStat>.Fail(FileOpOutcome.IoError, "target path is not a regular file");
+
+        bool created = kind == LstatKind.Missing;
 
         byte[] bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(RenderYaml(draft));
 
@@ -108,6 +135,9 @@ public sealed class BlueprintFiles : IBlueprintFiles
         try { mtime = new FileInfo(real).LastWriteTimeUtc; }
         catch (IOException) { mtime = default; }
 
+        // The template only ever renders a native blueprint, so the runtime is known rather than parsed.
+        EmitWritten(draft.Name, created, "native", actor, origin);
+
         return FileOpResult<FileStat>.Ok(new FileStat
         {
             SizeBytes = bytes.LongLength,
@@ -117,7 +147,160 @@ public sealed class BlueprintFiles : IBlueprintFiles
     }
 
     /// <inheritdoc/>
-    public FileOpResult Remove(string name)
+    public FileOpResult<BlueprintFileContent> ReadRaw(string name, long maxBytes)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name, nameof(name));
+
+        if (!IsSafeName(name))
+            return FileOpResult<BlueprintFileContent>.Fail(FileOpOutcome.OutOfJail, "blueprint name must be a safe lowercase slug");
+
+        // The engine resolves the name; this method only checks its answer and reads it. FindAll rather
+        // than FindPath so a malformed blueprint stays readable — see the interface remarks.
+        BlueprintCandidates? candidates = _blueprints.FindAll(name);
+        if (string.IsNullOrWhiteSpace(candidates?.Resolved))
+            return FileOpResult<BlueprintFileContent>.Fail(FileOpOutcome.NotFound);
+
+        if (!TryBlueprintDirs(out string userDir, out string? systemDir, out FileOpOutcome dirFailure))
+            return FileOpResult<BlueprintFileContent>.Fail(dirFailure);
+
+        string real;
+        try { real = CanonicalRealPath(Path.GetFullPath(candidates.Resolved.Trim())); }
+        catch (IOException ex) { return FileOpResult<BlueprintFileContent>.Fail(FileOpOutcome.IoError, ex.Message); }
+
+        // Containment against the two engine-reported roots — the read jail is the only one that spans
+        // both. Anything else the engine somehow named is refused rather than read.
+        BlueprintTier tier;
+        if (IsWithin(real, userDir)) tier = BlueprintTier.User;
+        else if (systemDir is not null && IsWithin(real, systemDir)) tier = BlueprintTier.System;
+        else return FileOpResult<BlueprintFileContent>.Fail(FileOpOutcome.OutOfJail);
+
+        LstatKind kind = LibC.Lstat(real);
+        if (kind == LstatKind.Missing)
+            return FileOpResult<BlueprintFileContent>.Fail(FileOpOutcome.NotFound);
+        if (kind != LstatKind.Regular)
+            return FileOpResult<BlueprintFileContent>.Fail(FileOpOutcome.NotAFile);
+
+        long size;
+        try { size = new FileInfo(real).Length; }
+        catch (IOException) { return FileOpResult<BlueprintFileContent>.Fail(FileOpOutcome.NotFound); }
+        if (size > maxBytes)
+            return FileOpResult<BlueprintFileContent>.Fail(FileOpOutcome.TooLarge);
+
+        byte[] bytes;
+        try { bytes = File.ReadAllBytes(real); }
+        catch (IOException) { return FileOpResult<BlueprintFileContent>.Fail(FileOpOutcome.NotFound); }
+        catch (UnauthorizedAccessException ex) { return FileOpResult<BlueprintFileContent>.Fail(FileOpOutcome.IoError, ex.Message); }
+
+        if (LooksBinary(bytes))
+            return FileOpResult<BlueprintFileContent>.Fail(FileOpOutcome.Binary);
+
+        DateTimeOffset mtime;
+        try { mtime = new FileInfo(real).LastWriteTimeUtc; }
+        catch (IOException) { mtime = default; }
+
+        return FileOpResult<BlueprintFileContent>.Ok(new BlueprintFileContent
+        {
+            Name = name,
+            Content = Encoding.UTF8.GetString(bytes),
+            Path = real,
+            Tier = tier,
+            HasSystemOriginal = candidates.HasSystemOriginal,
+            SizeBytes = bytes.LongLength,
+            Mtime = mtime,
+            Etag = Etag(bytes),
+        });
+    }
+
+    /// <inheritdoc/>
+    public FileOpResult<FileStat> WriteRaw(string name, string content, BlueprintWriteOptions opts)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name, nameof(name));
+        ArgumentNullException.ThrowIfNull(content, nameof(content));
+        ArgumentNullException.ThrowIfNull(opts, nameof(opts));
+
+        if (!IsSafeName(name))
+            return FileOpResult<FileStat>.Fail(FileOpOutcome.OutOfJail, "blueprint name must be a safe lowercase slug");
+
+        byte[] bytes = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(content);
+        if (bytes.LongLength > opts.MaxBytes)
+            return FileOpResult<FileStat>.Fail(FileOpOutcome.TooLarge);
+
+        if (!TryUserBlueprintsDir(out string userDir, out FileOpOutcome dirFailure))
+            return FileOpResult<FileStat>.Fail(dirFailure);
+
+        // The write target is ALWAYS in the user dir, whatever tier the caller read from.
+        if (!TryResolveTarget(userDir, name, out string real))
+            return FileOpResult<FileStat>.Fail(FileOpOutcome.OutOfJail);
+
+        if (opts.ExpectedEtag is not null)
+        {
+            // The guard is against the file the caller READ — which for a first override is the system
+            // file, not the user target about to be created.
+            string? resolved = _blueprints.FindAll(name)?.Resolved;
+            if (!EtagMatches(resolved, opts.ExpectedEtag))
+                return FileOpResult<FileStat>.Fail(FileOpOutcome.EtagMismatch);
+        }
+
+        bool created = LibC.Lstat(real) == LstatKind.Missing;
+
+        // The temp name is deliberately dot-prefixed and NOT `*.bp.yaml`, so the engine's blueprint glob
+        // cannot see it while it is being validated.
+        string tmp = Path.Combine(userDir, "." + name + ".bp.yaml." + Guid.NewGuid().ToString("N")[..8] + ".tmp");
+        try
+        {
+            using var fs = new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            fs.Write(bytes, 0, bytes.Length);
+            fs.Flush(flushToDisk: true); // fsync
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            TryDelete(tmp);
+            return FileOpResult<FileStat>.Fail(FileOpOutcome.IoError, ex.Message);
+        }
+
+        // The engine is the schema authority — ask it about the temp file, so an invalid draft never
+        // occupies the real filename even momentarily.
+        BlueprintValidation? verdict = _blueprints.Validate(tmp);
+        if (verdict is null)
+        {
+            TryDelete(tmp);
+            return FileOpResult<FileStat>.Fail(FileOpOutcome.BlueprintsDirUnavailable,
+                "the engine returned no validation verdict");
+        }
+        if (!verdict.Valid)
+        {
+            TryDelete(tmp);
+            // The engine names the file it judged, which here is a temp path the caller never chose and
+            // will never see again. Say which blueprint the errors are about instead — the same errors,
+            // pointing at something the caller can act on.
+            string target = name + ".bp.yaml";
+            string message = string.Join("; ", verdict.Errors.Select(e => e.Replace(tmp, target)));
+            return FileOpResult<FileStat>.Fail(FileOpOutcome.InvalidDraft, message);
+        }
+
+        try { File.Move(tmp, real, overwrite: true); } // rename(2) — atomic on the same filesystem
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            TryDelete(tmp);
+            return FileOpResult<FileStat>.Fail(FileOpOutcome.IoError, ex.Message);
+        }
+
+        DateTimeOffset mtime;
+        try { mtime = new FileInfo(real).LastWriteTimeUtc; }
+        catch (IOException) { mtime = default; }
+
+        EmitWritten(name, created, ReadRuntime(content), opts.Actor, opts.Origin);
+
+        return FileOpResult<FileStat>.Ok(new FileStat
+        {
+            SizeBytes = bytes.LongLength,
+            Mtime = mtime,
+            Etag = Etag(bytes),
+        });
+    }
+
+    /// <inheritdoc/>
+    public FileOpResult Remove(string name, string? actor = null, string? origin = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name, nameof(name));
 
@@ -138,11 +321,18 @@ public sealed class BlueprintFiles : IBlueprintFiles
         if (kind != LstatKind.Regular)
             return FileOpResult.Fail(FileOpOutcome.IoError, "target path is not a regular file");
 
+        // Asked BEFORE the delete: whether a shipped original is about to take over again is what makes
+        // this a revert rather than a destruction, and it is unambiguous only while both files exist.
+        bool? revertedToSystem = _blueprints.FindAll(name)?.HasSystemOriginal;
+
         try { File.Delete(real); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return FileOpResult.Fail(FileOpOutcome.IoError, ex.Message);
         }
+
+        TryEmit(EventBlueprintRemoved, actor, origin, name, UserTierWire, Tri(revertedToSystem));
+
         return FileOpResult.Ok();
     }
 
@@ -230,6 +420,40 @@ public sealed class BlueprintFiles : IBlueprintFiles
         return true;
     }
 
+    /// <summary>Resolves BOTH engine-reported blueprints directories in one <c>kgsm --paths --json</c>
+    /// call — the read jail spans them. The user dir is required (there is no jail without it); the system
+    /// dir is optional, and a null one simply means nothing outside the user dir can be read.</summary>
+    private bool TryBlueprintDirs(out string userDir, out string? systemDir, out FileOpOutcome failure)
+    {
+        systemDir = null;
+
+        if (!TryUserBlueprintsDir(out userDir, out failure))
+            return false;
+
+        KgsmPaths? paths;
+        try { paths = _commandExecutor.ExecuteForJson<KgsmPaths>(["--paths", "--json"]); }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to query kgsm --paths --json for the system blueprints directory");
+            return true; // the user jail alone is still usable
+        }
+
+        string? raw = paths?.System?.SystemBlueprintsDir;
+        if (string.IsNullOrWhiteSpace(raw))
+            return true;
+
+        try { systemDir = CanonicalRealPath(Path.GetFullPath(raw.Trim())); }
+        catch (IOException) { systemDir = null; }
+
+        return true;
+    }
+
+    /// <summary>Containment test for an already-canonicalised path against an already-canonicalised
+    /// root — the same equality/prefix rule <see cref="TryResolveTarget"/> applies.</summary>
+    private static bool IsWithin(string real, string root) =>
+        string.Equals(real, root, StringComparison.Ordinal)
+        || real.StartsWith(root + "/", StringComparison.Ordinal);
+
     // ---- the jail (defense in depth over the name-safety check above) ----------------------------
 
     /// <summary>Joins <paramref name="name"/> onto <paramref name="userDir"/> as
@@ -300,6 +524,90 @@ public sealed class BlueprintFiles : IBlueprintFiles
     }
 
     private static string Etag(byte[] bytes) => "sha256:" + Convert.ToHexStringLower(SHA256.HashData(bytes));
+
+    /// <summary>Whether the file at <paramref name="path"/> currently hashes to
+    /// <paramref name="expected"/>. A missing/unreadable file never matches — a caller holding an etag
+    /// for a file that is no longer there has lost the race just as surely as one holding a stale hash.</summary>
+    private static bool EtagMatches(string? path, string expected)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        try { return string.Equals(Etag(File.ReadAllBytes(path)), expected, StringComparison.Ordinal); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
+
+    /// <summary>Heuristic "is this binary, not text": a NUL byte in the first 8&#160;KB, or any invalid
+    /// UTF-8 sequence anywhere (strict decode) — identical to <see cref="InstanceFiles"/>'s.</summary>
+    private static bool LooksBinary(byte[] bytes)
+    {
+        int scan = Math.Min(bytes.Length, BinaryScanBytes);
+        for (int i = 0; i < scan; i++)
+            if (bytes[i] == 0) return true;
+        try
+        {
+            _ = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true).GetString(bytes);
+            return false;
+        }
+        catch (DecoderFallbackException) { return true; }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try { if (File.Exists(path)) File.Delete(path); } catch { /* ignore cleanup failure */ }
+    }
+
+    /// <summary>Reads the top-level <c>runtime:</c> out of approved blueprint content. Null when the key
+    /// is not where it is expected — the event then carries no runtime rather than a guessed one.</summary>
+    private static string? ReadRuntime(string content)
+    {
+        Match m = RuntimeLine.Match(content.Replace("\r\n", "\n"));
+        return m.Success ? m.Groups[1].Value : null;
+    }
+
+    // ---- events ----------------------------------------------------------------------------------
+
+    // Writes only ever land in the user dir, so the tier stamped on a write/remove event is fixed.
+    private const string UserTierWire = "user";
+
+    /// <summary>Emits <c>blueprint-created</c>/<c>blueprint-updated</c> for a write that has already been
+    /// committed. The override state is asked of the engine AFTER the write, so it describes the state the
+    /// event is announcing; an unavailable answer is passed through as unknown, never as a defaulted
+    /// false.</summary>
+    private void EmitWritten(string name, bool created, string? runtime, string? actor, string? origin)
+    {
+        bool? overridesSystem = _blueprints.FindAll(name)?.OverridesSystem;
+
+        TryEmit(created ? EventBlueprintCreated : EventBlueprintUpdated, actor, origin,
+            name, UserTierWire, Tri(overridesSystem), runtime ?? string.Empty);
+    }
+
+    /// <summary>Renders a nullable boolean for the engine's event CLI: an empty argument is what the
+    /// engine renders as JSON <c>null</c>.</summary>
+    private static string Tri(bool? value) => value switch
+    {
+        true => "true",
+        false => "false",
+        null => string.Empty,
+    };
+
+    /// <summary>Emits one event, swallowing every failure. The file operation has already succeeded by
+    /// the time this runs, so failing here would report a save that did not happen; the worst a lost
+    /// event costs is that consumers fall back to polling. See <see cref="IBlueprintFiles.WriteRaw"/>.</summary>
+    private void TryEmit(string eventType, string? actor, string? origin, params string[] parameters)
+    {
+        try
+        {
+            KgsmResult result = _events.EmitWithProvenance(eventType, actor, origin, parameters);
+            if (result.IsFailure)
+            {
+                _logger.LogWarning("Failed to emit {EventType} (exit {ExitCode}): {Error}",
+                    eventType, result.ExitCode, result.Stderr);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to emit {EventType}", eventType);
+        }
+    }
 
     // ---- YAML templating (deterministic string building — no reflection-based serializer) --------
 

@@ -15,9 +15,10 @@ public interface IEventService : IDisposable, IAsyncDisposable
     /// <summary>
     /// Registers a handler for a specific event type.
     /// </summary>
-    /// <typeparam name="T">The type of event data to handle.</typeparam>
+    /// <typeparam name="T">The type of event data to handle — any event payload, whatever its subject
+    /// (an instance, a blueprint, …).</typeparam>
     /// <param name="handler">The handler function to invoke when the event is received.</param>
-    void RegisterHandler<T>(Func<T, Task> handler) where T : EventDataBase;
+    void RegisterHandler<T>(Func<T, Task> handler) where T : KgsmEventDataBase;
 
     /// <summary>
     /// Registers a handler that receives the full <see cref="EventWrapper"/> envelope

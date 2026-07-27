@@ -35,6 +35,10 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(Blueprint))]
 [JsonSerializable(typeof(BlueprintMetadata))]
 [JsonSerializable(typeof(Dictionary<string, Blueprint>))]
+[JsonSerializable(typeof(BlueprintCandidate))]
+[JsonSerializable(typeof(List<BlueprintCandidate>))]
+[JsonSerializable(typeof(BlueprintCandidates))]
+[JsonSerializable(typeof(BlueprintValidation))]
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 // --- kgsm-watchdog control-surface DTOs (typed client over the unix socket) ---
@@ -92,6 +96,9 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(InstancePlayerLeftData))]
 [JsonSerializable(typeof(InstanceConfigChangedData))]
 [JsonSerializable(typeof(InstanceInputSentData))]
+[JsonSerializable(typeof(BlueprintCreatedData))]
+[JsonSerializable(typeof(BlueprintUpdatedData))]
+[JsonSerializable(typeof(BlueprintRemovedData))]
 [JsonSerializable(typeof(KgsmPaths))]
 public partial class KgsmJsonContext : JsonSerializerContext
 {

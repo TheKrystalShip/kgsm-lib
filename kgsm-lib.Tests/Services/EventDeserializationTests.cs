@@ -20,6 +20,22 @@ namespace TheKrystalShip.KGSM.Tests.Services;
 /// </summary>
 public class EventDeserializationTests
 {
+    // Mirrors EventService's deserialize path for a subject the payload does not name as an instance —
+    // the same two steps, resolved against the subject-neutral root.
+    private static (string EventType, KgsmEventDataBase? Data) DeserializeAny(
+        string wireJson, Type targetType)
+    {
+        EventWrapper? wrapper =
+            JsonSerializer.Deserialize(wireJson, KgsmJsonContext.Default.EventWrapper);
+        Assert.NotNull(wrapper);
+
+        var data = JsonSerializer.Deserialize(
+            wrapper!.Data.GetRawText(), targetType, KgsmJsonContext.Default)
+            as KgsmEventDataBase;
+
+        return (wrapper.EventType, data);
+    }
+
     // Mirrors EventService's deserialize path: EventWrapper first, then the
     // typed Data payload, both through the source-generated context.
     private static (string EventType, EventDataBase? Data) Deserialize(
@@ -302,16 +318,19 @@ public class EventDeserializationTests
     {
         // The reflection-free deserialize path throws on an unregistered type, so
         // a mapping/type added without a matching [JsonSerializable] would only
-        // surface at runtime. This auto-discovers every concrete EventDataBase
-        // subclass and asserts each resolves through the source-gen context.
+        // surface at runtime. This auto-discovers every concrete event data type
+        // and asserts each resolves through the source-gen context. It walks from
+        // KgsmEventDataBase, the subject-neutral root, so a non-instance event
+        // (blueprint-scoped, and whatever subject comes next) is covered too — an
+        // instance-only walk would leave exactly those unguarded.
         static bool IsRegistered(Type t)
         {
             try { return KgsmJsonContext.Default.GetTypeInfo(t) is not null; }
             catch { return false; }
         }
 
-        var unregistered = typeof(EventDataBase).Assembly.GetTypes()
-            .Where(t => t.IsSubclassOf(typeof(EventDataBase)) && !t.IsAbstract)
+        var unregistered = typeof(KgsmEventDataBase).Assembly.GetTypes()
+            .Where(t => t.IsSubclassOf(typeof(KgsmEventDataBase)) && !t.IsAbstract)
             .Where(t => !IsRegistered(t))
             .Select(t => t.Name)
             .ToList();
@@ -343,8 +362,8 @@ public class EventDeserializationTests
         // every other test still passes. This catches the omission with no external
         // dependency.
         var mapped = new HashSet<Type>(GetEventTypeMapping().Values);
-        var missing = typeof(EventDataBase).Assembly.GetTypes()
-            .Where(t => t.IsSubclassOf(typeof(EventDataBase)) && !t.IsAbstract)
+        var missing = typeof(KgsmEventDataBase).Assembly.GetTypes()
+            .Where(t => t.IsSubclassOf(typeof(KgsmEventDataBase)) && !t.IsAbstract)
             .Where(t => !mapped.Contains(t))
             .Select(t => t.Name)
             .ToList();
@@ -410,5 +429,76 @@ public class EventDeserializationTests
                 registered.Add(wireName);
         }
         return registered;
+    }
+
+    // ---- blueprint events: the first subject that is not an instance -------------------------------
+
+    // All three captured verbatim from a live `kgsm events emit` through the socket transport.
+    private const string BlueprintUpdatedWireJson = """
+        {"EventType":"blueprint_updated","Data":{"BlueprintName":"terraria","Tier":"user","OverridesSystem":true,"Runtime":"native"},"Timestamp":"2026-07-27T18:46:50Z","Actor":"discord:987654321","Origin":"ui","Hostname":"hotrod","KGSMVersion":"3.1.2-rc9"}
+        """;
+
+    private const string BlueprintRemovedWireJson = """
+        {"EventType":"blueprint_removed","Data":{"BlueprintName":"teamfortress2","Tier":"user","RevertedToSystem":false},"Timestamp":"2026-07-27T18:46:51Z","Actor":"user:heisen","Origin":"api","Hostname":"hotrod","KGSMVersion":"3.1.2-rc9"}
+        """;
+
+    // Emitted with no runtime argument and no provenance env vars: the engine renders the unknown
+    // runtime and the undeclared origin as JSON null, and falls back to the invoking OS user for the actor.
+    private const string BlueprintCreatedWireJson = """
+        {"EventType":"blueprint_created","Data":{"BlueprintName":"odd","Tier":"user","OverridesSystem":false,"Runtime":null},"Timestamp":"2026-07-27T18:46:51Z","Actor":"heisen","Origin":null,"Hostname":"hotrod","KGSMVersion":"3.1.2-rc9"}
+        """;
+
+    [Fact]
+    public void BlueprintUpdatedEvent_DeserializesWithABlueprintNameNotAnInstanceName()
+    {
+        (string eventType, KgsmEventDataBase? data) =
+            DeserializeAny(BlueprintUpdatedWireJson, typeof(BlueprintUpdatedData));
+
+        Assert.Equal("blueprint_updated", eventType);
+        var updated = Assert.IsType<BlueprintUpdatedData>(data);
+        Assert.Equal("terraria", updated.BlueprintName);
+        Assert.Equal(BlueprintTier.User, updated.Tier);
+        Assert.True(updated.OverridesSystem);
+        Assert.Equal("native", updated.Runtime);
+        // The subject is a blueprint, so there is deliberately no InstanceName to carry — this type
+        // sits beside the instance-scoped hierarchy rather than inside it.
+        Assert.False(data is EventDataBase);
+    }
+
+    [Fact]
+    public void BlueprintRemovedEvent_DeserializesRevertedToSystemAsARealBoolean()
+    {
+        (string eventType, KgsmEventDataBase? data) =
+            DeserializeAny(BlueprintRemovedWireJson, typeof(BlueprintRemovedData));
+
+        Assert.Equal("blueprint_removed", eventType);
+        var removed = Assert.IsType<BlueprintRemovedData>(data);
+        Assert.Equal("teamfortress2", removed.BlueprintName);
+        Assert.False(removed.RevertedToSystem); // nothing was restored — the blueprint is gone
+    }
+
+    [Fact]
+    public void BlueprintCreatedEvent_DeserializesANullRuntimeAsUnknown()
+    {
+        (string eventType, KgsmEventDataBase? data) =
+            DeserializeAny(BlueprintCreatedWireJson, typeof(BlueprintCreatedData));
+
+        Assert.Equal("blueprint_created", eventType);
+        var created = Assert.IsType<BlueprintCreatedData>(data);
+        Assert.Equal("odd", created.BlueprintName);
+        Assert.False(created.OverridesSystem);
+        Assert.Null(created.Runtime); // unknown, never defaulted to "native"
+    }
+
+    [Fact]
+    public void BlueprintEvent_CarriesEnvelopeProvenance()
+    {
+        EventWrapper? wrapper =
+            JsonSerializer.Deserialize(BlueprintCreatedWireJson, KgsmJsonContext.Default.EventWrapper);
+
+        Assert.NotNull(wrapper);
+        Assert.Equal("heisen", wrapper!.Actor);   // the engine's OS-user fallback
+        Assert.Null(wrapper.Origin);              // no surface declared — never fabricated
+        Assert.Equal("3.1.2-rc9", wrapper.KgsmVersion);
     }
 }

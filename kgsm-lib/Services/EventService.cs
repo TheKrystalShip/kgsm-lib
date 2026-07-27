@@ -78,7 +78,11 @@ public class EventService : IEventService, IAsyncDisposable
 
         { "instance_config_changed", typeof(InstanceConfigChangedData) },
 
-        { "instance_input_sent", typeof(InstanceInputSentData) }
+        { "instance_input_sent", typeof(InstanceInputSentData) },
+
+        { "blueprint_created", typeof(BlueprintCreatedData) },
+        { "blueprint_updated", typeof(BlueprintUpdatedData) },
+        { "blueprint_removed", typeof(BlueprintRemovedData) }
     };
 
     /// <summary>
@@ -233,7 +237,7 @@ public class EventService : IEventService, IAsyncDisposable
     }
 
     /// <inheritdoc/>
-    public void RegisterHandler<T>(Func<T, Task> handler) where T : EventDataBase
+    public void RegisterHandler<T>(Func<T, Task> handler) where T : KgsmEventDataBase
     {
         ObjectDisposedException.ThrowIf(_disposed, nameof(EventService));
         ArgumentNullException.ThrowIfNull(handler, nameof(handler));
@@ -241,7 +245,7 @@ public class EventService : IEventService, IAsyncDisposable
         Type eventType = typeof(T);
         _logger.LogDebug("Registering handler for event type {EventType}", eventType.Name);
 
-        _eventHandlers[eventType] = async (EventDataBase data) => await handler((T)data).ConfigureAwait(false);
+        _eventHandlers[eventType] = async (KgsmEventDataBase data) => await handler((T)data).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -287,7 +291,7 @@ public class EventService : IEventService, IAsyncDisposable
             {
                 _logger.LogDebug("Deserializing event data to type {TargetType}", targetType.Name);
 
-                EventDataBase? eventData = DeserializeEventData(targetType, eventWrapper.Data);
+                KgsmEventDataBase? eventData = DeserializeEventData(targetType, eventWrapper.Data);
 
                 if (eventData == null)
                 {
@@ -329,7 +333,7 @@ public class EventService : IEventService, IAsyncDisposable
     /// <exception cref="ArgumentNullException">Thrown if targetType is null.</exception>
     /// <exception cref="JsonException">Thrown if JSON deserialization fails.</exception>
     /// <exception cref="NotSupportedException">Thrown if the target type is not supported.</exception>
-    private EventDataBase? DeserializeEventData(Type targetType, JsonElement dataElement)
+    private KgsmEventDataBase? DeserializeEventData(Type targetType, JsonElement dataElement)
     {
         ArgumentNullException.ThrowIfNull(targetType, nameof(targetType));
 
@@ -337,7 +341,7 @@ public class EventService : IEventService, IAsyncDisposable
 
         _logger.LogTrace("Deserializing JSON: {Json}", json);
 
-        var result = JsonSerializer.Deserialize(json, targetType, KgsmJsonContext.Default) as EventDataBase;
+        var result = JsonSerializer.Deserialize(json, targetType, KgsmJsonContext.Default) as KgsmEventDataBase;
 
         _logger.LogDebug("Successfully deserialized event data to {TargetType}", targetType.Name);
 
@@ -370,7 +374,7 @@ public class EventService : IEventService, IAsyncDisposable
     /// Invokes the registered handler for the given event data.
     /// </summary>
     /// <param name="eventData">The event data to handle.</param>
-    private async Task InvokeHandlerAsync(EventDataBase eventData)
+    private async Task InvokeHandlerAsync(KgsmEventDataBase eventData)
     {
         Type eventType = eventData.GetType();
 
@@ -384,7 +388,7 @@ public class EventService : IEventService, IAsyncDisposable
 
         try
         {
-            await ((Func<EventDataBase, Task>)handler).Invoke(eventData).ConfigureAwait(false);
+            await ((Func<KgsmEventDataBase, Task>)handler).Invoke(eventData).ConfigureAwait(false);
 
             _logger.LogDebug("Handler for {EventType} completed successfully", eventType.Name);
         }
