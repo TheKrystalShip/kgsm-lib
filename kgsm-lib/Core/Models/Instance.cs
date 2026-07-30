@@ -250,6 +250,40 @@ public record class Instance
     public string PlayerLeftRegex { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the RCON port for the game server. Null when the blueprint sets no
+    /// RCON port — RCON-based player detection is disabled (honest unknown, no event
+    /// invented). The watchdog polls this port's <c>players</c> command to detect leaves
+    /// when the game server does not log disconnects.
+    /// </summary>
+    [JsonPropertyName("rcon_port")]
+    public int? RconPort { get; set; }
+
+    /// <summary>
+    /// Gets or sets the RCON password for authentication. Empty when RCON is not
+    /// configured. Stored in plaintext in the instance config; the user must also
+    /// configure the game server's own RCON with matching values.
+    /// </summary>
+    [JsonPropertyName("rcon_password")]
+    public string RconPassword { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets how often (in seconds) to poll the game server via RCON for
+    /// connected players. Null when the blueprint omits it — defaults to 10 seconds
+    /// at the poller.
+    /// </summary>
+    [JsonPropertyName("rcon_poll_interval_seconds")]
+    [JsonConverter(typeof(JsonStringToIntConverter))]
+    public int? RconPollIntervalSeconds { get; set; }
+
+    /// <summary>
+    /// Gets or sets the RCON command to query connected players (game-specific).
+    /// Defaults to <c>"players"</c> (Project Zomboid). Other games may use
+    /// <c>"status"</c>, <c>"listplayers"</c>, etc.
+    /// </summary>
+    [JsonPropertyName("rcon_players_command")]
+    public string RconPlayersCommand { get; set; } = "players";
+
+    /// <summary>
     /// Gets or sets whether the resident supervisor (kgsm-watchdog) should UPnP
     /// port-forward this instance — the per-instance gate its <c>UpnpService</c>
     /// reads. <see langword="false"/> (the safe default) when absent from the wire:

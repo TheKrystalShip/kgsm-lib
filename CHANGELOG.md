@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **RCON support**: `IRconClient` interface, `RconClient` (minimal Source RCON protocol
+  implementation), `RconException`. AOT-safe, no external dependencies. Connects via TCP,
+  authenticates with a password, executes commands, and returns raw text responses. Intended
+  for periodic polling (connect → execute → disconnect) rather than persistent connections.
+- **RCON properties on `Instance` model**: `RconPort` (nullable int), `RconPassword` (string),
+  `RconPollIntervalSeconds` (nullable int), `RconPlayersCommand` (string, default "players").
+  Materialized from the blueprint into the instance config; the watchdog reads these to poll
+  game servers for connected players.
+
+### Added
 - **`FileOpResult<T>.Errors`** — the individual reasons behind a multi-reason failure, kept as a list so a
   surface can render one line per reason instead of splitting `Message` back apart. `WriteRaw`'s
   `InvalidDraft` is the one producer today, carrying the engine validator's own error strings verbatim;
