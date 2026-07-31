@@ -251,6 +251,17 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
+    public List<InstanceBackup> GetBackupsDetailed(string instanceName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+
+        // ExecuteForJson returns null on a non-zero exit or unparseable output; an instance with no
+        // backups prints an empty array. Both collapse to an empty list here — see the interface doc.
+        return _commandExecutor.ExecuteForJson<List<InstanceBackup>>(
+            ["instances", "backups", instanceName, "--json"]) ?? [];
+    }
+
+    /// <inheritdoc/>
     public KgsmResult CreateBackup(string instanceName, string? actor = null, string? origin = null)
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));

@@ -217,8 +217,20 @@ public interface IInstanceService
     /// Gets a list of backups for an instance.
     /// </summary>
     /// <param name="instanceName">Instance name to get backups for.</param>
-    /// <returns>Result containing the list of backups.</returns>
+    /// <returns>Result whose stdout is one backup id per line, newest first.</returns>
     KgsmResult GetBackups(string instanceName);
+
+    /// <summary>
+    /// Gets an instance's backups with the full detail each one records — creation time, captured
+    /// version, size, and which directories it holds — newest first.
+    /// </summary>
+    /// <param name="instanceName">Instance name to get backups for.</param>
+    /// <returns>
+    /// The backups, or an empty list when the instance has none. Also empty when the engine call
+    /// fails or its output cannot be parsed: callers must not read an empty list as proof that no
+    /// backups exist — use <see cref="GetBackups"/> when the distinction matters.
+    /// </returns>
+    List<InstanceBackup> GetBackupsDetailed(string instanceName);
 
     /// <summary>
     /// Creates a backup for an instance.

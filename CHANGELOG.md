@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`IInstanceService.GetBackupsDetailed()`** and the `InstanceBackup` model — an instance's
+  backups with everything each one records (id, creation time, captured version, size, file
+  count, sources, sha256), newest first, from `kgsm instances backups <instance> --json`.
+  `GetBackups()` still returns the id-only listing for callers that need to distinguish an
+  engine failure from an empty store. `InstanceBackup` is registered in `KgsmJsonContext`
+  (required — there is no reflection fallback under AOT). `Sha256` is null for an
+  uncompressed backup, which is a tree rather than a single artifact; null means "not
+  applicable", never a placeholder digest.
+
+### Added
 - **`IBlueprintService.GetScaffold()`** — reads the engine's blueprint skeleton
   (`<KGSM_TEMPLATES_DIR>/blueprint.tp`) verbatim, so a surface seeding a new blueprint's buffer starts
   from the same authoritative template the assistant's authoring lane works from. The directory is

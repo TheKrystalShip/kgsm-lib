@@ -39,6 +39,8 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(List<BlueprintCandidate>))]
 [JsonSerializable(typeof(BlueprintCandidates))]
 [JsonSerializable(typeof(BlueprintValidation))]
+[JsonSerializable(typeof(InstanceBackup))]
+[JsonSerializable(typeof(List<InstanceBackup>))]
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 // --- kgsm-watchdog control-surface DTOs (typed client over the unix socket) ---
