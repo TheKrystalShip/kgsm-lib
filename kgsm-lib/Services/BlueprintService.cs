@@ -10,6 +10,9 @@ namespace TheKrystalShip.KGSM.Services;
 /// </summary>
 public class BlueprintService : IBlueprintService
 {
+    /// <summary>The engine's blueprint skeleton, under the engine-reported templates directory.</summary>
+    private const string ScaffoldFileName = "blueprint.tp";
+
     private readonly IKgsmCommandExecutor _commandExecutor;
     private readonly ILogger<BlueprintService> _logger;
 
@@ -207,5 +210,40 @@ public class BlueprintService : IBlueprintService
         }
 
         return validation;
+    }
+
+    /// <inheritdoc/>
+    public string? GetScaffold()
+    {
+        _logger.LogDebug("Reading the blueprint scaffold template");
+
+        KgsmPaths? paths;
+        try { paths = _commandExecutor.ExecuteForJson<KgsmPaths>(["--paths", "--json"]); }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to query kgsm --paths --json for the templates directory");
+            return null;
+        }
+
+        string? templatesDir = paths?.System?.TemplatesDir;
+        if (string.IsNullOrWhiteSpace(templatesDir))
+        {
+            _logger.LogWarning("kgsm --paths --json did not report a templates directory");
+            return null;
+        }
+
+        string path = Path.Combine(templatesDir.Trim(), ScaffoldFileName);
+
+        try
+        {
+            string content = File.ReadAllText(path);
+            _logger.LogDebug("Read the blueprint scaffold from {Path} ({Length} bytes)", path, content.Length);
+            return content;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogError(ex, "Failed to read the blueprint scaffold at {Path}", path);
+            return null;
+        }
     }
 }

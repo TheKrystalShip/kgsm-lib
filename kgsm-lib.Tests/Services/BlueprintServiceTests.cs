@@ -304,4 +304,63 @@ public class BlueprintServiceTests
 
         Assert.Null(_blueprintService.Validate("factorio"));
     }
+
+    // ---- GetScaffold -------------------------------------------------------------------------------
+
+    /// <summary>Points the mocked <c>kgsm --paths --json</c> at a templates directory.</summary>
+    private void SetTemplatesDir(string? templatesDir)
+    {
+        _mockCommandExecutor
+            .Setup(x => x.ExecuteForJson<KgsmPaths>(
+                It.IsAny<string[]>(),
+                It.IsAny<Action<JsonSerializerOptions>?>(),
+                It.IsAny<KgsmPaths?>()))
+            .Returns(templatesDir is null
+                ? null
+                : new KgsmPaths { System = new KgsmSystemPaths { TemplatesDir = templatesDir } });
+    }
+
+    [Fact]
+    public void GetScaffold_ReturnsTheTemplateVerbatimIncludingItsHeader()
+    {
+        string dir = Directory.CreateTempSubdirectory("kgsm-scaffold-").FullName;
+        try
+        {
+            // The instructional header is authoring help for whoever fills the file in, so it is kept.
+            const string template = "# ABOUT KGSM BLUEPRINTS\n#\nname: ''\nruntime: native\n";
+            File.WriteAllText(Path.Combine(dir, "blueprint.tp"), template);
+            SetTemplatesDir(dir);
+
+            Assert.Equal(template, _blueprintService.GetScaffold());
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void GetScaffold_NoTemplatesDirReported_ReturnsNull()
+    {
+        // Unknown, never a C#-composed substitute skeleton.
+        SetTemplatesDir(null);
+
+        Assert.Null(_blueprintService.GetScaffold());
+    }
+
+    [Fact]
+    public void GetScaffold_TemplateMissingFromTheReportedDir_ReturnsNull()
+    {
+        string dir = Directory.CreateTempSubdirectory("kgsm-scaffold-").FullName;
+        try
+        {
+            SetTemplatesDir(dir);
+
+            Assert.Null(_blueprintService.GetScaffold());
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
 }

@@ -99,4 +99,20 @@ public interface IBlueprintService
     /// </remarks>
     /// <exception cref="ArgumentException">Thrown when <paramref name="blueprintNameOrPath"/> is null or whitespace.</exception>
     BlueprintValidation? Validate(string blueprintNameOrPath);
+
+    /// <summary>
+    /// Reads the engine's blueprint skeleton — <c>&lt;KGSM_TEMPLATES_DIR&gt;/blueprint.tp</c> — verbatim, for
+    /// seeding a new blueprint's buffer.
+    /// </summary>
+    /// <returns>
+    /// The raw template text, or <see langword="null"/> when the engine did not report a templates directory
+    /// or the file could not be read (unknown, never a C#-composed substitute skeleton).
+    /// </returns>
+    /// <remarks>
+    /// The directory is engine-reported (<c>kgsm --paths --json</c>), never re-derived in C#. The template's
+    /// instructional header is part of the returned text and is deliberately kept: it is the authoring help a
+    /// manual writer reads while filling the file in. This is the same skeleton the assistant's authoring lane
+    /// works from, so both paths share one source.
+    /// </remarks>
+    string? GetScaffold();
 }

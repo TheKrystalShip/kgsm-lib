@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`IBlueprintService.GetScaffold()`** — reads the engine's blueprint skeleton
+  (`<KGSM_TEMPLATES_DIR>/blueprint.tp`) verbatim, so a surface seeding a new blueprint's buffer starts
+  from the same authoritative template the assistant's authoring lane works from. The directory is
+  engine-reported (`kgsm --paths --json`), never re-derived in C#; a missing directory or unreadable
+  file returns `null` rather than a substitute skeleton. The template's instructional header is part of
+  the returned text — it is the authoring help a manual writer reads while filling the file in.
+
+### Added
 - **RCON support**: `IRconClient` interface, `RconClient` (minimal Source RCON protocol
   implementation), `RconException`. AOT-safe, no external dependencies. Connects via TCP,
   authenticates with a password, executes commands, and returns raw text responses. Intended
