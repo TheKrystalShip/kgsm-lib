@@ -136,6 +136,15 @@ one unit-testable dependency, `LogParser`, is covered (`Utilities/LogParserTests
 **Package ID**: `TheKrystalShip.KGSM.Lib`  
 **Namespace**: `TheKrystalShip.KGSM`
 
+### Shipping it (there is no `deploy/` here)
+
+This is a library, not a service: it has no install prefix, no systemd unit, and **no
+`deploy/setup.sh` + `deploy/deploy.sh` pair** — the two-script deploy pattern the runnable
+`kgsm-*` repos use does not apply. Shipping a change means bumping `<Version>`, packing, and
+dropping the `.nupkg` into the local feed the consumers restore from. **NuGet caches by
+`id+version`**, so a same-version repack is served stale — every change consumers must see needs a
+version bump, then a matching `<PackageReference>` bump in each consuming repo.
+
 ## File Organization
 
 ```
