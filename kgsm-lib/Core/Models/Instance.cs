@@ -180,19 +180,36 @@ public record class Instance
     public string? RestartDay { get; set; }
 
     /// <summary>
-    /// Gets or sets the timezone used to interpret the scheduled restart time.
+    /// Gets or sets the timezone used to interpret both the scheduled restart time and the
+    /// scheduled backup time — one instance has one answer for what time it is.
     /// Null when KGSM omits <c>timezone</c> — honest unknown, never fabricated.
     /// </summary>
     [JsonPropertyName("timezone")]
     public string? Timezone { get; set; }
 
     /// <summary>
-    /// Gets or sets whether a backup is taken automatically before a scheduled restart.
-    /// Null when KGSM omits <c>auto_backup_on_restart</c> — honest unknown, never fabricated.
-    /// Read by kgsm-scheduler to drive restart-window auto-backups.
+    /// Gets or sets the scheduled backup cadence (<c>off</c>, <c>daily</c>, <c>weekly</c>,
+    /// <c>6h</c>). Null when KGSM omits <c>backup_schedule</c> — honest unknown, never
+    /// fabricated. Read by kgsm-scheduler. Independent of <see cref="ScheduledRestart"/>:
+    /// a backup is taken against the instance as it is, running or not.
     /// </summary>
-    [JsonPropertyName("auto_backup_on_restart")]
-    public bool? AutoBackupOnRestart { get; set; }
+    [JsonPropertyName("backup_schedule")]
+    public string? BackupSchedule { get; set; }
+
+    /// <summary>
+    /// Gets or sets the time-of-day for the scheduled backup, interpreted in
+    /// <see cref="Timezone"/>. Null when KGSM omits <c>backup_time</c> — honest unknown,
+    /// never fabricated.
+    /// </summary>
+    [JsonPropertyName("backup_time")]
+    public string? BackupTime { get; set; }
+
+    /// <summary>
+    /// Gets or sets the day for a weekly scheduled backup.
+    /// Null when KGSM omits <c>backup_day</c> — honest unknown, never fabricated.
+    /// </summary>
+    [JsonPropertyName("backup_day")]
+    public string? BackupDay { get; set; }
 
     /// <summary>
     /// Gets or sets the number of most-recent backups to retain when pruning.

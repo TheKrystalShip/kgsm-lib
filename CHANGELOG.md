@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **The scheduled backup cadence replaces the on-restart backup toggle.** `Instance` carries
+  `BackupSchedule` / `BackupTime` / `BackupDay` (kgsm's `backup_schedule`, `backup_time`,
+  `backup_day`), and `AutoBackupOnRestart` is gone. A backup is taken against the instance as it
+  is, running or not, so it no longer needs a restart window to happen in and the two schedules
+  are independent. `Timezone` now serves both — one instance has one answer for what time it is.
+
 ### Added
 - **Server notes** — `IInstanceService.SetInstanceNote()` plus `Instance.NoteBody` /
   `NoteUpdatedBy` / `NoteUpdatedAt`: the operator-authored free-text note a surface renders on a
