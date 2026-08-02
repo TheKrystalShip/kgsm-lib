@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
@@ -367,6 +368,38 @@ public class InstanceService : IInstanceService
         return provenance is null
             ? _commandExecutor.Execute("instances", "config-set", instanceName, $"{key}={value}")
             : _commandExecutor.Execute(provenance, "instances", "config-set", instanceName, $"{key}={value}");
+    }
+
+    /// <inheritdoc/>
+    public InstanceNoteResult SetInstanceNote(string instanceName, string body, string? actor = null, string? origin = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+        // The empty string is the clear; only null is rejected.
+        ArgumentNullException.ThrowIfNull(body, nameof(body));
+
+        // Encode (and length-check) BEFORE any write, so an over-long body throws with the config
+        // untouched rather than after the attribution keys have already landed.
+        string encoded = InstanceNote.Encode(body);
+        string updatedAt = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
+
+        // Attribution first, body LAST — see InstanceNoteResult for why the order is load-bearing.
+        var applied = new List<string>(3);
+        foreach ((string key, string value) in new[]
+        {
+            (InstanceNote.UpdatedByKey, actor ?? string.Empty),
+            (InstanceNote.UpdatedAtKey, updatedAt),
+            (InstanceNote.BodyKey, encoded),
+        })
+        {
+            KgsmResult result = SetInstanceConfigValue(instanceName, key, value, actor, origin);
+            if (!result.IsSuccess)
+                return new InstanceNoteResult(false, applied, key,
+                    string.IsNullOrWhiteSpace(result.Stderr) ? null : result.Stderr.Trim(), result.ExitCode);
+
+            applied.Add(key);
+        }
+
+        return new InstanceNoteResult(true, applied);
     }
 
     /// <inheritdoc/>

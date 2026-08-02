@@ -757,6 +757,142 @@ public class InstanceServiceTests
         Assert.Equal(8, result.ExitCode);
     }
 
+    // --- SetInstanceNote : three config-set calls, attribution first, body LAST ---
+
+    // Capture every config-set assignment the service issues, in order.
+    private List<string> CaptureNoteWrites(int failAfter = int.MaxValue)
+    {
+        var seen = new List<string>();
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<string[]>()))
+            .Returns((IReadOnlyDictionary<string, string> _, string[] args) =>
+            {
+                seen.Add(args[^1]);
+                return seen.Count > failAfter
+                    ? new KgsmResult(new ProcessResult(8, string.Empty, "engine refused the key"))
+                    : new KgsmResult(new ProcessResult(0, string.Empty, string.Empty));
+            });
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.IsAny<string[]>()))
+            .Returns((string[] args) =>
+            {
+                seen.Add(args[^1]);
+                return seen.Count > failAfter
+                    ? new KgsmResult(new ProcessResult(8, string.Empty, "engine refused the key"))
+                    : new KgsmResult(new ProcessResult(0, string.Empty, string.Empty));
+            });
+        return seen;
+    }
+
+    [Fact]
+    public void SetInstanceNote_NullInstanceName_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(() => _instanceService.SetInstanceNote(null!, "hi"));
+    }
+
+    [Fact]
+    public void SetInstanceNote_NullBody_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _instanceService.SetInstanceNote(Instance, null!));
+    }
+
+    [Fact]
+    public void SetInstanceNote_WritesAttributionFirstAndTheEncodedBodyLast()
+    {
+        List<string> writes = CaptureNoteWrites();
+
+        InstanceNoteResult result = _instanceService.SetInstanceNote(Instance, "Modpack v2.4", "cristian", "ui");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(
+            [InstanceNote.UpdatedByKey, InstanceNote.UpdatedAtKey, InstanceNote.BodyKey],
+            result.AppliedKeys);
+
+        Assert.Equal(3, writes.Count);
+        Assert.Equal("note_updated_by=cristian", writes[0]);
+        Assert.StartsWith("note_updated_at=", writes[1]);
+        // The body rides encoded — a raw body could brick the sourced config file.
+        Assert.Equal($"note={Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("Modpack v2.4"))}", writes[2]);
+    }
+
+    [Fact]
+    public void SetInstanceNote_StampsAnIsoUtcTimestamp()
+    {
+        List<string> writes = CaptureNoteWrites();
+
+        _instanceService.SetInstanceNote(Instance, "hi", "cristian", "ui");
+
+        string stamped = writes[1]["note_updated_at=".Length..];
+        Assert.EndsWith("Z", stamped);
+        DateTimeOffset parsed = DateTimeOffset.Parse(stamped, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.True((DateTimeOffset.UtcNow - parsed).Duration() < TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
+    public void SetInstanceNote_NoActor_WritesAnEmptyUpdatedBy()
+    {
+        // Honest unknown — never a fabricated author.
+        List<string> writes = CaptureNoteWrites();
+
+        _instanceService.SetInstanceNote(Instance, "hi");
+
+        Assert.Equal("note_updated_by=", writes[0]);
+    }
+
+    [Fact]
+    public void SetInstanceNote_EmptyBody_IsTheClearAndStillStampsAttribution()
+    {
+        // Clearing blanks the body but records who cleared it and when.
+        List<string> writes = CaptureNoteWrites();
+
+        InstanceNoteResult result = _instanceService.SetInstanceNote(Instance, string.Empty, "cristian", "ui");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("note_updated_by=cristian", writes[0]);
+        Assert.Equal("note=", writes[2]);
+    }
+
+    [Fact]
+    public void SetInstanceNote_OverLengthBody_ThrowsBeforeAnyWrite()
+    {
+        // The length check runs before the first config-set, so an over-long body leaves the
+        // config completely untouched rather than stranding fresh attribution on the old note.
+        List<string> writes = CaptureNoteWrites();
+
+        Assert.Throws<ArgumentException>(() =>
+            _instanceService.SetInstanceNote(Instance, new string('a', InstanceNote.MaxLength + 1), "cristian", "ui"));
+
+        Assert.Empty(writes);
+    }
+
+    [Fact]
+    public void SetInstanceNote_EngineRefusesTheBody_ReportsWhichKeysLanded()
+    {
+        // The write is a sequence, not a transaction: the caller must be able to say what applied.
+        List<string> writes = CaptureNoteWrites(failAfter: 2);
+
+        InstanceNoteResult result = _instanceService.SetInstanceNote(Instance, "hi", "cristian", "ui");
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal([InstanceNote.UpdatedByKey, InstanceNote.UpdatedAtKey], result.AppliedKeys);
+        Assert.Equal(InstanceNote.BodyKey, result.FailedKey);
+        Assert.Equal(8, result.ExitCode);
+        Assert.Equal("engine refused the key", result.Error);
+    }
+
+    [Fact]
+    public void SetInstanceNote_FirstKeyRefused_StopsImmediately()
+    {
+        List<string> writes = CaptureNoteWrites(failAfter: 0);
+
+        InstanceNoteResult result = _instanceService.SetInstanceNote(Instance, "hi", "cristian", "ui");
+
+        Assert.False(result.IsSuccess);
+        Assert.Empty(result.AppliedKeys);
+        Assert.Equal(InstanceNote.UpdatedByKey, result.FailedKey);
+        Assert.Single(writes);
+    }
+
     // --- provenance (1.15.0): actor/origin propagate as KGSM_EVENT_* env on every mutation ----------
     // The long-running verbs (install/uninstall/update/backup/restore) take the env+timeout overload;
     // config-set takes the default-timeout env overload; start/stop/restart forward to the lifecycle

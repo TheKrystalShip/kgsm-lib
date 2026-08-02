@@ -296,6 +296,37 @@ public record class Instance
     public bool EnablePortForwarding { get; set; } = false;
 
     /// <summary>
+    /// Gets or sets the stored form of the operator-authored server note — base64 of the body
+    /// (see <see cref="InstanceNote"/> for why it is encoded). <see cref="string.Empty"/> when the
+    /// instance has no note. Read <see cref="NoteBody"/> rather than this; the raw value is exposed
+    /// only so a consumer can tell "no note" from "a note that failed to decode".
+    /// </summary>
+    [JsonPropertyName("note")]
+    public string Note { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the actor string of whoever last wrote the note (the same actor a surface stamps
+    /// onto the config write, so it matches the audit trail). <see cref="string.Empty"/> when the note
+    /// was never written through a surface — honest unknown, never a fabricated author.
+    /// </summary>
+    [JsonPropertyName("note_updated_by")]
+    public string NoteUpdatedBy { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the UTC ISO-8601 timestamp of the last note write.
+    /// <see cref="string.Empty"/> when unknown.
+    /// </summary>
+    [JsonPropertyName("note_updated_at")]
+    public string NoteUpdatedAt { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets the decoded server note body, or <see langword="null"/> when the instance has no note.
+    /// This is the value surfaces render.
+    /// </summary>
+    [JsonIgnore]
+    public string? NoteBody => InstanceNote.Decode(Note);
+
+    /// <summary>
     /// Gets or sets the level name for the instance.
     /// </summary>
     [JsonPropertyName("level_name")]

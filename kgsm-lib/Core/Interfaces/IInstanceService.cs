@@ -338,6 +338,32 @@ public interface IInstanceService
     KgsmResult SetInstanceConfigValue(string instanceName, string key, string value, string? actor = null, string? origin = null);
 
     /// <summary>
+    /// Writes an instance's operator-authored server note — the free-text sticky note surfaces
+    /// render on a game server (mods, rules, a heads-up before joining).
+    /// </summary>
+    /// <remarks>
+    /// <para>The note spans three config keys: the body is base64-encoded under <c>note</c>
+    /// (<see cref="InstanceNote"/> explains why), with <c>note_updated_by</c> and
+    /// <c>note_updated_at</c> carrying attribution. They are written in that order — attribution
+    /// first, body last — so a mid-sequence failure can never credit a new body to the wrong
+    /// person; <see cref="InstanceNoteResult.AppliedKeys"/> reports exactly what landed.</para>
+    /// <para>An empty <paramref name="body"/> is the <strong>clear</strong>: the body is blanked
+    /// while attribution still records who cleared it and when.</para>
+    /// <para>Each key write emits its own <c>instance_config_changed</c> event (key only, never the
+    /// value), so a surface that renders an audit feed should collapse the two attribution keys.</para>
+    /// </remarks>
+    /// <param name="instanceName">The instance whose note to write.</param>
+    /// <param name="body">The note body; the empty string clears it. Sanitized before storage
+    /// (CRLF collapsed, control characters dropped, trimmed).</param>
+    /// <param name="actor">Optional audit principal — also stored as <c>note_updated_by</c>.</param>
+    /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
+    /// <returns>Which keys were applied, and the failure detail when one was refused.</returns>
+    /// <exception cref="ArgumentException">Thrown when instanceName is null or whitespace, or when
+    /// the sanitized body exceeds <see cref="InstanceNote.MaxLength"/>.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when body is null.</exception>
+    InstanceNoteResult SetInstanceNote(string instanceName, string body, string? actor = null, string? origin = null);
+
+    /// <summary>
     /// Subscribes to continuous log streaming for an instance.
     /// This method starts a background process that continuously streams logs from the specified instance
     /// using the KGSM "--follow" flag. The returned LogSubscription object provides events for

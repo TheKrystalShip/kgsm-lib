@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Server notes** — `IInstanceService.SetInstanceNote()` plus `Instance.NoteBody` /
+  `NoteUpdatedBy` / `NoteUpdatedAt`: the operator-authored free-text note a surface renders on a
+  game server. Stored in the instance's `.config.ini` under `note` (base64) + `note_updated_by` +
+  `note_updated_at`, so kgsm itself needs no note-specific command — the write is three ordinary
+  `config-set` calls and the read comes off the roster. `InstanceNote` owns the codec: the body is
+  encoded because that file is sourced as `key="value"` and re-emitted through a tab-delimited jq
+  pipeline, where a raw quote, `$`, backtick, tab or newline would brick the instance. Attribution
+  is written first and the body last, and `InstanceNoteResult` reports which keys landed, so a
+  partial write can never credit a new body to the wrong person. A value that does not decode is
+  returned verbatim, so a hand-edited note still renders. Bodies are capped at 600 characters and
+  an over-long one throws before any write rather than being truncated.
+
+### Added
 - **`IInstanceService.GetBackupsDetailed()`** and the `InstanceBackup` model — an instance's
   backups with everything each one records (id, creation time, captured version, size, file
   count, sources, sha256), newest first, from `kgsm instances backups <instance> --json`.
