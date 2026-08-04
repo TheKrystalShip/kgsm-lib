@@ -33,6 +33,29 @@ public class EventServiceTests
         """;
 
     [Fact]
+    public async Task Initialize_IsIdempotent_SoOneEventIsDeliveredOnce()
+    {
+        // Two callers legitimately initialize: KgsmClient's constructor and whatever the consumer
+        // wires. Without a guard the second pass re-subscribes AND starts a second listener, so a
+        // single event fanned out four times — four Discord announcements, four notifications, four
+        // cache busts for one thing happening.
+        using EventService svc = CreateService();
+
+        var received = new List<InstanceStartedData>();
+        svc.RegisterHandler<InstanceStartedData>(d => { received.Add(d); return Task.CompletedTask; });
+
+        svc.Initialize();
+        svc.Initialize();
+        svc.Initialize(EventStartPosition.Oldest);
+
+        await _mockClient.RaiseAsync(c => c.EventReceived += null,
+            Wire("instance_started", """{"InstanceName":"factorio"}"""));
+
+        Assert.Single(received);
+        _mockClient.Verify(c => c.StartListeningAsync(It.IsAny<CancellationToken>()), Times.AtMostOnce());
+    }
+
+    [Fact]
     public void Constructor_NullClient_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() => new EventService(null!, _mockLogger.Object));

@@ -173,7 +173,21 @@ one complete line per append.
 one unit-testable dependency, `LogParser`, is covered (`Utilities/LogParserTests.cs`).
 
 ### NuGet Packaging
-`<GeneratePackageOnBuild>true</GeneratePackageOnBuild>` auto-generates package on Release builds.
+`<GeneratePackageOnBuild>true</GeneratePackageOnBuild>` auto-generates the package on Release builds.
+
+⚠ **Because of that flag, `dotnet pack` does not reliably build first** — it packs whatever is
+already in `bin/Release/`, so straight after an edit it will happily produce a package containing
+the *previous* build, and consumers restore code you did not write. Build, then copy:
+
+```bash
+dotnet build kgsm-lib/kgsm-lib.csproj -c Release        # this is what makes the .nupkg
+cp kgsm-lib/bin/Release/TheKrystalShip.KGSM.Lib.<v>.nupkg /home/heisen/local-nuget/
+```
+
+Verify before trusting it — a stale package fails as a baffling "my change isn't there":
+`unzip -p <nupkg> lib/net10.0/TheKrystalShip.KGSM.dll | strings -el | grep '<a new string literal>'`
+(`-el` matters: .NET string literals are UTF-16, so plain `strings` finds type names but never
+message text).
 
 **Package ID**: `TheKrystalShip.KGSM.Lib`  
 **Namespace**: `TheKrystalShip.KGSM`

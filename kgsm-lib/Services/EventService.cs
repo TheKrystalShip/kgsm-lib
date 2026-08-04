@@ -21,6 +21,7 @@ public class EventService : IEventService, IAsyncDisposable
     private readonly CancellationTokenSource _cts;
     private readonly ILogger<EventService> _logger;
     private bool _disposed = false;
+    private bool _initialized = false;
 
     /// <summary>
     /// A dictionary to map event types to their corresponding data types.
@@ -243,6 +244,20 @@ public class EventService : IEventService, IAsyncDisposable
     private void Initialize(EventStartPosition? startPosition)
     {
         ObjectDisposedException.ThrowIf(_disposed, nameof(EventService));
+
+        // Idempotent, and load-bearing that it is. Two callers legitimately reach here — KgsmClient's
+        // constructor and whatever the consumer wires — and a second pass would subscribe
+        // OnEventReceivedAsync to the transport AGAIN and start a SECOND read loop, so every event
+        // arrived N² times: twice-subscribed × two loops = four deliveries of one event, each one
+        // driving whatever the consumer does with it (an announcement, a notification, a cache bust).
+        // The two loops also raced the journal reader's single cursor. Callers must not have to know
+        // who else initializes.
+        if (_initialized)
+        {
+            _logger.LogDebug("Event service already initialized — ignoring the repeat call");
+            return;
+        }
+        _initialized = true;
 
         _logger.LogInformation("Initializing event service");
 

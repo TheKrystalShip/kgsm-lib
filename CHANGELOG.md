@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **`EventService.Initialize()` is idempotent.** Two callers legitimately reach it — `KgsmClient`'s
+  constructor and whatever the consumer wires — and a second pass both re-subscribed the transport's
+  `EventReceived` and started a second read loop, so one event was delivered **four** times
+  (twice-subscribed × two loops). Every consumer then did its thing four times over: four Discord
+  announcements, four notifications, four cache busts for one server starting. On the journal
+  transport the two loops additionally raced the reader's single cursor. Repeat calls now log at
+  debug and return; a caller must not have to know who else initializes.
+
 ### Added
 - **The event journal transport.** `EventJournalReader` tails the engine's append-only NDJSON
   journal (`/var/lib/kgsm/events/YYYY-MM-DD.ndjson`) instead of binding a socket, selected with
