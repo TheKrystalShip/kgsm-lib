@@ -336,6 +336,44 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
+    public KgsmResult Kick(string instanceName, string target, string? actor = null, string? origin = null)
+        => Moderate("kick", instanceName, target, actor, origin);
+
+    /// <inheritdoc/>
+    public KgsmResult Ban(string instanceName, string target, string? actor = null, string? origin = null)
+        => Moderate("ban", instanceName, target, actor, origin);
+
+    /// <inheritdoc/>
+    public KgsmResult Unban(string instanceName, string target, string? actor = null, string? origin = null)
+        => Moderate("unban", instanceName, target, actor, origin);
+
+    /// <summary>
+    /// Runs one moderation verb. The three differ only in which blueprint-declared
+    /// template the engine resolves, so the target is passed through untouched and the
+    /// verb selects the template on the far side.
+    /// </summary>
+    private KgsmResult Moderate(string verb, string instanceName, string target, string? actor, string? origin)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+        ArgumentException.ThrowIfNullOrWhiteSpace(target, nameof(target));
+
+        // A console reads one command per line, so a line break in the target would
+        // deliver a second command nobody issued. The engine refuses this too; failing
+        // here as well means a caller finds out at the call site rather than through a
+        // process exit code, and no malformed argument is spawned in the first place.
+        if (target.Contains('\n') || target.Contains('\r'))
+        {
+            throw new ArgumentException(
+                "Moderation target must not contain a line break.", nameof(target));
+        }
+
+        IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
+        return provenance is null
+            ? _commandExecutor.Execute("instances", verb, instanceName, target)
+            : _commandExecutor.Execute(provenance, "instances", verb, instanceName, target);
+    }
+
+    /// <inheritdoc/>
     public KgsmResult FindConfigPath(string instanceName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));

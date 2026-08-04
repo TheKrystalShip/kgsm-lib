@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — player moderation
+
+- **`IInstanceService.Kick` / `Ban` / `Unban`**, each taking the instance, the target, and the
+  optional `actor` / `origin` provenance pair the rest of the operational verbs take. They run
+  `kgsm instances kick|ban|unban <instance> <target>` and **pass the target through untouched** —
+  the engine substitutes it into the blueprint's template, so the lib never builds the console
+  command itself. A second implementation of that substitution here would be a second answer that
+  could disagree with the one that actually runs. A target containing a line break is rejected
+  before a process is spawned (a console reads one command per line, so it would deliver a second
+  command nobody issued).
+
+- **`ModerationCommand.TryGetTargetKind` and the `ModerationTargetKind` enum (`Ip` / `Name` /
+  `Id`)** — the identity contract, read out of the template's placeholder. A blueprint writing
+  `kick {ip}` says both "the verb is kick" and "hand it an IP address", so a caller reads the
+  placeholder to know which field of a player record to send. A template with no recognised
+  placeholder, or with more than one, is reported as **unsupported** rather than resolved to a
+  guess — an ambiguous template names no single identity, and a bare verb would send the command
+  with no target at all.
+
+- **`Blueprint.KickCommand` / `BanCommand` / `UnbanCommand`** (nullable) and the matching
+  `Instance` properties bound from the `kick_command` / `ban_command` / `unban_command` wire
+  fields. Empty/null means the game declares no such command, in which case the engine refuses the
+  action rather than approximating it with a different one.
+
+- **Three moderation event types** — `instance_player_kicked`, `instance_player_banned`,
+  `instance_player_unbanned` (`InstancePlayerKickedData` / `BannedData` / `UnbannedData`, sharing
+  `InstanceModerationDataBase`), carrying `Target` and the resolved `Command`. They are their own
+  types rather than `instance_input_sent` records because the subject is a player, not a command:
+  a consumer asking "who was banned on this server" filters on the type instead of pattern-matching
+  text a hand-typed `SendInput` could also produce. Unlike the join/leave pair (autonomous
+  observations stamped `system`), these carry operator provenance.
+
+  `Target` is carried **verbatim and never classified** — the blueprint is where that meaning is
+  declared, and re-deriving it here would be a second answer that could disagree. A consumer that
+  needs the kind reads it from the instance's template with `ModerationCommand.TryGetTargetKind`.
+
+  Note for a consumer offering "lift a ban": an unban's subject is by definition not connected, so
+  it cannot be resolved from a live player roster — `instance_player_banned` is the record to
+  select from.
+
+  Requires kgsm ≥ 3.7.0-rc1.
+
 ### Removed — BREAKING: the Unix socket event transport
 
 - **`UnixSocketClient` and `IUnixSocketClient` are gone**, along with `KgsmEventTransport`,

@@ -301,6 +301,67 @@ public interface IInstanceService
     KgsmResult SendInput(string instanceName, string command, string? actor = null, string? origin = null);
 
     /// <summary>
+    /// Disconnects a player from a running instance.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="target"/> must be the identity the game's <c>kick_command</c>
+    /// template asks for — resolve it with
+    /// <see cref="ModerationCommand.TryGetTargetKind"/> against the instance's
+    /// <see cref="Instance.KickCommand"/> and read that field off the player record.
+    /// The engine substitutes it into the template; this method never builds the
+    /// console command itself. A game that declares no kick command refuses the call
+    /// rather than sending a different one, and an instance that is not running
+    /// refuses it too (a write into a stopped instance's console reaches nobody).
+    /// </remarks>
+    /// <param name="instanceName">The instance to moderate on.</param>
+    /// <param name="target">The player identity the game addresses.</param>
+    /// <param name="actor">Optional audit principal (who) to stamp on the emitted
+    /// <c>instance_player_kicked</c> event via <c>KGSM_EVENT_ACTOR</c>; null omits it so
+    /// kgsm applies its OS-user fallback (never a fabricated identity).</param>
+    /// <param name="origin">Optional driving surface (through which) to stamp via
+    /// <c>KGSM_EVENT_ORIGIN</c>; null omits it (no surface — never fabricated).</param>
+    /// <returns>Result of the kick operation.</returns>
+    /// <exception cref="ArgumentException">Thrown when instanceName or target is null or
+    /// whitespace, or when target contains a line break.</exception>
+    KgsmResult Kick(string instanceName, string target, string? actor = null, string? origin = null);
+
+    /// <summary>
+    /// Disconnects a player from a running instance and blocks them from reconnecting.
+    /// </summary>
+    /// <remarks>
+    /// Same target contract as <see cref="Kick"/>, read from the instance's
+    /// <see cref="Instance.BanCommand"/>.
+    /// </remarks>
+    /// <param name="instanceName">The instance to moderate on.</param>
+    /// <param name="target">The player identity the game addresses.</param>
+    /// <param name="actor">Optional audit principal stamped on the emitted
+    /// <c>instance_player_banned</c> event; null omits it.</param>
+    /// <param name="origin">Optional driving surface; null omits it.</param>
+    /// <returns>Result of the ban operation.</returns>
+    /// <exception cref="ArgumentException">Thrown when instanceName or target is null or
+    /// whitespace, or when target contains a line break.</exception>
+    KgsmResult Ban(string instanceName, string target, string? actor = null, string? origin = null);
+
+    /// <summary>
+    /// Lifts a block, allowing a player to connect again.
+    /// </summary>
+    /// <remarks>
+    /// Same target contract as <see cref="Kick"/>, read from the instance's
+    /// <see cref="Instance.UnbanCommand"/>. Note that an unban's subject is by
+    /// definition not connected, so it cannot be resolved from a live player roster —
+    /// the caller supplies it from its own record of who was banned.
+    /// </remarks>
+    /// <param name="instanceName">The instance to moderate on.</param>
+    /// <param name="target">The player identity the game addresses.</param>
+    /// <param name="actor">Optional audit principal stamped on the emitted
+    /// <c>instance_player_unbanned</c> event; null omits it.</param>
+    /// <param name="origin">Optional driving surface; null omits it.</param>
+    /// <returns>Result of the unban operation.</returns>
+    /// <exception cref="ArgumentException">Thrown when instanceName or target is null or
+    /// whitespace, or when target contains a line break.</exception>
+    KgsmResult Unban(string instanceName, string target, string? actor = null, string? origin = null);
+
+    /// <summary>
     /// Gets the absolute path to an instance's configuration file.
     /// </summary>
     /// <param name="instanceName">The instance to find the config path for.</param>

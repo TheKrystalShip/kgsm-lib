@@ -271,6 +271,74 @@ public class EventDeserializationTests
         Assert.Equal("haru", left.PlayerName);
     }
 
+    // Captured verbatim from the live journal on hotrod (/var/lib/kgsm/events/*.ndjson)
+    // after `kgsm instances kick|ban|unban romestead 95.19.50.122` against a running
+    // server. Target is the identity the operator supplied — an IP here, because
+    // romestead's blueprint declares `kick {ip}`; Command is what the engine resolved
+    // and actually delivered.
+    private const string PlayerKickedWireJson = """
+        {"EventType":"instance_player_kicked","Data":{"InstanceName":"romestead","Target":"95.19.50.122","Command":"kick 95.19.50.122"},"Timestamp":"2026-08-04T20:31:00Z","Actor":"heisen","Origin":"cli","Hostname":"hotrod","KGSMVersion":"3.7.0-rc1"}
+        """;
+
+    private const string PlayerBannedWireJson = """
+        {"EventType":"instance_player_banned","Data":{"InstanceName":"romestead","Target":"95.19.50.122","Command":"ban 95.19.50.122"},"Timestamp":"2026-08-04T20:31:02Z","Actor":"heisen","Origin":"cli","Hostname":"hotrod","KGSMVersion":"3.7.0-rc1"}
+        """;
+
+    private const string PlayerUnbannedWireJson = """
+        {"EventType":"instance_player_unbanned","Data":{"InstanceName":"romestead","Target":"95.19.50.122","Command":"unban 95.19.50.122"},"Timestamp":"2026-08-04T20:31:04Z","Actor":"heisen","Origin":"cli","Hostname":"hotrod","KGSMVersion":"3.7.0-rc1"}
+        """;
+
+    [Fact]
+    public void PlayerKickedEvent_CarriesTargetAndResolvedCommand()
+    {
+        (string eventType, EventDataBase? data) =
+            Deserialize(PlayerKickedWireJson, typeof(InstancePlayerKickedData));
+
+        Assert.Equal("instance_player_kicked", eventType);
+        var kicked = Assert.IsType<InstancePlayerKickedData>(data);
+        Assert.Equal("romestead", kicked.InstanceName);
+        Assert.Equal("95.19.50.122", kicked.Target);
+        Assert.Equal("kick 95.19.50.122", kicked.Command);
+    }
+
+    [Fact]
+    public void PlayerBannedEvent_CarriesTargetAndResolvedCommand()
+    {
+        (string eventType, EventDataBase? data) =
+            Deserialize(PlayerBannedWireJson, typeof(InstancePlayerBannedData));
+
+        Assert.Equal("instance_player_banned", eventType);
+        var banned = Assert.IsType<InstancePlayerBannedData>(data);
+        Assert.Equal("95.19.50.122", banned.Target);
+        Assert.Equal("ban 95.19.50.122", banned.Command);
+    }
+
+    [Fact]
+    public void PlayerUnbannedEvent_CarriesTargetAndResolvedCommand()
+    {
+        (string eventType, EventDataBase? data) =
+            Deserialize(PlayerUnbannedWireJson, typeof(InstancePlayerUnbannedData));
+
+        Assert.Equal("instance_player_unbanned", eventType);
+        var unbanned = Assert.IsType<InstancePlayerUnbannedData>(data);
+        Assert.Equal("95.19.50.122", unbanned.Target);
+        Assert.Equal("unban 95.19.50.122", unbanned.Command);
+    }
+
+    [Fact]
+    public void ModerationEvents_CarryOperatorProvenance_NotSystem()
+    {
+        // Unlike the player join/leave pair (autonomous observations stamped system),
+        // a moderation event is a human action and must stay attributable to whoever
+        // caused it.
+        EventWrapper? wrapper =
+            JsonSerializer.Deserialize(PlayerBannedWireJson, KgsmJsonContext.Default.EventWrapper);
+
+        Assert.NotNull(wrapper);
+        Assert.Equal("heisen", wrapper!.Actor);
+        Assert.Equal("cli", wrapper.Origin);
+    }
+
     // Models the kgsm `_build_event_payload` wire shape after the actor/timestamp
     // enrichment (reconstructed from a captured emit; JSON is whitespace/order-
     // insensitive): the envelope now carries a top-level Actor alongside Timestamp.

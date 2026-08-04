@@ -607,6 +607,118 @@ public class InstanceServiceTests
             It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<string[]>()), Times.Never);
     }
 
+    // --- Kick/Ban/Unban : Execute("instances", <verb>, name, target) ---
+
+    [Theory]
+    [InlineData("kick")]
+    [InlineData("ban")]
+    [InlineData("unban")]
+    public void Moderation_NullInstanceName_ThrowsArgumentException(string verb)
+    {
+        Assert.Throws<ArgumentNullException>(() => Moderate(verb, null!, "1.2.3.4"));
+    }
+
+    [Theory]
+    [InlineData("kick")]
+    [InlineData("ban")]
+    [InlineData("unban")]
+    public void Moderation_NullTarget_ThrowsArgumentException(string verb)
+    {
+        Assert.Throws<ArgumentNullException>(() => Moderate(verb, "my-instance", null!));
+    }
+
+    [Theory]
+    [InlineData("kick", "1.2.3.4\nsay pwned")]
+    [InlineData("ban", "1.2.3.4\r\nsay pwned")]
+    [InlineData("unban", "bad\rtarget")]
+    public void Moderation_TargetWithLineBreak_ThrowsArgumentException(string verb, string target)
+    {
+        // The console reads one command per line, so a line break would smuggle a second
+        // command in behind the moderation one. Rejected before a process is spawned.
+        Assert.Throws<ArgumentException>(() => Moderate(verb, "my-instance", target));
+
+        _mockCommandExecutor.Verify(x => x.Execute(It.IsAny<string[]>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData("kick")]
+    [InlineData("ban")]
+    [InlineData("unban")]
+    public void Moderation_PassesTheTargetThroughUntouched(string verb)
+    {
+        // The engine owns substitution into the blueprint's template; the lib must not
+        // build the console command itself, or there would be two answers that can differ.
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", verb, "my-instance", "95.19.50.122"))))
+            .Returns(Ok);
+
+        KgsmResult result = Moderate(verb, "my-instance", "95.19.50.122");
+
+        Assert.True(result.IsSuccess);
+        _mockCommandExecutor.Verify(
+            x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", verb, "my-instance", "95.19.50.122"))),
+            Times.Once);
+    }
+
+    [Theory]
+    [InlineData("kick")]
+    [InlineData("ban")]
+    [InlineData("unban")]
+    public void Moderation_ExecutionFails_ReturnsFailureResult(string verb)
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", verb, "my-instance", "1.2.3.4"))))
+            .Returns(new KgsmResult(new ProcessResult(1, string.Empty, "the server is not running")));
+
+        KgsmResult result = Moderate(verb, "my-instance", "1.2.3.4");
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(1, result.ExitCode);
+    }
+
+    [Theory]
+    [InlineData("kick")]
+    [InlineData("ban")]
+    [InlineData("unban")]
+    public void Moderation_WithProvenance_UsesTheEnvOverload(string verb)
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<string[]>()))
+            .Returns(Ok);
+
+        Moderate(verb, "my-instance", "1.2.3.4", actor: "discord:haru", origin: "ui");
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.Is<IReadOnlyDictionary<string, string>>(e =>
+                e["KGSM_EVENT_ACTOR"] == "discord:haru" && e["KGSM_EVENT_ORIGIN"] == "ui"),
+            It.Is<string[]>(a => ArgsAre(a, "instances", verb, "my-instance", "1.2.3.4"))), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("kick")]
+    [InlineData("ban")]
+    [InlineData("unban")]
+    public void Moderation_NoProvenance_TakesThePlainNoEnvPath(string verb)
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", verb, "my-instance", "1.2.3.4"))))
+            .Returns(Ok);
+
+        Moderate(verb, "my-instance", "1.2.3.4");
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<string[]>()), Times.Never);
+    }
+
+    private KgsmResult Moderate(
+        string verb, string instanceName, string target, string? actor = null, string? origin = null) => verb switch
+        {
+            "kick" => _instanceService.Kick(instanceName, target, actor, origin),
+            "ban" => _instanceService.Ban(instanceName, target, actor, origin),
+            "unban" => _instanceService.Unban(instanceName, target, actor, origin),
+            _ => throw new ArgumentOutOfRangeException(nameof(verb))
+        };
+
     // --- FindConfigPath : Execute("instances", "find", name) ---
 
     [Fact]

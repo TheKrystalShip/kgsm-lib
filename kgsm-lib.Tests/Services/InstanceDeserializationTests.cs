@@ -224,4 +224,41 @@ public class InstanceDeserializationTests
         Assert.Equal(80, only.Start);
         Assert.Equal(80, only.End);
     }
+
+    [Fact]
+    public void Moderation_templates_bind_from_the_snake_case_wire_fields()
+    {
+        // `instances info --json` serializes the whole instance .config.ini, so these
+        // arrive under their INI key names.
+        StubProcessOutput("""
+            {"name":"romestead","runtime":"native","kick_command":"kick {ip}","ban_command":"ban {ip}","unban_command":"unban {ip}"}
+            """);
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        Assert.Equal("kick {ip}", result!.KickCommand);
+        Assert.Equal("ban {ip}", result.BanCommand);
+        Assert.Equal("unban {ip}", result.UnbanCommand);
+
+        // The template is what a caller reads the identity contract out of.
+        Assert.True(ModerationCommand.TryGetTargetKind(result.KickCommand, out ModerationTargetKind kind));
+        Assert.Equal(ModerationTargetKind.Ip, kind);
+    }
+
+    [Fact]
+    public void Moderation_templates_are_empty_when_the_game_declares_none()
+    {
+        // An instance created from a blueprint with no moderation fields. Empty means
+        // unsupported — the action is refused, never approximated with another command.
+        StubProcessOutput("""{"name":"7dtd","runtime":"native"}""");
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        Assert.Equal(string.Empty, result!.KickCommand);
+        Assert.False(ModerationCommand.IsSupported(result.KickCommand));
+        Assert.False(ModerationCommand.IsSupported(result.BanCommand));
+        Assert.False(ModerationCommand.IsSupported(result.UnbanCommand));
+    }
 }

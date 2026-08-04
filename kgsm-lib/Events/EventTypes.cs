@@ -614,6 +614,64 @@ public class InstancePlayerLeftData : EventDataBase
 }
 
 /// <summary>
+/// Base for the player-moderation audit events — an operator removed a player from a
+/// running instance, blocked them, or lifted that block.
+/// </summary>
+/// <remarks>
+/// These are their own event types rather than an <see cref="InstanceInputSentData"/>
+/// record because the subject is a <em>player</em>, not a command: a consumer asking
+/// "who was banned on this server" filters on the event type instead of pattern-matching
+/// command text — text a hand-typed <c>instances input</c> could also produce, with no
+/// moderation intent behind it.
+/// </remarks>
+public abstract class InstanceModerationDataBase : EventDataBase
+{
+    /// <summary>
+    /// Gets or sets the player identity the operator supplied — whichever kind the
+    /// game's blueprint template declared (<c>{ip}</c>, <c>{name}</c> or <c>{id}</c>).
+    /// Carried verbatim and never classified here: the blueprint is where that meaning
+    /// is declared, and re-deriving it would be a second answer that could disagree.
+    /// A consumer that needs the kind reads it from the instance's template with
+    /// <see cref="Core.Models.ModerationCommand.TryGetTargetKind"/>.
+    /// </summary>
+    public string Target { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the resolved console command that was delivered, so the trail
+    /// records the literal effect beside its subject.
+    /// </summary>
+    public string Command { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Data for the <c>instance_player_kicked</c> event — a player was disconnected from a
+/// running instance. Emitted only once the command has been delivered.
+/// </summary>
+public class InstancePlayerKickedData : InstanceModerationDataBase
+{
+}
+
+/// <summary>
+/// Data for the <c>instance_player_banned</c> event — a player was disconnected and
+/// blocked from reconnecting. Emitted only once the command has been delivered.
+/// </summary>
+public class InstancePlayerBannedData : InstanceModerationDataBase
+{
+}
+
+/// <summary>
+/// Data for the <c>instance_player_unbanned</c> event — a block was lifted. Emitted only
+/// once the command has been delivered.
+/// </summary>
+/// <remarks>
+/// The subject of an unban is by definition not connected, so this event is the record a
+/// consumer offering "lift a ban" selects from — a live player roster cannot supply it.
+/// </remarks>
+public class InstancePlayerUnbannedData : InstanceModerationDataBase
+{
+}
+
+/// <summary>
 /// Data for the <c>blueprint_created</c> event — a blueprint file was written under a name that had no
 /// user file before. The blueprint's CONTENT is deliberately absent: no event payload ever carries a file
 /// body or a diff.

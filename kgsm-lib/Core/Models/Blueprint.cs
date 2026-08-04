@@ -73,6 +73,25 @@ public class Blueprint
     public string? SaveCommand { get; set; } = null;
 
     /// <summary>
+    /// Gets or sets the template for disconnecting a player, or <see langword="null"/>
+    /// when the game declares no kick command. See <see cref="ModerationCommand"/> for
+    /// how to read the player identity the template asks for.
+    /// </summary>
+    public string? KickCommand { get; set; } = null;
+
+    /// <summary>
+    /// Gets or sets the template for disconnecting a player and blocking them, or
+    /// <see langword="null"/> when the game declares no ban command.
+    /// </summary>
+    public string? BanCommand { get; set; } = null;
+
+    /// <summary>
+    /// Gets or sets the template for lifting a block, or <see langword="null"/> when
+    /// the game declares no unban command.
+    /// </summary>
+    public string? UnbanCommand { get; set; } = null;
+
+    /// <summary>
     /// Gets or sets the advisory presentation metadata for the blueprint's game
     /// (display name, requirements). Null when the blueprint declares no metadata.
     /// </summary>
@@ -95,6 +114,9 @@ public class Blueprint
                $"ExecutableArguments: {ExecutableArguments}, " +
                $"LevelName: {LevelName}, " +
                $"StopCommand: {StopCommand ?? "None"}, " +
-               $"SaveCommand: {SaveCommand ?? "None"}";
+               $"SaveCommand: {SaveCommand ?? "None"}, " +
+               $"KickCommand: {KickCommand ?? "None"}, " +
+               $"BanCommand: {BanCommand ?? "None"}, " +
+               $"UnbanCommand: {UnbanCommand ?? "None"}";
     }
 }

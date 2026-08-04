@@ -407,6 +407,29 @@ public record class Instance
     public string SaveCommand { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the template for disconnecting a player. Empty when the game
+    /// declares no kick command, in which case the action is refused rather than
+    /// approximated with a different one. See <see cref="ModerationCommand"/> for how
+    /// to read the player identity the template asks for.
+    /// </summary>
+    [JsonPropertyName("kick_command")]
+    public string KickCommand { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the template for disconnecting a player and blocking them. Empty
+    /// when the game declares no ban command.
+    /// </summary>
+    [JsonPropertyName("ban_command")]
+    public string BanCommand { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the template for lifting a block. Empty when the game declares no
+    /// unban command.
+    /// </summary>
+    [JsonPropertyName("unban_command")]
+    public string UnbanCommand { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the save command timeout in seconds for the instance.
     /// </summary>
     [JsonPropertyName("save_command_timeout_seconds")]
