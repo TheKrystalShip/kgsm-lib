@@ -346,7 +346,7 @@ public class EventDeserializationTests
     private static Dictionary<string, Type> GetEventTypeMapping()
     {
         var svc = new EventService(
-            new Mock<IUnixSocketClient>().Object,
+            new Mock<IEventSource>().Object,
             new Mock<ILogger<EventService>>().Object);
         FieldInfo field = typeof(EventService).GetField(
             "_eventTypeMapping", BindingFlags.NonPublic | BindingFlags.Instance)!;

@@ -18,22 +18,10 @@ public class KgsmOptions
     public string KgsmPath { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the path to the KGSM Unix socket. Required only when
-    /// <see cref="EventTransport"/> is <see cref="KgsmEventTransport.Socket"/>.
-    /// </summary>
-    public string SocketPath { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Gets or sets how events reach this consumer. Defaults to
-    /// <see cref="KgsmEventTransport.Socket"/>, so taking a new version of the library never
-    /// changes an existing consumer's transport on its own — moving to the journal is an
-    /// explicit choice each consumer makes and verifies.
-    /// </summary>
-    public KgsmEventTransport EventTransport { get; set; } = KgsmEventTransport.Socket;
-
-    /// <summary>
-    /// Gets or sets the directory holding the engine's event journal segments. Used when
-    /// <see cref="EventTransport"/> is <see cref="KgsmEventTransport.Journal"/>.
+    /// Gets or sets the directory holding the engine's event journal segments — where this
+    /// consumer reads events from. A well-known host location rather than a per-consumer one:
+    /// the engine appends and holds no list of readers, and a file has no exclusive binding, so
+    /// every consumer on a host reads the same directory with no coordination between them.
     /// </summary>
     public string EventJournalDirectory { get; set; } = DefaultEventJournalDirectory;
 

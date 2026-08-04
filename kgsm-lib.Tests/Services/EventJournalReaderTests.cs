@@ -61,7 +61,6 @@ public sealed class EventJournalReaderTests : IDisposable
             new KgsmOptions
             {
                 KgsmPath = "/usr/local/bin/kgsm",
-                EventTransport = KgsmEventTransport.Journal,
                 EventJournalDirectory = _directory,
                 EventStartPosition = startPosition
             },
@@ -523,7 +522,6 @@ public sealed class EventJournalReaderTests : IDisposable
         var options = new KgsmOptions
         {
             KgsmPath = "/usr/local/bin/kgsm",
-            EventTransport = KgsmEventTransport.Journal,
             EventJournalDirectory = string.Empty
         };
 

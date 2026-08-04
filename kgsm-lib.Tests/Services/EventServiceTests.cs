@@ -5,20 +5,22 @@ namespace TheKrystalShip.KGSM.Tests.Services;
 
 /// <summary>
 /// Tests for the EventService class — the in-process pub/sub that turns a raw
-/// KGSM socket message into a typed, dispatched event. The behavior worth pinning
+/// KGSM event envelope into a typed, dispatched event. The behavior worth pinning
 /// is the full receive route: wire JSON → <see cref="EventWrapper"/> → name→type
-/// mapping → typed deserialize → the registered handler. The socket transport
-/// itself is mocked (<see cref="IUnixSocketClient"/>); deserialization wire-shapes
-/// are covered separately by <see cref="EventDeserializationTests"/>.
+/// mapping → typed deserialize → the registered handler. The source itself is
+/// mocked (<see cref="IEventSource"/>) — EventService never learns what produced an
+/// envelope, which is the property that let the transport change without touching a
+/// consumer. Deserialization wire-shapes are covered separately by
+/// <see cref="EventDeserializationTests"/>.
 /// </summary>
 public class EventServiceTests
 {
-    private readonly Mock<IUnixSocketClient> _mockClient;
+    private readonly Mock<IEventSource> _mockClient;
     private readonly Mock<ILogger<EventService>> _mockLogger;
 
     public EventServiceTests()
     {
-        _mockClient = new Mock<IUnixSocketClient>();
+        _mockClient = new Mock<IEventSource>();
         _mockClient
             .Setup(c => c.StartListeningAsync(It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);

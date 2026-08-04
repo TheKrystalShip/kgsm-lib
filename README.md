@@ -3,8 +3,8 @@
 KGSM-Lib is a C# library designed to interact with [KGSM][1], a lightweight 
 game server manager for Linux. This library simplifies integration with KGSM 
 by providing an intuitive API to manage game servers, blueprints, and 
-instances, as well as listening to real-time events through a Unix Domain 
-Socket.
+instances, as well as reading real-time events from KGSM's append-only event 
+journal.
 
 ## Features
 
@@ -64,14 +64,16 @@ using var loggerFactory = LoggerFactory.Create(builder =>
 var processRunner = new ProcessRunner(
     loggerFactory.CreateLogger<ProcessRunner>());
 
-// Create the Unix socket client
-var socketClient = new UnixSocketClient(
-    "/path/to/kgsm.sock", 
-    loggerFactory.CreateLogger<UnixSocketClient>());
+// Create the event journal reader — the source EventService reads envelopes from.
+// Any number of processes can read the same journal; there is nothing to reserve.
+var journalReader = new EventJournalReader(
+    new KgsmOptions { KgsmPath = "/path/to/kgsm.sh" },
+    new NullEventCursorStore(),
+    loggerFactory.CreateLogger<EventJournalReader>());
 
 // Create the event service
 var eventService = new EventService(
-    socketClient, 
+    journalReader, 
     loggerFactory.CreateLogger<EventService>());
 
 // Create the blueprint service

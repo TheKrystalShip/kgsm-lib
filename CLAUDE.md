@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-KGSM-Lib is a C# library (.NET 10.0) that provides interop capabilities with [KGSM](https://github.com/TheKrystalShip/KGSM), a Linux game server manager. The library communicates via shell process execution, and receives events either from the engine's on-disk event journal or over a Unix domain socket.
+KGSM-Lib is a C# library (.NET 10.0) that provides interop capabilities with [KGSM](https://github.com/TheKrystalShip/KGSM), a Linux game server manager. The library communicates via shell process execution, and receives events by reading the engine's on-disk event journal.
 
 **Key Architecture**: SOLID-based with three service layers:
 - **KgsmClient** (main facade) → **BlueprintService/InstanceService/EventService** → **ProcessRunner/IEventSource** (infrastructure)
@@ -14,9 +14,8 @@ KGSM-Lib is a C# library (.NET 10.0) that provides interop capabilities with [KG
 All services use Microsoft.Extensions.DependencyInjection. Register via `ServiceCollectionExtensions`:
 
 ```csharp
-services.AddKgsmServices("/path/to/kgsm.sh");                        // journal transport, default location
-services.AddKgsmServices("/path/to/kgsm.sh", "/path/to/kgsm.sock");  // socket transport
-services.AddKgsmServices(new KgsmOptions { ... });                   // full control (see §4)
+services.AddKgsmServices("/path/to/kgsm.sh");        // journal at its default location
+services.AddKgsmServices(new KgsmOptions { ... });   // full control (see §4)
 ```
 
 **Lifetime rules**:
@@ -80,20 +79,16 @@ _eventHandlers[typeof(InstanceInstalledData)] = handler;
 
 **Event lifecycle**: `EventService.Initialize()` starts the background transport, deserializes `EventWrapper`, matches type via `_eventTypeMapping`, invokes registered handlers.
 
-**Two transports, one interface.** `EventService` consumes raw envelopes from `IEventSource`
-and never learns which transport produced them, so **a consumer changes transport without
-touching a handler**. Pick with `KgsmOptions.EventTransport`:
+**One source, behind an interface.** `EventService` consumes raw envelopes from `IEventSource`
+and never learns what produced them. That indirection is why the engine's transport could be
+replaced without touching a single consumer's handler code, and it is worth keeping for the
+same reason.
 
-| | `Journal` (`EventJournalReader`) | `Socket` (`UnixSocketClient`) — the default |
-|---|---|---|
-| Source | `/var/lib/kgsm/events/YYYY-MM-DD.ndjson` | a socket the consumer binds |
-| Readers per host | any number, no coordination | one — **binding is exclusive** |
-| Engine-side config | none | the engine must list every consumer's socket path |
-| Consumer was down | catches up from its cursor | the events are gone |
-| Missed events | reported as an `EventJournalGap` | indistinguishable from no event |
-
-`Socket` is the default so taking a new version of the library never moves a consumer's
-transport on its own.
+The source is `EventJournalReader`, reading `/var/lib/kgsm/events/YYYY-MM-DD.ndjson`. Any number
+of consumers read the same segments concurrently — a file has no exclusive binding, so there is
+nothing to reserve and nothing to tell the engine about. A consumer that was down catches up from
+its cursor rather than losing what it slept through, and events it genuinely cannot recover are
+reported as an `EventJournalGap` instead of being indistinguishable from no event.
 
 **Journal specifics.** Position is an `EventCursor` — a segment plus a byte offset — kept by an
 `IEventCursorStore` (`FileEventCursorStore`, `NullEventCursorStore`, or the consumer's own; a
@@ -159,18 +154,18 @@ dotnet build -c Release kgsm-lib.sln         # Release (generates NuGet package)
 xUnit (v2) suite in `kgsm-lib.Tests/` — run with `dotnet test kgsm-lib.sln`. All green,
 no skips. Unit tests mock the collaborator the class under test actually depends on:
 service tests mock `IKgsmCommandExecutor` (and `ILifecycleService` for the operational
-verbs InstanceService forwards), `EventService` tests mock `IUnixSocketClient` and raise
-its `EventReceived` event to drive the full wire→dispatch route.
+verbs InstanceService forwards), `EventService` tests mock `IEventSource` and raise its
+`EventReceived` event to drive the full wire→dispatch route.
 
 `EventJournalReaderTests` runs the **real** reader against a temporary directory — the journal
 is ordinary files, so its whole contract is unit-testable: start position, whole-line framing,
 segment rolling, cursor resume, and gap reporting. It writes segments the way the engine does,
 one complete line per append.
 
-**Process/socket-bound classes are intentionally not in the unit suite** —
-`LogSubscriptionService` (spawns a real `kgsm --follow` `Process`) and `UnixSocketClient`
-(raw socket I/O) need a live KGSM and belong in an integration category, not here. Their
-one unit-testable dependency, `LogParser`, is covered (`Utilities/LogParserTests.cs`).
+**Process-bound classes are intentionally not in the unit suite** — `LogSubscriptionService`
+spawns a real `kgsm --follow` `Process`, needs a live KGSM, and belongs in an integration
+category rather than here. Its one unit-testable dependency, `LogParser`, is covered
+(`Utilities/LogParserTests.cs`).
 
 ### NuGet Packaging
 `<GeneratePackageOnBuild>true</GeneratePackageOnBuild>` auto-generates the package on Release builds.
@@ -218,7 +213,7 @@ kgsm-lib/
 ## Common Gotchas
 
 1. **KgsmInterop class**: Marked `[Obsolete]`, use `IKgsmClient` interface instead
-2. **Event transport paths**: the socket transport needs a valid socket path (and one no other process has bound); the journal transport needs a readable journal directory, but tolerates one that does not exist yet — a host that has never emitted an event has no journal directory until it does
+2. **Journal directory**: needs to be readable, but is tolerated when absent — a host that has never emitted an event has no journal directory until it does, and the reader picks up the first segment when it appears
 3. **KGSM path validation**: No built-in validation - ensure `kgsm.sh` exists before instantiating services
 4. **JSON parsing**: KGSM may return empty strings for missing fields - always null-coalesce: `?? new()`
 5. **Log parsing timezones**: `LogParser` handles ISO8601 (Z suffix) and syslog formats differently
@@ -226,8 +221,8 @@ kgsm-lib/
 ## Integration Points
 
 - **External dependency**: KGSM shell script (not bundled, must be installed separately)
-- **Communication**: Process execution (bash) + events over the on-disk journal or a Unix domain socket
-- **Platform**: Linux-only (relies on Unix sockets and bash scripts)
+- **Communication**: Process execution (bash) + events read from the on-disk journal
+- **Platform**: Linux-only (relies on bash scripts, and on Unix sockets for the watchdog/firewall clients)
 
 ## Documentation Standards
 

@@ -12,32 +12,6 @@ namespace TheKrystalShip.KGSM.Extensions;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds KGSM services to the specified IServiceCollection, receiving events over a Unix
-    /// socket.
-    /// </summary>
-    /// <param name="services">The IServiceCollection to add services to.</param>
-    /// <param name="kgsmPath">The path to the KGSM executable.</param>
-    /// <param name="socketPath">The path to the KGSM Unix socket.</param>
-    /// <returns>
-    /// The IServiceCollection so that additional calls can be chained.
-    /// </returns>
-    /// <exception cref="ArgumentNullException">Thrown when services, kgsmPath, or socketPath are null.</exception>
-    public static IServiceCollection AddKgsmServices(this IServiceCollection services, string kgsmPath, string socketPath)
-    {
-        ArgumentNullException.ThrowIfNull(services, nameof(services));
-
-        if (string.IsNullOrWhiteSpace(socketPath))
-            throw new ArgumentNullException(nameof(socketPath), "Socket path cannot be null, empty, or whitespace.");
-
-        return AddKgsmServices(services, new KgsmOptions
-        {
-            KgsmPath = kgsmPath,
-            SocketPath = socketPath,
-            EventTransport = KgsmEventTransport.Socket
-        });
-    }
-
-    /// <summary>
     /// Adds KGSM services to the specified IServiceCollection, reading events from the engine's
     /// event journal at its default location.
     /// </summary>
@@ -58,11 +32,7 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services, nameof(services));
 
-        return AddKgsmServices(services, new KgsmOptions
-        {
-            KgsmPath = kgsmPath,
-            EventTransport = KgsmEventTransport.Journal
-        });
+        return AddKgsmServices(services, new KgsmOptions { KgsmPath = kgsmPath });
     }
 
     /// <summary>
@@ -105,24 +75,17 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IEventService, EventService>();
         services.AddSingleton<IKgsmClient, KgsmClient>();
 
-        // The event transport. EventService resolves IEventSource and never learns which one
-        // it got, so a consumer changes transport here and nowhere else. A consumer that wants
-        // its own cursor storage — one that already owns a database should — registers its own
-        // IEventCursorStore after this call, which wins by last-registration.
-        if (options.EventTransport == KgsmEventTransport.Journal)
-        {
-            services.AddSingleton<IEventCursorStore>(sp => string.IsNullOrWhiteSpace(options.EventCursorPath)
-                ? new NullEventCursorStore()
-                : new FileEventCursorStore(options, sp.GetRequiredService<ILogger<FileEventCursorStore>>()));
+        // The event source. EventService resolves IEventSource and never learns what backs it,
+        // which is what let the transport change without touching a single consumer's handler.
+        // A consumer that wants its own cursor storage — one that already owns a database
+        // should — registers its own IEventCursorStore after this call, which wins by
+        // last-registration.
+        services.AddSingleton<IEventCursorStore>(sp => string.IsNullOrWhiteSpace(options.EventCursorPath)
+            ? new NullEventCursorStore()
+            : new FileEventCursorStore(options, sp.GetRequiredService<ILogger<FileEventCursorStore>>()));
 
-            services.AddSingleton<IEventJournalReader, EventJournalReader>();
-            services.AddSingleton<IEventSource>(sp => sp.GetRequiredService<IEventJournalReader>());
-        }
-        else
-        {
-            services.AddSingleton<IUnixSocketClient, UnixSocketClient>();
-            services.AddSingleton<IEventSource>(sp => sp.GetRequiredService<IUnixSocketClient>());
-        }
+        services.AddSingleton<IEventJournalReader, EventJournalReader>();
+        services.AddSingleton<IEventSource>(sp => sp.GetRequiredService<IEventJournalReader>());
 
         return services;
     }
@@ -156,23 +119,17 @@ public static class ServiceCollectionExtensions
     /// The IServiceCollection so that additional calls can be chained.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when services or options are null.</exception>
-    /// <exception cref="ArgumentException">
-    /// Thrown when the socket transport is selected with no socket path.
-    /// </exception>
     public static IServiceCollection AddKgsmServices(this IServiceCollection services, KgsmOptions options)
     {
         ArgumentNullException.ThrowIfNull(services, nameof(services));
         ArgumentNullException.ThrowIfNull(options, nameof(options));
-
-        if (options.EventTransport == KgsmEventTransport.Socket && string.IsNullOrWhiteSpace(options.SocketPath))
-            throw new ArgumentException("Socket path cannot be null, empty, or whitespace.", nameof(options));
 
         return AddKgsmCore(services, options);
     }
 
     /// <summary>
     /// Adds the kgsm-watchdog control client (<see cref="IWatchdogClient"/>) to the
-    /// service collection. Independent of <see cref="AddKgsmServices(IServiceCollection, string, string)"/> —
+    /// service collection. Independent of <see cref="AddKgsmServices(IServiceCollection, string)"/> —
     /// a surface can take the watchdog client alone, the full KGSM services, or both.
     /// </summary>
     /// <param name="services">The IServiceCollection to add services to.</param>
@@ -205,7 +162,7 @@ public static class ServiceCollectionExtensions
         var options = new WatchdogClientOptions();
         configureOptions(options);
 
-        // Singleton: the client owns a pooled HttpClient/handler, like IUnixSocketClient.
+        // Singleton: the client owns a pooled HttpClient/handler.
         services.AddSingleton(options);
         services.AddSingleton<IWatchdogClient, WatchdogClient>();
 
@@ -214,7 +171,7 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// Adds the kgsm-firewall control client (<see cref="IFirewallService"/>) to the service collection.
-    /// Independent of <see cref="AddKgsmServices(IServiceCollection, string, string)"/> and
+    /// Independent of <see cref="AddKgsmServices(IServiceCollection, string)"/> and
     /// <see cref="AddKgsmWatchdogClient(IServiceCollection, string)"/> — a surface can take any combination.
     /// </summary>
     /// <param name="services">The IServiceCollection to add services to.</param>

@@ -92,22 +92,6 @@ public class EventManagementService : IEventManagementService
     }
 
     /// <inheritdoc/>
-    public KgsmResult EnableSocket()
-        => _commandExecutor.Execute("events", "socket", "enable");
-
-    /// <inheritdoc/>
-    public KgsmResult DisableSocket()
-        => _commandExecutor.Execute("events", "socket", "disable");
-
-    /// <inheritdoc/>
-    public KgsmResult TestSocket()
-        => _commandExecutor.Execute("events", "socket", "test");
-
-    /// <inheritdoc/>
-    public KgsmResult GetSocketStatus()
-        => _commandExecutor.Execute("events", "socket", "status");
-
-    /// <inheritdoc/>
     public KgsmResult EnableWebhook()
         => _commandExecutor.Execute("events", "webhook", "enable");
 

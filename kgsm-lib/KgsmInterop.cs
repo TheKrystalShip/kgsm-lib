@@ -8,7 +8,7 @@ namespace TheKrystalShip.KGSM;
 /// <summary>
 /// KgsmInterop is a class that provides an interface to interact with the KGSM (Krystal Game Server Manager).
 /// It allows you to perform various operations such as creating blueprints, managing instances,
-/// checking updates, and handling events through a Unix socket.
+/// checking updates, and handling events read from the engine's event journal.
 /// 
 /// This class is kept for backward compatibility with the previous version of the library.
 /// New code should use the IKgsmClient interface and its implementations.
@@ -27,22 +27,18 @@ public class KgsmInterop
     public IEventService Events => _client.Events;
 
     /// <summary>
-    /// Initializes a new instance of the KgsmInterop class with the specified KGSM path and socket path.
+    /// Initializes a new instance of the KgsmInterop class with the specified KGSM path.
     /// Throws an ArgumentNullException if the kgsmPath is null or empty.
     /// </summary>
     /// <param name="kgsmPath">The path to the KGSM executable.</param>
-    /// <param name="kgsmSocketPath">The path to the KGSM Unix socket.</param>
-    /// <exception cref="ArgumentNullException">Thrown when kgsmPath or kgsmSocketPath is null or empty.</exception>
-    public KgsmInterop(string kgsmPath, string kgsmSocketPath)
+    /// <exception cref="ArgumentNullException">Thrown when kgsmPath is null or empty.</exception>
+    public KgsmInterop(string kgsmPath)
     {
         if (string.IsNullOrWhiteSpace(kgsmPath))
             throw new ArgumentNullException(nameof(kgsmPath), "KGSM path cannot be null, empty, or whitespace.");
 
-        if (string.IsNullOrWhiteSpace(kgsmSocketPath))
-            throw new ArgumentNullException(nameof(kgsmSocketPath), "Socket path cannot be null, empty, or whitespace.");
-
         IServiceCollection services = new ServiceCollection();
-        services.AddKgsmServices(kgsmPath, kgsmSocketPath);
+        services.AddKgsmServices(kgsmPath);
 
         var serviceProvider = services.BuildServiceProvider();
 
@@ -55,7 +51,7 @@ public class KgsmInterop
     /// </summary>
     /// <param name="options">The KGSM options.</param>
     /// <exception cref="ArgumentNullException">Thrown when options are null.</exception>
-    public KgsmInterop(KgsmOptions options) : this(options.KgsmPath, options.SocketPath)
+    public KgsmInterop(KgsmOptions options) : this(options.KgsmPath)
     {
         ArgumentNullException.ThrowIfNull(options, nameof(options));
     }

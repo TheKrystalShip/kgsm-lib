@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed — BREAKING: the Unix socket event transport
+
+- **`UnixSocketClient` and `IUnixSocketClient` are gone**, along with `KgsmEventTransport`,
+  `KgsmOptions.SocketPath`, `KgsmOptions.EventTransport`, the
+  `AddKgsmServices(services, kgsmPath, socketPath)` overload, and
+  `IEventManagementService`'s `EnableSocket` / `DisableSocket` / `TestSocket` / `GetSocketStatus`.
+  The engine no longer has a socket transport to drive. **This is the major version bump.**
+
+  Socket binding is exclusive — one socket, one reader — which is the whole reason a consumer
+  ever needed its own path and the engine ever needed to be configured with the list of them.
+  The journal is a plain file: every consumer on a host reads the same directory, concurrently,
+  with no registration and nothing to reserve. There is no longer a transport to select, so
+  `AddKgsmServices(kgsmPath)` and the options overload both wire the journal reader.
+
+  **Migrating:** drop the `socketPath` argument (or `SocketPath` / `EventTransport` from your
+  options) and set `EventJournalDirectory` if the engine's journal is not at
+  `/var/lib/kgsm/events`. Handler code is unaffected — it was already written against
+  `IEventService`, which is what made this swap possible without touching a consumer.
+
+  `SocketException` stays: it belongs to `IFirewallService`, which talks to the kgsm-firewall
+  authority over its own socket and is unrelated to events.
+
 ### Fixed
 - **`EventService.Initialize()` is idempotent.** Two callers legitimately reach it — `KgsmClient`'s
   constructor and whatever the consumer wires — and a second pass both re-subscribed the transport's
