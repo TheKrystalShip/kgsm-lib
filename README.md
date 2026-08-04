@@ -112,8 +112,18 @@ var services = new ServiceCollection();
 services.AddLogging(builder => 
     builder.AddConsole().SetMinimumLevel(LogLevel.Debug));
 
-// Add KGSM services
-services.AddKgsmServices("/path/to/kgsm.sh", "/path/to/kgsm.sock");
+// Add KGSM services. Events are read from the engine's append-only journal at its
+// well-known location (/var/lib/kgsm/events) — a directory every consumer on the host
+// reads concurrently, with nothing to reserve and nothing to configure on the engine.
+services.AddKgsmServices("/path/to/kgsm.sh");
+
+// Or, to point at a non-standard journal and pick where reading starts:
+services.AddKgsmServices(new KgsmOptions
+{
+    KgsmPath = "/path/to/kgsm.sh",
+    EventJournalDirectory = "/var/lib/kgsm/events",
+    EventStartPosition = EventStartPosition.Tail
+});
 
 // Build service provider
 var serviceProvider = services.BuildServiceProvider();
