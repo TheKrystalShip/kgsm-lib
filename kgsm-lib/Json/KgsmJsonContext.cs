@@ -57,6 +57,7 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(WatchdogUpnpOpenRequest))]
 // --- Event envelope + every event data payload (the Type-keyed dispatch in EventService) ---
 [JsonSerializable(typeof(EventWrapper))]
+[JsonSerializable(typeof(EventCursor))]
 [JsonSerializable(typeof(InstanceCreatedData))]
 [JsonSerializable(typeof(InstanceDirectoriesCreatedData))]
 [JsonSerializable(typeof(InstanceFilesCreatedData))]

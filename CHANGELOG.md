@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **The event journal transport.** `EventJournalReader` tails the engine's append-only NDJSON
+  journal (`/var/lib/kgsm/events/YYYY-MM-DD.ndjson`) instead of binding a socket, selected with
+  `KgsmOptions.EventTransport = KgsmEventTransport.Journal` or the new
+  `AddKgsmServices(kgsmPath)` overload. Both transports now sit behind `IEventSource`, which
+  `EventService` consumes, so **no handler code changes** when a consumer switches — and each
+  consumer switches on its own schedule. The socket stays the default: taking this version does
+  not move a consumer's transport on its own.
+
+  What the journal buys is what a socket cannot do. Binding is exclusive, so each consumer
+  needed its own path and the engine had to be configured with the list of them; a file has no
+  such constraint, so any number of consumers read the same journal and the engine holds no
+  knowledge of who reads. Delivery stops being live-only: a consumer that was down catches up
+  from its stored position (`IEventCursorStore`, with `FileEventCursorStore` and
+  `NullEventCursorStore` supplied, and a consumer that owns a database expected to store the
+  cursor there). Position is a segment plus a byte offset, which is exact because each event is
+  one whole line — only complete lines are dispatched, so a partially-flushed append is picked
+  up whole on the next pass rather than delivered truncated.
+
+  Where a consumer starts is an explicit per-consumer decision (`EventStartPosition`): a
+  consumer that materializes the journal into an index must be able to replay it, while one
+  that announces events must never replay a backlog. When a stored position can no longer be
+  satisfied — retention deletes segments on age alone and never consults a consumer — the
+  reader reports an `EventJournalGap` through `IEventService.RegisterGapHandler` and then falls
+  back to its cold-start position, so a consumer can record that its history before that point
+  is incomplete instead of presenting a partial record as a whole one. The socket transport
+  could not express this at all: a missed event was indistinguishable from one that never
+  happened.
+
+  Delivery is at-least-once — the cursor is stored only past events already dispatched, so a
+  crash costs re-delivery rather than loss, and a consumer that persists what it reads must be
+  idempotent (a deterministic `AuditId` is what makes that free). The saved position is the
+  oldest unfinished one, which also covers an emit that starts just before midnight and lands
+  in yesterday's segment after the reader has moved into today's.
+
 ### Changed
 - **The scheduled backup cadence replaces the on-restart backup toggle.** `Instance` carries
   `BackupSchedule` / `BackupTime` / `BackupDay` (kgsm's `backup_schedule`, `backup_time`,

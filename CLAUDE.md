@@ -2,10 +2,10 @@
 
 ## Project Overview
 
-KGSM-Lib is a C# library (.NET 10.0) that provides interop capabilities with [KGSM](https://github.com/TheKrystalShip/KGSM), a Linux game server manager. The library communicates via shell process execution and Unix domain sockets for real-time events.
+KGSM-Lib is a C# library (.NET 10.0) that provides interop capabilities with [KGSM](https://github.com/TheKrystalShip/KGSM), a Linux game server manager. The library communicates via shell process execution, and receives events either from the engine's on-disk event journal or over a Unix domain socket.
 
 **Key Architecture**: SOLID-based with three service layers:
-- **KgsmClient** (main facade) → **BlueprintService/InstanceService/EventService** → **ProcessRunner/UnixSocketClient** (infrastructure)
+- **KgsmClient** (main facade) → **BlueprintService/InstanceService/EventService** → **ProcessRunner/IEventSource** (infrastructure)
 
 ## Critical Patterns
 
@@ -14,12 +14,14 @@ KGSM-Lib is a C# library (.NET 10.0) that provides interop capabilities with [KG
 All services use Microsoft.Extensions.DependencyInjection. Register via `ServiceCollectionExtensions`:
 
 ```csharp
-services.AddKgsmServices("/path/to/kgsm.sh", "/path/to/kgsm.sock");
+services.AddKgsmServices("/path/to/kgsm.sh");                        // journal transport, default location
+services.AddKgsmServices("/path/to/kgsm.sh", "/path/to/kgsm.sock");  // socket transport
+services.AddKgsmServices(new KgsmOptions { ... });                   // full control (see §4)
 ```
 
 **Lifetime rules**:
 - `IProcessRunner`: Transient (stateless executor)
-- `IUnixSocketClient`, `IEventService`, `IKgsmClient`: Singleton (maintain socket connection)
+- `IEventSource`, `IEventCursorStore`, `IEventService`, `IKgsmClient`: Singleton (one transport per process)
 - `IBlueprintService`, `IInstanceService`: Transient (delegate to ProcessRunner)
 
 ### 2. Process Execution Pattern
@@ -66,7 +68,7 @@ arbitrary `T` under AOT).
 
 ### 4. Event System Architecture
 
-Events flow: **KGSM (Unix socket)** → **UnixSocketClient** → **EventService** → **User handlers**
+Events flow: **an `IEventSource`** → **EventService** → **User handlers**
 
 ```csharp
 // Registration pattern
@@ -76,7 +78,42 @@ _eventHandlers[typeof(InstanceInstalledData)] = handler;
 { "instance_installed", typeof(InstanceInstalledData) }
 ```
 
-**Event lifecycle**: `EventService.Initialize()` starts background listener, deserializes `EventWrapper`, matches type via `_eventTypeMapping`, invokes registered handlers.
+**Event lifecycle**: `EventService.Initialize()` starts the background transport, deserializes `EventWrapper`, matches type via `_eventTypeMapping`, invokes registered handlers.
+
+**Two transports, one interface.** `EventService` consumes raw envelopes from `IEventSource`
+and never learns which transport produced them, so **a consumer changes transport without
+touching a handler**. Pick with `KgsmOptions.EventTransport`:
+
+| | `Journal` (`EventJournalReader`) | `Socket` (`UnixSocketClient`) — the default |
+|---|---|---|
+| Source | `/var/lib/kgsm/events/YYYY-MM-DD.ndjson` | a socket the consumer binds |
+| Readers per host | any number, no coordination | one — **binding is exclusive** |
+| Engine-side config | none | the engine must list every consumer's socket path |
+| Consumer was down | catches up from its cursor | the events are gone |
+| Missed events | reported as an `EventJournalGap` | indistinguishable from no event |
+
+`Socket` is the default so taking a new version of the library never moves a consumer's
+transport on its own.
+
+**Journal specifics.** Position is an `EventCursor` — a segment plus a byte offset — kept by an
+`IEventCursorStore` (`FileEventCursorStore`, `NullEventCursorStore`, or the consumer's own; a
+consumer that owns a database should store the cursor there, beside what it derives from the
+events). Delivery is **at-least-once**: the cursor is stored only past events already
+dispatched, so a crash costs re-delivery, never loss — a consumer that persists what it reads
+must be idempotent.
+
+`EventStartPosition` is a real per-consumer decision, not a default to accept: a consumer that
+indexes events needs `CursorOrOldest` so it can rebuild, while one that announces them needs
+`CursorOrTail` so it never replays a backlog into a chat channel. When retention has deleted
+the segment a cursor names, the reader raises `EventJournalGap` through
+`IEventService.RegisterGapHandler` and falls back to its cold-start position — surfacing the
+discontinuity is what lets a consumer report its history as incomplete rather than implying
+coverage it does not have.
+
+The byte offset is exact only because **each event is one whole line** — the engine writes
+payloads compact for that reason, and only complete lines are dispatched. Anything that
+rewrites a segment in place (a log rotator's `copytruncate`) invalidates every cursor into it,
+which is why retention deletes whole segments and never truncates one.
 
 ### 5. Async Patterns (Critical)
 
@@ -125,6 +162,11 @@ service tests mock `IKgsmCommandExecutor` (and `ILifecycleService` for the opera
 verbs InstanceService forwards), `EventService` tests mock `IUnixSocketClient` and raise
 its `EventReceived` event to drive the full wire→dispatch route.
 
+`EventJournalReaderTests` runs the **real** reader against a temporary directory — the journal
+is ordinary files, so its whole contract is unit-testable: start position, whole-line framing,
+segment rolling, cursor resume, and gap reporting. It writes segments the way the engine does,
+one complete line per append.
+
 **Process/socket-bound classes are intentionally not in the unit suite** —
 `LogSubscriptionService` (spawns a real `kgsm --follow` `Process`) and `UnixSocketClient`
 (raw socket I/O) need a live KGSM and belong in an integration category, not here. Their
@@ -162,7 +204,7 @@ kgsm-lib/
 ## Common Gotchas
 
 1. **KgsmInterop class**: Marked `[Obsolete]`, use `IKgsmClient` interface instead
-2. **Socket path requirement**: EventService won't work without valid Unix socket path
+2. **Event transport paths**: the socket transport needs a valid socket path (and one no other process has bound); the journal transport needs a readable journal directory, but tolerates one that does not exist yet — a host that has never emitted an event has no journal directory until it does
 3. **KGSM path validation**: No built-in validation - ensure `kgsm.sh` exists before instantiating services
 4. **JSON parsing**: KGSM may return empty strings for missing fields - always null-coalesce: `?? new()`
 5. **Log parsing timezones**: `LogParser` handles ISO8601 (Z suffix) and syslog formats differently
@@ -170,7 +212,7 @@ kgsm-lib/
 ## Integration Points
 
 - **External dependency**: KGSM shell script (not bundled, must be installed separately)
-- **Communication**: Process execution (bash) + Unix domain socket (events)
+- **Communication**: Process execution (bash) + events over the on-disk journal or a Unix domain socket
 - **Platform**: Linux-only (relies on Unix sockets and bash scripts)
 
 ## Documentation Standards

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.KGSM.Core.Interfaces;
+using TheKrystalShip.KGSM.Core.Models;
 using TheKrystalShip.KGSM.Events;
 
 namespace TheKrystalShip.KGSM.Services;
@@ -8,9 +9,15 @@ namespace TheKrystalShip.KGSM.Services;
 /// <summary>
 /// Implementation of the IEventService interface for handling KGSM events.
 /// </summary>
+/// <remarks>
+/// Transport-agnostic by construction: it consumes raw envelopes from an
+/// <see cref="IEventSource"/> and never knows whether they arrived over a socket or were read
+/// out of the journal. That is what lets a consumer change transport without touching a single
+/// handler.
+/// </remarks>
 public class EventService : IEventService, IAsyncDisposable
 {
-    private readonly IUnixSocketClient _client;
+    private readonly IEventSource _client;
     private readonly CancellationTokenSource _cts;
     private readonly ILogger<EventService> _logger;
     private bool _disposed = false;
@@ -97,11 +104,17 @@ public class EventService : IEventService, IAsyncDisposable
     private readonly List<Func<EventWrapper, Task>> _rawHandlers = new();
 
     /// <summary>
+    /// Handlers registered via <see cref="RegisterGapHandler"/>, invoked when the transport
+    /// reports it could not resume where this consumer left off.
+    /// </summary>
+    private readonly List<Func<EventJournalGap, Task>> _gapHandlers = new();
+
+    /// <summary>
     /// Initializes a new instance of the EventService class.
     /// </summary>
-    /// <param name="client">The Unix socket client to use for communication.</param>
+    /// <param name="client">The transport delivering raw event envelopes.</param>
     /// <param name="logger">The logger to use for logging.</param>
-    public EventService(IUnixSocketClient client, ILogger<EventService> logger)
+    public EventService(IEventSource client, ILogger<EventService> logger)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -217,13 +230,40 @@ public class EventService : IEventService, IAsyncDisposable
     }
 
     /// <inheritdoc/>
-    public void Initialize()
+    public void Initialize() => Initialize(startPosition: null);
+
+    /// <inheritdoc/>
+    public void Initialize(EventStartPosition startPosition) => Initialize((EventStartPosition?)startPosition);
+
+    /// <summary>
+    /// Subscribes to the transport and starts it, optionally overriding where a replayable
+    /// transport begins reading.
+    /// </summary>
+    /// <param name="startPosition">The start position to impose, or null to keep the configured one.</param>
+    private void Initialize(EventStartPosition? startPosition)
     {
         ObjectDisposedException.ThrowIf(_disposed, nameof(EventService));
 
         _logger.LogInformation("Initializing event service");
 
         _client.EventReceived += OnEventReceivedAsync;
+
+        if (_client is IEventJournalReader journal)
+        {
+            if (startPosition.HasValue)
+                journal.StartPosition = startPosition.Value;
+
+            journal.GapDetected += OnGapDetectedAsync;
+        }
+        else if (startPosition.HasValue)
+        {
+            // Never quietly accept a setting the transport cannot honour: the socket has no
+            // history to position within, so a caller asking to replay would get live-only
+            // delivery and no indication of why.
+            _logger.LogWarning(
+                "Start position {StartPosition} ignored: the {Transport} transport delivers only events that arrive while it is listening",
+                startPosition.Value, _client.GetType().Name);
+        }
 
         if (_cts.IsCancellationRequested)
             throw new InvalidOperationException("Cannot initialize after disposal.");
@@ -257,6 +297,44 @@ public class EventService : IEventService, IAsyncDisposable
         _logger.LogDebug("Registering raw event handler");
 
         _rawHandlers.Add(handler);
+    }
+
+    /// <inheritdoc/>
+    public void RegisterGapHandler(Func<EventJournalGap, Task> handler)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, nameof(EventService));
+        ArgumentNullException.ThrowIfNull(handler, nameof(handler));
+
+        _logger.LogDebug("Registering event gap handler");
+
+        _gapHandlers.Add(handler);
+    }
+
+    /// <summary>
+    /// Fans a transport-reported gap out to every registered gap handler, each isolated so one
+    /// throwing handler cannot stop the others or the read loop that raised it.
+    /// </summary>
+    /// <param name="gap">The reported discontinuity.</param>
+    private async Task OnGapDetectedAsync(EventJournalGap gap)
+    {
+        if (_disposed)
+            return;
+
+        _logger.LogWarning(
+            "Event stream gap reported at {Segment}+{Offset} ({Reason})",
+            gap.LostSegment, gap.LostOffset, gap.Reason);
+
+        foreach (Func<EventJournalGap, Task> gapHandler in _gapHandlers)
+        {
+            try
+            {
+                await gapHandler(gap).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in event gap handler");
+            }
+        }
     }
 
     /// <summary>

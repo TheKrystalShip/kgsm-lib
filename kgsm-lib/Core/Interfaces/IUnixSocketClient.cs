@@ -1,19 +1,14 @@
 namespace TheKrystalShip.KGSM.Core.Interfaces;
 
 /// <summary>
-/// Interface for a Unix socket client that listens for events.
+/// An <see cref="IEventSource"/> that receives events over a Unix domain socket it binds and
+/// the engine connects to per event.
 /// </summary>
-public interface IUnixSocketClient : IDisposable
+/// <remarks>
+/// Binding is exclusive: one process per path. That is why every consumer needs a socket path
+/// of its own and why the engine must be configured with the list of them — a constraint the
+/// journal transport (<see cref="IEventJournalReader"/>) does not have.
+/// </remarks>
+public interface IUnixSocketClient : IEventSource
 {
-    /// <summary>
-    /// Event that is triggered when a message is received from the Unix socket.
-    /// </summary>
-    event Func<string, Task>? EventReceived;
-
-    /// <summary>
-    /// Starts listening for events on the Unix socket.
-    /// </summary>
-    /// <param name="token">Cancellation token to stop listening.</param>
-    /// <returns>A task that completes when listening is stopped.</returns>
-    Task StartListeningAsync(CancellationToken token);
 }

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
 using TheKrystalShip.KGSM.Services;
@@ -11,7 +12,8 @@ namespace TheKrystalShip.KGSM.Extensions;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds KGSM services to the specified IServiceCollection.
+    /// Adds KGSM services to the specified IServiceCollection, receiving events over a Unix
+    /// socket.
     /// </summary>
     /// <param name="services">The IServiceCollection to add services to.</param>
     /// <param name="kgsmPath">The path to the KGSM executable.</param>
@@ -24,14 +26,62 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services, nameof(services));
 
-        if (string.IsNullOrWhiteSpace(kgsmPath))
-            throw new ArgumentNullException(nameof(kgsmPath), "KGSM path cannot be null, empty, or whitespace.");
-
         if (string.IsNullOrWhiteSpace(socketPath))
             throw new ArgumentNullException(nameof(socketPath), "Socket path cannot be null, empty, or whitespace.");
 
-        // Some services require the kgsmPath and socketPath, so we register them as options
-        services.AddSingleton(new KgsmOptions { KgsmPath = kgsmPath, SocketPath = socketPath });
+        return AddKgsmServices(services, new KgsmOptions
+        {
+            KgsmPath = kgsmPath,
+            SocketPath = socketPath,
+            EventTransport = KgsmEventTransport.Socket
+        });
+    }
+
+    /// <summary>
+    /// Adds KGSM services to the specified IServiceCollection, reading events from the engine's
+    /// event journal at its default location.
+    /// </summary>
+    /// <param name="services">The IServiceCollection to add services to.</param>
+    /// <param name="kgsmPath">The path to the KGSM executable.</param>
+    /// <returns>
+    /// The IServiceCollection so that additional calls can be chained.
+    /// </returns>
+    /// <remarks>
+    /// No path to configure and nothing to reserve: the journal is a well-known host location
+    /// that every consumer reads concurrently. This overload keeps no cursor, so it starts at
+    /// the tail of the journal on every run — set <see cref="KgsmOptions.EventCursorPath"/>
+    /// (or register an <see cref="IEventCursorStore"/>) through the options overload to have a
+    /// consumer resume where it left off.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">Thrown when services or kgsmPath are null.</exception>
+    public static IServiceCollection AddKgsmServices(this IServiceCollection services, string kgsmPath)
+    {
+        ArgumentNullException.ThrowIfNull(services, nameof(services));
+
+        return AddKgsmServices(services, new KgsmOptions
+        {
+            KgsmPath = kgsmPath,
+            EventTransport = KgsmEventTransport.Journal
+        });
+    }
+
+    /// <summary>
+    /// Registers every KGSM service from a fully-built options object.
+    /// </summary>
+    /// <param name="services">The IServiceCollection to add services to.</param>
+    /// <param name="options">The KGSM options.</param>
+    /// <returns>The IServiceCollection so that additional calls can be chained.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when services, options, or the KGSM path are null.</exception>
+    private static IServiceCollection AddKgsmCore(IServiceCollection services, KgsmOptions options)
+    {
+        string kgsmPath = options.KgsmPath;
+
+        if (string.IsNullOrWhiteSpace(kgsmPath))
+            throw new ArgumentNullException(nameof(options), "KGSM path cannot be null, empty, or whitespace.");
+
+        // Some services require the kgsmPath and the transport settings, so we register the
+        // whole options object.
+        services.AddSingleton(options);
 
         // Transient services
         services.AddTransient<IProcessRunner, ProcessRunner>();
@@ -52,9 +102,27 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IRconClient, RconClient>();
 
         // Singleton services
-        services.AddSingleton<IUnixSocketClient, UnixSocketClient>();
         services.AddSingleton<IEventService, EventService>();
         services.AddSingleton<IKgsmClient, KgsmClient>();
+
+        // The event transport. EventService resolves IEventSource and never learns which one
+        // it got, so a consumer changes transport here and nowhere else. A consumer that wants
+        // its own cursor storage — one that already owns a database should — registers its own
+        // IEventCursorStore after this call, which wins by last-registration.
+        if (options.EventTransport == KgsmEventTransport.Journal)
+        {
+            services.AddSingleton<IEventCursorStore>(sp => string.IsNullOrWhiteSpace(options.EventCursorPath)
+                ? new NullEventCursorStore()
+                : new FileEventCursorStore(options, sp.GetRequiredService<ILogger<FileEventCursorStore>>()));
+
+            services.AddSingleton<IEventJournalReader, EventJournalReader>();
+            services.AddSingleton<IEventSource>(sp => sp.GetRequiredService<IEventJournalReader>());
+        }
+        else
+        {
+            services.AddSingleton<IUnixSocketClient, UnixSocketClient>();
+            services.AddSingleton<IEventSource>(sp => sp.GetRequiredService<IUnixSocketClient>());
+        }
 
         return services;
     }
@@ -76,7 +144,7 @@ public static class ServiceCollectionExtensions
         var options = new KgsmOptions();
         configureOptions(options);
 
-        return AddKgsmServices(services, options.KgsmPath, options.SocketPath);
+        return AddKgsmServices(services, options);
     }
 
     /// <summary>
@@ -88,12 +156,18 @@ public static class ServiceCollectionExtensions
     /// The IServiceCollection so that additional calls can be chained.
     /// </returns>
     /// <exception cref="ArgumentNullException">Thrown when services or options are null.</exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when the socket transport is selected with no socket path.
+    /// </exception>
     public static IServiceCollection AddKgsmServices(this IServiceCollection services, KgsmOptions options)
     {
         ArgumentNullException.ThrowIfNull(services, nameof(services));
         ArgumentNullException.ThrowIfNull(options, nameof(options));
 
-        return AddKgsmServices(services, options.KgsmPath, options.SocketPath);
+        if (options.EventTransport == KgsmEventTransport.Socket && string.IsNullOrWhiteSpace(options.SocketPath))
+            throw new ArgumentException("Socket path cannot be null, empty, or whitespace.", nameof(options));
+
+        return AddKgsmCore(services, options);
     }
 
     /// <summary>
