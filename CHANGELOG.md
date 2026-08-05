@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`InstanceStopStartedData` / `InstanceStopFinishedData`** — the typed halves of kgsm's shutdown
+  bracket (`instance_stop_started` / `instance_stop_finished`, kgsm 3.7.3-rc1), registered in the
+  event-type map and in `KgsmJsonContext` so an AOT consumer can deserialize them. They give `stop`
+  the shape `update` already has: a consumer learns that an instance is shutting down for as long as
+  the supervisor waits for the game to drain, from the journal alone, whichever entrypoint drove it.
+  Finished is emitted on every outcome — it says the run ended, while `InstanceStoppedData` remains
+  the separate fact that the instance is down.
+
 ### Added — player moderation
 
 - **`IInstanceService.Kick` / `Ban` / `Unban`**, each taking the instance, the target, and the

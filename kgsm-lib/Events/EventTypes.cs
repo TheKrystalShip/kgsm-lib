@@ -199,6 +199,24 @@ public class InstanceDeployedData : EventDataBase
 }
 
 /// <summary>
+/// Event data for when an instance's shutdown starts — the supervisor has asked the game to stop and
+/// is waiting for it to drain. The matching <see cref="InstanceStopFinishedData"/> ends the run
+/// whatever its outcome; <see cref="InstanceStoppedData"/> is the separate fact that the instance is
+/// actually down.
+/// </summary>
+public class InstanceStopStartedData : EventDataBase
+{
+}
+
+/// <summary>
+/// Event data for when an instance's shutdown run ends. Emitted on every outcome — it states that
+/// the run ENDED, not that the instance stopped (see <see cref="InstanceStoppedData"/>).
+/// </summary>
+public class InstanceStopFinishedData : EventDataBase
+{
+}
+
+/// <summary>
 /// Event data for when an instance update starts.
 /// </summary>
 public class InstanceUpdateStartedData : EventDataBase
