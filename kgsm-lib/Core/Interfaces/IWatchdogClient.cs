@@ -100,11 +100,13 @@ public interface IWatchdogClient : IDisposable
     /// Requests the daemon atomically restart <paramref name="instanceName"/>:
     /// stops the process, waits for the cgroup to drain, then respawns it.
     /// Does not increment the crash-recovery streak (this is an intentional restart).
-    /// The <paramref name="origin"/> is stamped on the emitted audit event
-    /// (e.g. pass <c>"scheduler"</c> for scheduler-driven restarts).
+    /// The <paramref name="origin"/> names the REQUESTING LEAF, and the daemon attributes the
+    /// emitted audit event to it — as <c>system:&lt;origin&gt;</c>, the actor form a consumer reads
+    /// as an autonomous leaf rather than as a person on the local host. The event's own origin is
+    /// <c>system</c>, since a leaf-driven restart has no human surface behind it.
     /// </summary>
     /// <param name="instanceName">The instance to restart.</param>
-    /// <param name="origin">Audit origin label (default <c>"scheduler"</c>).</param>
+    /// <param name="origin">The requesting leaf, e.g. <c>"scheduler"</c> (the default).</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     Task<WatchdogActionResult> RestartAsync(
         string instanceName,
