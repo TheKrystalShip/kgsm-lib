@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`InstanceRestartStartedData` / `InstanceRestartFinishedData`** — the typed halves of kgsm's restart
+  bracket (`instance_restart_started` / `instance_restart_finished`, kgsm 3.7.4-rc1), registered in the
+  event-type map and in `KgsmJsonContext`. A restart runs its stop and its start internally, so no
+  other event fires between them: this pair is the only thing that spans the run, and it completes the
+  set — update, stop and restart are all bracketed the same way now. Finished says the run ended;
+  `InstanceRestartedData` remains the separate fact that the instance came back.
+
 ### Added — `IEventJournalHistory`, reading the journal back
 
 Querying what the engine did, as the companion to `IEventJournalReader`'s tailing of it. Both read

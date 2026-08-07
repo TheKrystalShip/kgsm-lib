@@ -199,6 +199,25 @@ public class InstanceDeployedData : EventDataBase
 }
 
 /// <summary>
+/// Event data for when an instance's restart starts — it is going down and coming back. The matching
+/// <see cref="InstanceRestartFinishedData"/> ends the run whatever its outcome;
+/// <see cref="InstanceRestartedData"/> is the separate fact that the instance came back. A restart
+/// runs the stop and the start internally, so neither the stop bracket nor the start/stop events fire
+/// inside it — this pair is the only thing that spans the run.
+/// </summary>
+public class InstanceRestartStartedData : EventDataBase
+{
+}
+
+/// <summary>
+/// Event data for when an instance's restart run ends. Emitted on every outcome — it states that the
+/// run ENDED, not that the instance came back (see <see cref="InstanceRestartedData"/>).
+/// </summary>
+public class InstanceRestartFinishedData : EventDataBase
+{
+}
+
+/// <summary>
 /// Event data for when an instance's shutdown starts — the supervisor has asked the game to stop and
 /// is waiting for it to drain. The matching <see cref="InstanceStopFinishedData"/> ends the run
 /// whatever its outcome; <see cref="InstanceStoppedData"/> is the separate fact that the instance is
