@@ -36,17 +36,22 @@ public interface IEventService : IDisposable, IAsyncDisposable
     void RegisterHandler<T>(Func<T, Task> handler) where T : KgsmEventDataBase;
 
     /// <summary>
-    /// Registers a handler that receives the full <see cref="EventWrapper"/> envelope
-    /// for every event the socket delivers — including event types with no
-    /// <see cref="RegisterHandler{T}"/> mapping (e.g. a new engine event a caller has
+    /// Registers a handler that receives the full <see cref="EventWrapper"/> envelope, and
+    /// the journal position identifying it, for every event delivered — including event types
+    /// with no <see cref="RegisterHandler{T}"/> mapping (e.g. a new engine event a caller has
     /// no model for yet). Fires independently of, and before, typed dispatch; it never
     /// suppresses a typed handler. A raw handler that throws is caught and logged per
-    /// invocation, so it can never stop the socket read loop or block other handlers
-    /// (raw or typed). Multiple raw handlers may be registered; each runs for every
-    /// envelope.
+    /// invocation, so it can never stop the read loop or block other handlers (raw or typed).
+    /// Multiple raw handlers may be registered; each runs for every envelope.
     /// </summary>
-    /// <param name="handler">The handler function to invoke with the full envelope.</param>
-    void RegisterRawHandler(Func<EventWrapper, Task> handler);
+    /// <remarks>
+    /// The position is what a handler needs to name the event the same way a history read
+    /// does — see <see cref="TheKrystalShip.KGSM.Events.AuditId.ForPosition"/>. A typed handler
+    /// never sees it, so a consumer that needs the id inside one registers a raw handler to
+    /// capture it first.
+    /// </remarks>
+    /// <param name="handler">The handler to invoke with the envelope and its position.</param>
+    void RegisterRawHandler(Func<EventWrapper, EventPosition, Task> handler);
 
     /// <summary>
     /// Registers a handler invoked when the transport cannot resume where this consumer left

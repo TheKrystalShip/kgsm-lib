@@ -69,7 +69,7 @@ public sealed class EventJournalReader : IEventJournalReader
     private bool _disposed;
 
     /// <inheritdoc/>
-    public event Func<string, Task>? EventReceived;
+    public event Func<string, EventPosition, Task>? EventReceived;
 
     /// <inheritdoc/>
     public event Func<EventJournalGap, Task>? GapDetected;
@@ -423,6 +423,11 @@ public sealed class EventJournalReader : IEventJournalReader
                         continue;
 
                     partial.Write(buffer, start, i - start);
+
+                    // `consumed` sits just past the previous line's newline, which is exactly
+                    // where this line begins — captured before it advances, because that offset
+                    // is the event's identity for as long as the segment exists.
+                    long lineStart = consumed;
                     consumed = bufferStart + i + 1;
                     start = i + 1;
 
@@ -432,7 +437,7 @@ public sealed class EventJournalReader : IEventJournalReader
                     partial.SetLength(0);
 
                     if (line.Length > 0)
-                        await EmitAsync(line).ConfigureAwait(false);
+                        await EmitAsync(line, new EventPosition(segment, lineStart)).ConfigureAwait(false);
                 }
 
                 // Whatever follows the last newline is an incomplete line. It stays out of
@@ -446,18 +451,18 @@ public sealed class EventJournalReader : IEventJournalReader
     }
 
     /// <summary>
-    /// Hands one raw envelope to the subscriber. A throwing subscriber is logged and the read
-    /// continues: one bad event never stalls the journal.
+    /// Hands one raw envelope, and where it sits, to the subscriber. A throwing subscriber is
+    /// logged and the read continues: one bad event never stalls the journal.
     /// </summary>
-    private async Task EmitAsync(string line)
+    private async Task EmitAsync(string line, EventPosition position)
     {
-        Func<string, Task>? handler = EventReceived;
+        Func<string, EventPosition, Task>? handler = EventReceived;
         if (handler is null)
             return;
 
         try
         {
-            await handler(line).ConfigureAwait(false);
+            await handler(line, position).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

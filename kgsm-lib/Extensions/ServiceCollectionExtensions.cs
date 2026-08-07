@@ -87,6 +87,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IEventJournalReader, EventJournalReader>();
         services.AddSingleton<IEventSource>(sp => sp.GetRequiredService<IEventJournalReader>());
 
+        // Reading back over the journal, as opposed to tailing it. It shares nothing with the
+        // reader above but the directory: it holds no position, starts nothing, and each query
+        // stands alone — so a consumer can take history without taking a live subscription.
+        services.AddSingleton<IEventJournalHistory, EventJournalHistory>();
+
         return services;
     }
 

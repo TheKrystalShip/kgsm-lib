@@ -110,6 +110,35 @@ payloads compact for that reason, and only complete lines are dispatched. Anythi
 rewrites a segment in place (a log rotator's `copytruncate`) invalidates every cursor into it,
 which is why retention deletes whole segments and never truncates one.
 
+**Every event carries its position.** `IEventSource.EventReceived` and
+`IEventService.RegisterRawHandler` both take an `EventPosition` (segment + byte offset)
+alongside the envelope. That position is the event's *identity*: one line per event and
+whole-segment retention together mean no two events share one and an event's never changes.
+`AuditId.ForPosition` turns it into `evt_<segment>_<offset>` — unique by construction, and
+ordered like the file, so the same value works as an id and as a pagination cursor. Only raw
+handlers see it; a consumer that needs the id inside a *typed* handler captures it from a raw
+handler first (raw handlers run before typed dispatch, for every envelope).
+
+### 4·a. Reading history back
+
+`IEventJournalHistory.QueryAsync` is the other half of the journal: `IEventJournalReader`
+tails it for what happens next, this reads back over what it already holds. **There is no index
+and no cache** — the point is that nothing can disagree with the record, go stale, or need
+rebuilding. A per-query scan is affordable because segments are date-named (a window is narrowed
+by file *name* before one is opened), they're read newest-first with an early exit, and each is
+streamed forward once into a ring buffer the size of the page.
+
+The three fields that keep an answer honest are not optional decoration. `CoverageFrom` is the
+oldest moment the journal can still answer for — a window reaching earlier is answered only from
+there. `JournalReadable` separates "cannot see" from "nothing happened". `Truncated` says the
+scan hit `KgsmOptions.EventHistoryScanBudgetBytes` and the page is a prefix. A consumer that
+drops these turns a partial history into one that reads as complete, which is the exact failure
+the journal exists to prevent.
+
+An event with no timestamp is **dropped and logged**, never given a substitute — it cannot be
+placed in a time-ordered history, and inventing a moment for it puts something that never
+happened into the audit trail.
+
 ### 5. Async Patterns (Critical)
 
 **Always use `ConfigureAwait(false)` in library code** to avoid deadlocks:

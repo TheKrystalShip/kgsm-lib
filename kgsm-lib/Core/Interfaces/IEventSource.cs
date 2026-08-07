@@ -1,3 +1,5 @@
+using TheKrystalShip.KGSM.Core.Models;
+
 namespace TheKrystalShip.KGSM.Core.Interfaces;
 
 /// <summary>
@@ -8,11 +10,16 @@ namespace TheKrystalShip.KGSM.Core.Interfaces;
 public interface IEventSource : IDisposable
 {
     /// <summary>
-    /// Raised once per event envelope received, with the raw JSON. A handler that throws is
-    /// logged and swallowed by the transport: one unparseable or mishandled event never
-    /// stops the stream.
+    /// Raised once per event envelope received, with the raw JSON and where it sits in the
+    /// journal. A handler that throws is logged and swallowed by the transport: one unparseable
+    /// or mishandled event never stops the stream.
     /// </summary>
-    event Func<string, Task>? EventReceived;
+    /// <remarks>
+    /// The position travels with the envelope so a consumer watching events arrive names them
+    /// exactly as one reading history back does. A transport that cannot supply one passes
+    /// <see cref="EventPosition.None"/> rather than a plausible-looking substitute.
+    /// </remarks>
+    event Func<string, EventPosition, Task>? EventReceived;
 
     /// <summary>
     /// Runs the transport until <paramref name="token"/> is cancelled. Long-running: callers

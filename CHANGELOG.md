@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `IEventJournalHistory`, reading the journal back
+
+Querying what the engine did, as the companion to `IEventJournalReader`'s tailing of it. Both read
+the same segments, and neither needs anything running besides the engine that wrote them — so a
+host answers for its own history with no daemon, no index, and no leaf installed.
+
+```csharp
+EventHistoryPage page = await history.QueryAsync(new EventHistoryQuery
+{
+    Instance = "factorio", SinceMs = since, Limit = 50
+});
+```
+
+Filters are `Instance`, `Blueprint`, `Type`, `SinceMs`, `UntilMs`, ANDed, each optional. `Instance`
+and `Blueprint` are orthogonal: a server and the blueprint it was built from routinely share a name,
+and a query for one never returns the other. Results are newest-first, keyset-paged through `Before`
+/ `NextCursor`, and `Limit` is clamped to `[1, 1000]`.
+
+There is no index and no cache, which is what stops a second copy from disagreeing with the record.
+Segments are named by date, so a bounded window is narrowed by file *name* before one is opened;
+segments are read newest-first and the scan stops when the page fills; and each is streamed forward
+once with matches held in a ring buffer the size of the page, so memory is bounded by the page and
+no file is read backwards or loaded whole. `KgsmOptions.EventHistoryScanBudgetBytes` (64 MiB) bounds
+the read regardless, and hitting it sets `Truncated` rather than passing off a prefix as the whole
+answer.
+
+Three signals keep a partial answer from reading as a complete one. `CoverageFrom` is the oldest
+moment the journal can still answer for — retention deletes whole segments oldest-first, so it is
+exact. `JournalReadable` distinguishes an unreadable journal from one that matched nothing.
+`Truncated` reports a budgeted scan. A query never throws for a missing or unreadable journal; an
+event carrying no timestamp is reported and dropped rather than given a fabricated one.
+
+### Changed — events carry their journal position (**breaking**)
+
+`IEventService.RegisterRawHandler` takes `Func<EventWrapper, EventPosition, Task>`, and
+`IEventSource.EventReceived` takes `Func<string, EventPosition, Task>`.
+
+`EventPosition` is the segment and the byte offset an event's line begins at. Because each event is
+one whole line and retention deletes whole segments rather than rewriting them, no two events share
+a position and an event's position never changes — so `AuditId.ForPosition` turns it into a stable
+id. That is what lets a consumer watching events arrive and a consumer reading history back name the
+same event identically with no coordination: one takes the position from the transport, the other
+from the file, and both compute the same id.
+
+Only a raw handler receives it; typed dispatch does not, so a consumer needing the id inside a typed
+handler captures it from a raw handler first.
+
+### Added — `AuditId.ForPosition` / `TryParsePosition`
+
+`evt_<segment>_<offset>`, e.g. `evt_2026-08-07_000000001234`. Unique by construction, and ordered
+like the file — segment names are equal-width dates and the offset is fixed-width, so comparing two
+ids as plain strings compares their positions in the journal. One value therefore serves as both
+identity and pagination cursor.
+
+`AuditId.ForEvent` remains, for a caller holding an envelope with no position to hand. It hashes a
+timestamp of one-second granularity and so cannot distinguish two identical events emitted within
+the same second; `ForPosition` can, and is what the audit trail is keyed on.
+
 ### Added
 
 - **`InstanceStopStartedData` / `InstanceStopFinishedData`** — the typed halves of kgsm's shutdown

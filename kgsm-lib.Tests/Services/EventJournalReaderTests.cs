@@ -106,7 +106,7 @@ public sealed class EventJournalReaderTests : IDisposable
         Func<ConcurrentQueue<string>, Task> body)
     {
         var received = new ConcurrentQueue<string>();
-        reader.EventReceived += line =>
+        reader.EventReceived += (line, _) =>
         {
             received.Enqueue(line);
             return Task.CompletedTask;
@@ -491,7 +491,7 @@ public sealed class EventJournalReaderTests : IDisposable
         EventJournalReader reader = CreateReader(EventStartPosition.Oldest, new MemoryCursorStore());
 
         var seen = new ConcurrentQueue<string>();
-        reader.EventReceived += line =>
+        reader.EventReceived += (line, _) =>
         {
             seen.Enqueue(line);
             throw new InvalidOperationException("handler blew up");

@@ -109,7 +109,7 @@ public class EventService : IEventService, IAsyncDisposable
     /// Handlers registered via <see cref="RegisterRawHandler"/>, invoked with the full
     /// envelope for every deserialized event regardless of typed dispatch.
     /// </summary>
-    private readonly List<Func<EventWrapper, Task>> _rawHandlers = new();
+    private readonly List<Func<EventWrapper, EventPosition, Task>> _rawHandlers = new();
 
     /// <summary>
     /// Handlers registered via <see cref="RegisterGapHandler"/>, invoked when the transport
@@ -311,7 +311,7 @@ public class EventService : IEventService, IAsyncDisposable
     }
 
     /// <inheritdoc/>
-    public void RegisterRawHandler(Func<EventWrapper, Task> handler)
+    public void RegisterRawHandler(Func<EventWrapper, EventPosition, Task> handler)
     {
         ObjectDisposedException.ThrowIf(_disposed, nameof(EventService));
         ArgumentNullException.ThrowIfNull(handler, nameof(handler));
@@ -360,10 +360,11 @@ public class EventService : IEventService, IAsyncDisposable
     }
 
     /// <summary>
-    /// Event handler for receiving events from the Unix socket.
+    /// Handles one envelope delivered by the transport.
     /// </summary>
-    /// <param name="message">The event message received from the Unix socket.</param>
-    private async Task OnEventReceivedAsync(string message)
+    /// <param name="message">The raw event envelope.</param>
+    /// <param name="position">Where the envelope sits in the journal, for handlers that key on it.</param>
+    private async Task OnEventReceivedAsync(string message, EventPosition position)
     {
         // Ignore events after disposal
         if (_disposed)
@@ -385,7 +386,7 @@ public class EventService : IEventService, IAsyncDisposable
 
             // Raw handlers see every envelope — known or unknown EventType — before
             // typed dispatch runs, and never suppress it.
-            await InvokeRawHandlersAsync(eventWrapper).ConfigureAwait(false);
+            await InvokeRawHandlersAsync(eventWrapper, position).ConfigureAwait(false);
 
             if (_eventTypeMapping.TryGetValue(eventWrapper.EventType, out var targetType))
             {
@@ -451,17 +452,17 @@ public class EventService : IEventService, IAsyncDisposable
     /// <summary>
     /// Invokes every registered raw handler with the full envelope, independent of
     /// typed dispatch. Each invocation is isolated in its own try/catch so one
-    /// throwing (or slow-to-fault) handler can't stop the others or the socket read
-    /// loop.
+    /// throwing (or slow-to-fault) handler can't stop the others or the read loop.
     /// </summary>
     /// <param name="eventWrapper">The deserialized event envelope.</param>
-    private async Task InvokeRawHandlersAsync(EventWrapper eventWrapper)
+    /// <param name="position">Where the envelope sits in the journal.</param>
+    private async Task InvokeRawHandlersAsync(EventWrapper eventWrapper, EventPosition position)
     {
-        foreach (Func<EventWrapper, Task> rawHandler in _rawHandlers)
+        foreach (Func<EventWrapper, EventPosition, Task> rawHandler in _rawHandlers)
         {
             try
             {
-                await rawHandler(eventWrapper).ConfigureAwait(false);
+                await rawHandler(eventWrapper, position).ConfigureAwait(false);
             }
             catch (Exception ex)
             {

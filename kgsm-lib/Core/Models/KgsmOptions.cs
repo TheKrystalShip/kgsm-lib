@@ -41,6 +41,20 @@ public class KgsmOptions
     public EventStartPosition EventStartPosition { get; set; } = EventStartPosition.CursorOrTail;
 
     /// <summary>
+    /// The scan budget one history query may read, used when <see cref="EventHistoryScanBudgetBytes"/>
+    /// is not set. Generous against a journal that measures in single-digit megabytes over a
+    /// full retention window, and low enough that a pathological query cannot read for minutes.
+    /// </summary>
+    public const long DefaultEventHistoryScanBudgetBytes = 64L * 1024 * 1024;
+
+    /// <summary>
+    /// Gets or sets the most bytes a single <see cref="Interfaces.IEventJournalHistory"/> query
+    /// may read. A query that reaches the budget returns what it found and reports itself
+    /// truncated, rather than reading unbounded or silently answering from part of the window.
+    /// </summary>
+    public long EventHistoryScanBudgetBytes { get; set; } = DefaultEventHistoryScanBudgetBytes;
+
+    /// <summary>
     /// Gets or sets the per-operation process timeouts. Defaults are generous
     /// (see <see cref="KgsmTimeoutOptions"/>) so slow installs/updates aren't
     /// killed out of the box; override any tier to tune.
