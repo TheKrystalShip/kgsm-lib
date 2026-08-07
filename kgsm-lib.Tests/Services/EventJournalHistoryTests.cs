@@ -240,10 +240,12 @@ public sealed class EventJournalHistoryTests : IDisposable
         EventJournalHistory history = CreateHistory();
 
         EventHistoryPage full = await history.QueryAsync(new EventHistoryQuery { Limit = 5 });
-        Assert.NotNull(full.NextCursor);
+        Assert.NotNull(full.NextCursorTsMs);
+        Assert.NotNull(full.NextCursorId);
 
         EventHistoryPage partial = await history.QueryAsync(new EventHistoryQuery { Limit = 50 });
-        Assert.Null(partial.NextCursor);
+        Assert.Null(partial.NextCursorTsMs);
+        Assert.Null(partial.NextCursorId);
     }
 
     /// <summary>
@@ -263,15 +265,17 @@ public sealed class EventJournalHistoryTests : IDisposable
 
         EventJournalHistory history = CreateHistory();
         var seen = new List<string>();
-        string? cursor = null;
+        long? cursorTs = null;
+        string? cursorId = null;
 
         for (int guard = 0; guard < 50; guard++)
         {
-            EventHistoryPage page = await history.QueryAsync(new EventHistoryQuery { Limit = 4, Before = cursor });
+            EventHistoryPage page = await history.QueryAsync(
+                new EventHistoryQuery { Limit = 4, BeforeTsMs = cursorTs, BeforeId = cursorId });
             seen.AddRange(page.Events.Select(e => e.Id));
 
-            cursor = page.NextCursor;
-            if (cursor is null)
+            (cursorTs, cursorId) = (page.NextCursorTsMs, page.NextCursorId);
+            if (cursorTs is null)
                 break;
         }
 
@@ -291,15 +295,17 @@ public sealed class EventJournalHistoryTests : IDisposable
 
         EventJournalHistory history = CreateHistory();
         var seen = new List<string>();
-        string? cursor = null;
+        long? cursorTs = null;
+        string? cursorId = null;
 
         for (int guard = 0; guard < 20; guard++)
         {
-            EventHistoryPage page = await history.QueryAsync(new EventHistoryQuery { Limit = 2, Before = cursor });
+            EventHistoryPage page = await history.QueryAsync(
+                new EventHistoryQuery { Limit = 2, BeforeTsMs = cursorTs, BeforeId = cursorId });
             seen.AddRange(page.Events.Select(e => e.Id));
 
-            cursor = page.NextCursor;
-            if (cursor is null)
+            (cursorTs, cursorId) = (page.NextCursorTsMs, page.NextCursorId);
+            if (cursorTs is null)
                 break;
         }
 
@@ -319,21 +325,50 @@ public sealed class EventJournalHistoryTests : IDisposable
     }
 
     /// <summary>
-    /// A cursor the journal cannot resolve — a content-derived id, or a position in a segment
-    /// retention has deleted — yields the newest page rather than an error or an empty one. The
-    /// caller asked for history and history exists; what it cannot have is a resumption point.
+    /// The cursor id may belong to another source entirely — a caller merging this history with its
+    /// own rows pages both from one cursor, and the row it lands on is often not an engine event.
+    /// The timestamp still bounds the page; the foreign id only ever loses a tie. Treating an
+    /// unresolvable id as "no cursor" instead would restart from the newest page every time the
+    /// other source supplied the boundary row, and the caller would page forever.
     /// </summary>
-    [Theory]
-    [InlineData("evt_0bded270b551c060")]
-    [InlineData("evt_1999-01-01_000000000000")]
-    [InlineData("not-an-id")]
-    public async Task QueryAsync_UnresolvableCursor_ReturnsTheNewestPage(string cursor)
+    [Fact]
+    public async Task QueryAsync_CursorIdFromAnotherSource_StillBoundsThePage()
     {
-        Append("2026-08-04.ndjson", Envelope("instance_started", "2026-08-04T10:00:00Z", instance: "factorio"));
+        Append("2026-08-04.ndjson",
+            Envelope("instance_started", "2026-08-04T09:00:00Z", instance: "factorio"),
+            Envelope("instance_started", "2026-08-04T12:00:00Z", instance: "factorio"),
+            Envelope("instance_started", "2026-08-04T15:00:00Z", instance: "factorio"));
 
-        EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery { Before = cursor });
+        EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery
+        {
+            BeforeTsMs = DateTimeOffset.Parse("2026-08-04T12:00:00Z").ToUnixTimeMilliseconds(),
+            BeforeId = "evt_0bded270b551c060"   // a content-derived id from the other feed
+        });
 
-        Assert.True(page.JournalReadable);
+        // The bound holds, and — the actual regression — the newest event is NOT back at the top of
+        // the page. Returning it would mean the cursor had been ignored, and a caller walking pages
+        // would loop over the same rows forever.
+        Assert.NotEmpty(page.Events);
+        Assert.All(page.Events, e => Assert.True(e.Ts <= DateTimeOffset.Parse("2026-08-04T12:00:00Z")));
+        Assert.DoesNotContain(page.Events, e => e.Ts == DateTimeOffset.Parse("2026-08-04T15:00:00Z"));
+    }
+
+    /// <summary>
+    /// A caller that pages purely by timestamp, with no tie-break, must still make progress rather
+    /// than stalling on a tied group.
+    /// </summary>
+    [Fact]
+    public async Task QueryAsync_CursorTimestampWithNoId_BoundsInclusively()
+    {
+        Append("2026-08-04.ndjson",
+            Envelope("instance_started", "2026-08-04T09:00:00Z", instance: "factorio"),
+            Envelope("instance_started", "2026-08-04T15:00:00Z", instance: "factorio"));
+
+        EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery
+        {
+            BeforeTsMs = DateTimeOffset.Parse("2026-08-04T09:00:00Z").ToUnixTimeMilliseconds()
+        });
+
         Assert.Single(page.Events);
     }
 

@@ -36,10 +36,22 @@ public sealed record EventHistoryQuery
     public long? UntilMs { get; init; }
 
     /// <summary>
-    /// An <see cref="EventHistoryEntry.Id"/> to page from — the result holds only events that
-    /// sort strictly after it in the returned order. Null starts at the newest event.
+    /// The timestamp half of the page cursor, in unix milliseconds — the result holds only events at
+    /// or before it. Null starts at the newest event.
     /// </summary>
-    public string? Before { get; init; }
+    /// <remarks>
+    /// The cursor is a <c>(timestamp, id)</c> pair rather than an id alone, so that a caller merging
+    /// this history with another source can page both from one cursor. The id it carries may well
+    /// belong to the other source and name no event here; the timestamp still bounds the page
+    /// correctly, which an id this reader cannot resolve could not do.
+    /// </remarks>
+    public long? BeforeTsMs { get; init; }
+
+    /// <summary>
+    /// The tie-break half of the page cursor: at exactly <see cref="BeforeTsMs"/>, only events whose
+    /// id sorts strictly below this one. Ignored without <see cref="BeforeTsMs"/>.
+    /// </summary>
+    public string? BeforeId { get; init; }
 
     /// <summary>The maximum number of events to return. Clamped to [1, <see cref="MaxLimit"/>].</summary>
     public int Limit { get; init; } = DefaultLimit;
@@ -53,11 +65,12 @@ public sealed record EventHistoryQuery
 /// tie-break. Empty is an honest "nothing matched", never a failure in disguise —
 /// <paramref name="JournalReadable"/> is what distinguishes the two.
 /// </param>
-/// <param name="NextCursor">
-/// The <see cref="EventHistoryQuery.Before"/> value for the following page, set only when this
+/// <param name="NextCursorTsMs">
+/// The <see cref="EventHistoryQuery.BeforeTsMs"/> value for the following page, set only when this
 /// page came back full. A partial page means there is nothing more to read, so the cursor is
 /// honestly null rather than pointing at an empty result.
 /// </param>
+/// <param name="NextCursorId">The matching <see cref="EventHistoryQuery.BeforeId"/>.</param>
 /// <param name="CoverageFrom">
 /// The oldest moment this journal can still answer for — the timestamp of the first event in
 /// the oldest surviving segment. A query whose window reaches earlier is answered only from
@@ -77,17 +90,18 @@ public sealed record EventHistoryQuery
 /// </param>
 public sealed record EventHistoryPage(
     IReadOnlyList<EventHistoryEntry> Events,
-    string? NextCursor,
+    long? NextCursorTsMs,
+    string? NextCursorId,
     DateTimeOffset? CoverageFrom,
     bool Truncated,
     bool JournalReadable)
 {
     /// <summary>A readable journal that matched nothing.</summary>
     public static EventHistoryPage Empty(DateTimeOffset? coverageFrom) =>
-        new([], null, coverageFrom, false, true);
+        new([], null, null, coverageFrom, false, true);
 
     /// <summary>An absent or unreadable journal.</summary>
-    public static readonly EventHistoryPage Unreadable = new([], null, null, false, false);
+    public static readonly EventHistoryPage Unreadable = new([], null, null, null, false, false);
 }
 
 /// <summary>

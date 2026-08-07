@@ -22,8 +22,14 @@ EventHistoryPage page = await history.QueryAsync(new EventHistoryQuery
 
 Filters are `Instance`, `Blueprint`, `Type`, `SinceMs`, `UntilMs`, ANDed, each optional. `Instance`
 and `Blueprint` are orthogonal: a server and the blueprint it was built from routinely share a name,
-and a query for one never returns the other. Results are newest-first, keyset-paged through `Before`
-/ `NextCursor`, and `Limit` is clamped to `[1, 1000]`.
+and a query for one never returns the other. Results are newest-first, keyset-paged through
+`BeforeTsMs`/`BeforeId` → `NextCursorTsMs`/`NextCursorId`, and `Limit` is clamped to `[1, 1000]`.
+
+The cursor is a `(timestamp, id)` pair, not an id alone, so a caller merging this history with
+another source can page both feeds from one cursor. The id it passes may belong to that other source
+and name no event here — it is only ever compared as a tie-break, never resolved against the
+journal. Resolving it would mean an id from the other feed read as "no cursor", and the caller would
+page the newest rows forever.
 
 There is no index and no cache, which is what stops a second copy from disagreeing with the record.
 Segments are named by date, so a bounded window is narrowed by file *name* before one is opened;

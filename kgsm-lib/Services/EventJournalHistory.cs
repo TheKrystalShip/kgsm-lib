@@ -89,32 +89,17 @@ public sealed class EventJournalHistory : IEventJournalHistory
 
         DateTimeOffset? coverageFrom = await ReadCoverageFromAsync(segments[0], cancellationToken).ConfigureAwait(false);
 
-        // The cursor names a position; the ORDER is by timestamp. Resolving the cursor's own
-        // timestamp lets the filter below use the same composite predicate the ordering does,
-        // rather than assuming file order and timestamp order agree everywhere.
-        Cursor? before = null;
-        if (!string.IsNullOrEmpty(query.Before))
-        {
-            before = await ResolveCursorAsync(query.Before, cancellationToken).ConfigureAwait(false);
-            if (before is null)
-            {
-                _logger.LogWarning(
-                    "Event history cursor {Cursor} does not name a readable journal position — returning the newest page instead",
-                    query.Before);
-            }
-        }
-
         var results = new List<EventHistoryEntry>(limit);
         long scanned = 0;
         bool truncated = false;
 
-        foreach (string segment in CandidateSegments(segments, query, before))
+        foreach (string segment in CandidateSegments(segments, query))
         {
             if (results.Count >= limit)
                 break;
 
             (List<EventHistoryEntry> matches, long bytes, bool budgetHit) = await ScanSegmentAsync(
-                segment, query, before, limit - results.Count, _budgetBytes - scanned, cancellationToken)
+                segment, query, limit - results.Count, _budgetBytes - scanned, cancellationToken)
                 .ConfigureAwait(false);
 
             scanned += bytes;
@@ -145,57 +130,15 @@ public sealed class EventJournalHistory : IEventJournalHistory
 
         // A full page might have more behind it; a partial one is the end of the road, so its
         // cursor is honestly null rather than pointing at an empty result.
-        string? next = results.Count == limit && results.Count > 0 ? results[^1].Id : null;
-
-        return new EventHistoryPage(results, next, coverageFrom, truncated, true);
-    }
-
-    /// <summary>A resolved pagination cursor: the position named, and the timestamp found there.</summary>
-    private readonly record struct Cursor(string Id, DateTimeOffset Ts, string Segment);
-
-    /// <summary>
-    /// Reads the event a cursor id points at, to recover the timestamp that orders it. Returns
-    /// null when the id is not a position id or names a position the journal no longer holds —
-    /// a cursor into a pruned segment, which is unusable rather than wrong.
-    /// </summary>
-    private async Task<Cursor?> ResolveCursorAsync(string id, CancellationToken token)
-    {
-        if (!AuditId.TryParsePosition(id, out string stem, out long offset))
-            return null;
-
-        string path = Path.Combine(_directory, stem + ".ndjson");
-        if (!File.Exists(path))
-            return null;
-
-        try
+        long? nextTs = null;
+        string? nextId = null;
+        if (results.Count == limit && results.Count > 0)
         {
-            await using var stream = new FileStream(
-                path, FileMode.Open, FileAccess.Read,
-                FileShare.ReadWrite | FileShare.Delete, ReadBufferSize, useAsync: true);
-
-            if (offset >= stream.Length)
-                return null;
-
-            stream.Seek(offset, SeekOrigin.Begin);
-            using var reader = new StreamReader(stream, Encoding.UTF8);
-            string? line = await reader.ReadLineAsync(token).ConfigureAwait(false);
-
-            if (string.IsNullOrWhiteSpace(line))
-                return null;
-
-            EventWrapper? wrapper = Deserialize(line, path, offset);
-            return wrapper?.Timestamp is { } ts ? new Cursor(id, ts, stem) : null;
+            nextTs = results[^1].Ts.ToUnixTimeMilliseconds();
+            nextId = results[^1].Id;
         }
-        catch (IOException ex)
-        {
-            _logger.LogDebug(ex, "Could not resolve the event history cursor {Cursor}", id);
-            return null;
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            _logger.LogDebug(ex, "Not permitted to resolve the event history cursor {Cursor}", id);
-            return null;
-        }
+
+        return new EventHistoryPage(results, nextTs, nextId, coverageFrom, truncated, true);
     }
 
     /// <summary>
@@ -209,7 +152,7 @@ public sealed class EventJournalHistory : IEventJournalHistory
     /// read, while excluding one that did costs a missing event.
     /// </remarks>
     private static IEnumerable<string> CandidateSegments(
-        IReadOnlyList<string> segments, EventHistoryQuery query, Cursor? before)
+        IReadOnlyList<string> segments, EventHistoryQuery query)
     {
         DateOnly? from = query.SinceMs is { } since
             ? DateOnly.FromDateTime(DateTimeOffset.FromUnixTimeMilliseconds(since).UtcDateTime - SegmentSlack)
@@ -219,11 +162,10 @@ public sealed class EventJournalHistory : IEventJournalHistory
             ? DateOnly.FromDateTime(DateTimeOffset.FromUnixTimeMilliseconds(until).UtcDateTime + SegmentSlack)
             : null;
 
-        // Nothing at or after the cursor's own position can qualify, so segments newer than its
-        // own are skipped — with the same one-day slack, since a straggler write can date an
-        // event slightly outside the segment that holds it.
-        DateOnly? cursorCeiling = before is { } c && DateOnly.TryParse(c.Segment, out DateOnly cursorDate)
-            ? cursorDate.AddDays(1)
+        // Nothing after the cursor's timestamp can qualify, so newer segments are skipped — with the
+        // same slack, since a straggler write can date an event slightly outside the segment holding it.
+        DateOnly? cursorCeiling = query.BeforeTsMs is { } cursorMs
+            ? DateOnly.FromDateTime(DateTimeOffset.FromUnixTimeMilliseconds(cursorMs).UtcDateTime + SegmentSlack)
             : null;
 
         for (int i = segments.Count - 1; i >= 0; i--)
@@ -254,7 +196,7 @@ public sealed class EventJournalHistory : IEventJournalHistory
     /// mid-segment.
     /// </returns>
     private async Task<(List<EventHistoryEntry> Matches, long Bytes, bool BudgetHit)> ScanSegmentAsync(
-        string segment, EventHistoryQuery query, Cursor? before, int wanted, long budget, CancellationToken token)
+        string segment, EventHistoryQuery query, int wanted, long budget, CancellationToken token)
     {
         var matches = new List<EventHistoryEntry>();
         string path = Path.Combine(_directory, segment);
@@ -336,7 +278,7 @@ public sealed class EventJournalHistory : IEventJournalHistory
                 }
 
                 string id = AuditId.ForPosition(stem, lineStart);
-                if (!Matches(wrapper, ts, id, query, before))
+                if (!Matches(wrapper, ts, id, query))
                     continue;
 
                 ring.Enqueue(new EventHistoryEntry(
@@ -383,7 +325,7 @@ public sealed class EventJournalHistory : IEventJournalHistory
 
     /// <summary>The authoritative filter, applied to a parsed envelope.</summary>
     private static bool Matches(
-        EventWrapper wrapper, DateTimeOffset ts, string id, EventHistoryQuery query, Cursor? before)
+        EventWrapper wrapper, DateTimeOffset ts, string id, EventHistoryQuery query)
     {
         if (!string.IsNullOrEmpty(query.Type)
             && !string.Equals(wrapper.EventType, query.Type, StringComparison.Ordinal))
@@ -401,14 +343,16 @@ public sealed class EventJournalHistory : IEventJournalHistory
         if (query.SinceMs is { } since && tsMs < since) return false;
         if (query.UntilMs is { } until && tsMs > until) return false;
 
-        // The same composite predicate the ordering uses: strictly older, or the same instant
-        // and a lower id. Matching the sort exactly is what stops paging from repeating or
-        // skipping an event where several share a timestamp.
-        if (before is { } cursor)
+        // The same composite predicate the ordering uses: strictly older, or the same instant and a
+        // lower id. Matching the sort exactly is what stops paging from repeating or skipping an event
+        // where several share a timestamp. The id may name a row from another source entirely — a
+        // caller merging two feeds pages both from one cursor — so it is only ever compared, never
+        // resolved.
+        if (query.BeforeTsMs is { } cursorMs)
         {
-            long cursorMs = cursor.Ts.ToUnixTimeMilliseconds();
             if (tsMs > cursorMs) return false;
-            if (tsMs == cursorMs && string.CompareOrdinal(id, cursor.Id) >= 0) return false;
+            if (tsMs == cursorMs && query.BeforeId is { } cursorId
+                && string.CompareOrdinal(id, cursorId) >= 0) return false;
         }
 
         return true;
