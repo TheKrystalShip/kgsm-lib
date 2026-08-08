@@ -68,6 +68,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<ISystemService, SystemService>();
         services.AddTransient<IEventManagementService, EventManagementService>();
         services.AddTransient<IInstanceFiles, InstanceFiles>();
+        services.AddTransient<IInstanceBackups, InstanceBackups>();
         services.AddTransient<IBlueprintFiles, BlueprintFiles>();
         services.AddTransient<IRconClient, RconClient>();
 

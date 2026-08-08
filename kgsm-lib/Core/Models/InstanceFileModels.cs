@@ -303,3 +303,33 @@ public sealed record BlueprintWriteOptions
     /// honest fallback for one and never fabricates a surface.</summary>
     public string? Origin { get; init; }
 }
+
+/// <summary>
+/// An open read stream over a compressed backup's archive, with the facts needed to serve it honestly.
+/// </summary>
+/// <remarks>
+/// <see cref="Content"/> is owned by the caller and must be disposed. <see cref="Sha256"/> comes from the
+/// backup's own manifest — it is the digest recorded when the archive was written, so a consumer can
+/// hand it to whoever receives the bytes and let them verify independently. It is never recomputed here:
+/// re-hashing on every download would read the whole archive twice, and a digest computed from the same
+/// bytes being served proves nothing about whether they are the bytes the backup was made from.
+/// </remarks>
+/// <param name="Content">The open archive stream — the caller disposes it.</param>
+/// <param name="FileName">The archive's own file name (<c>data.tar.gz</c>).</param>
+/// <param name="SizeBytes">The archive's size on disk.</param>
+/// <param name="Mtime">When the archive was last written.</param>
+/// <param name="Sha256">The manifest's recorded digest of the archive; null when it recorded none.</param>
+public sealed record BackupArchive(
+    Stream Content,
+    string FileName,
+    long SizeBytes,
+    DateTimeOffset Mtime,
+    string? Sha256) : IDisposable
+{
+    /// <summary>Closes the underlying archive stream.</summary>
+    /// <remarks>
+    /// Idempotent, so handing <see cref="Content"/> to something that takes ownership of it (an
+    /// ASP.NET <c>FileStreamResult</c>, say) and also disposing this is safe rather than a double-free.
+    /// </remarks>
+    public void Dispose() => Content.Dispose();
+}

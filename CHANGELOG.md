@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`IInstanceBackups.OpenArchive(instance, backupId)`** — read access to a compressed backup's archive
+  bytes, plus the sha256 its manifest recorded. Its own service rather than a second root on
+  `IInstanceFiles`, because backups deliberately live OUTSIDE the working directory (uninstalling an
+  instance removes that directory wholesale and leaves the backups intact) — two roots with different
+  lifetimes, and folding them together would make "the instance's files" mean two things.
+
+  Only a **compressed** backup can be opened. An uncompressed one is a `data/` tree, not a single
+  artifact: there is nothing to hand over as one stream and no digest to verify it against, so it is
+  refused rather than tarred on the fly into something the manifest never described. The digest is the
+  manifest's, carried verbatim — recomputing it from the bytes being served would read the archive twice
+  and prove nothing about their provenance.
+
+  The **manifest is the gate**: a directory with no readable manifest is not a backup, which is what
+  keeps a half-built one (still staging) and a foreign directory invisible — the same rule the engine's
+  own listing applies, so the two cannot disagree about what exists.
+
+### Changed
+
+- **The path-containment jail is one implementation** (`InstanceJail`), shared by `InstanceFiles` and
+  `InstanceBackups` rather than written twice. Two jails that are "the same rules, written twice" drift,
+  and a drifted containment check is not a weaker guarantee but no guarantee — the weaker of the two is
+  the one an attacker picks. The roots differ per service; the rule does not.
+
 - **`IInstanceService.DeleteBackup(instance, backupId, actor, origin)`** — remove one backup by id.
   The engine accepts only an id it itself lists as a backup, so a directory in the backups store
   carrying no manifest is refused rather than removed.

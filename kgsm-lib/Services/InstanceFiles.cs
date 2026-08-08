@@ -18,10 +18,10 @@ namespace TheKrystalShip.KGSM.Services;
 /// jails — see <c>instance-filesystem-authority-plan.md</c>):
 /// <list type="number">
 /// <item>The root is <c>Instance.WorkingDir</c>, resolved fresh on every call (no caching — instances
-///   get reinstalled) and canonicalised via <see cref="CanonicalRealPath"/>.</item>
+///   get reinstalled) and canonicalised via <see cref="InstanceJail.CanonicalRealPath"/>.</item>
 /// <item>A candidate relative path is joined, then canonicalised the same way — resolving <c>.</c>/<c>..</c>
 ///   AND symlinks at EVERY path component (not just the leaf), following symlink chains up to
-///   <see cref="MaxSymlinkHops"/> — and the result must equal the root or be a <c>root + "/"</c>-prefixed
+///   <see cref="InstanceJail.MaxSymlinkHops"/> — and the result must equal the root or be a <c>root + "/"</c>-prefixed
 ///   descendant (ordinal), else <see cref="FileOpOutcome.OutOfJail"/>. A non-existent tail component is
 ///   accepted verbatim (so a create/rename target resolves).</item>
 /// <item>File-type gating is via <see cref="LibC.Lstat"/> (kgsm-lib's first P/Invoke): only
@@ -34,7 +34,6 @@ namespace TheKrystalShip.KGSM.Services;
 /// </remarks>
 public sealed class InstanceFiles : IInstanceFiles
 {
-    private const int MaxSymlinkHops = 64;    // symlink-loop guard
     private const int BinaryScanBytes = 8192; // NUL-byte scan window
 
     private readonly IInstanceService _instances;
@@ -56,7 +55,7 @@ public sealed class InstanceFiles : IInstanceFiles
 
         if (!TryRoot(instance, out string root, out FileOpOutcome rootFailure))
             return FileOpResult<DirListing>.Fail(rootFailure);
-        if (!TryResolve(root, subdir, out string real, out _))
+        if (!InstanceJail.TryResolve(root, subdir, out string real, out _))
             return FileOpResult<DirListing>.Fail(FileOpOutcome.OutOfJail);
 
         LstatKind kind = LibC.Lstat(real);
@@ -99,7 +98,7 @@ public sealed class InstanceFiles : IInstanceFiles
 
         if (!TryRoot(instance, out string root, out FileOpOutcome rootFailure))
             return FileOpResult<FileContent>.Fail(rootFailure);
-        if (!TryResolve(root, relPath, out string real, out _))
+        if (!InstanceJail.TryResolve(root, relPath, out string real, out _))
             return FileOpResult<FileContent>.Fail(FileOpOutcome.OutOfJail);
 
         LstatKind kind = LibC.Lstat(real);
@@ -144,7 +143,7 @@ public sealed class InstanceFiles : IInstanceFiles
 
         if (!TryRoot(instance, out string root, out FileOpOutcome rootFailure))
             return FileOpResult<FileStat>.Fail(rootFailure);
-        if (!TryResolve(root, relPath, out string real, out _))
+        if (!InstanceJail.TryResolve(root, relPath, out string real, out _))
             return FileOpResult<FileStat>.Fail(FileOpOutcome.OutOfJail);
 
         LstatKind kind = LibC.Lstat(real);
@@ -236,7 +235,7 @@ public sealed class InstanceFiles : IInstanceFiles
 
         if (!TryRoot(instance, out string root, out FileOpOutcome rootFailure))
             return FileOpResult.Fail(rootFailure);
-        if (!TryResolve(root, relPath, out string real, out _))
+        if (!InstanceJail.TryResolve(root, relPath, out string real, out _))
             return FileOpResult.Fail(FileOpOutcome.OutOfJail);
 
         LstatKind kind = LibC.Lstat(real);
@@ -280,9 +279,9 @@ public sealed class InstanceFiles : IInstanceFiles
 
         if (!TryRoot(instance, out string root, out FileOpOutcome rootFailure))
             return FileOpResult<FileStat>.Fail(rootFailure);
-        if (!TryResolve(root, fromRel, out string fromReal, out _))
+        if (!InstanceJail.TryResolve(root, fromRel, out string fromReal, out _))
             return FileOpResult<FileStat>.Fail(FileOpOutcome.OutOfJail);
-        if (!TryResolve(root, toRel, out string toReal, out _))
+        if (!InstanceJail.TryResolve(root, toRel, out string toReal, out _))
             return FileOpResult<FileStat>.Fail(FileOpOutcome.OutOfJail);
 
         LstatKind fromKind = LibC.Lstat(fromReal);
@@ -349,7 +348,7 @@ public sealed class InstanceFiles : IInstanceFiles
             return false;
         }
 
-        try { root = CanonicalRealPath(Path.GetFullPath(workingDir)); }
+        try { root = InstanceJail.CanonicalRealPath(Path.GetFullPath(workingDir)); }
         catch (IOException)
         {
             failure = FileOpOutcome.InstanceUnavailable; // e.g. a symlink loop in the working dir itself
@@ -360,83 +359,7 @@ public sealed class InstanceFiles : IInstanceFiles
 
     // ---- the jail (the load-bearing security boundary) -----------------------------------------
 
-    /// <summary>Resolves a caller-supplied relative path inside <paramref name="root"/>, following
-    /// symlinks at every component, and requires the real target to stay within (the real) <paramref
-    /// name="root"/>. Returns the resolved absolute path + the normalized relative path;
-    /// <see langword="false"/> ⇒ the target escapes the jail (or the input is malformed/unresolvable,
-    /// e.g. a symlink loop) and must be refused.</summary>
-    private static bool TryResolve(string root, string? relativePath, out string realTarget, out string normRel)
-    {
-        realTarget = "";
-        normRel = "";
 
-        string rel = (relativePath ?? "").Trim().Replace('\\', '/').Trim('/');
-        if (rel.IndexOf('\0') >= 0) return false; // NUL byte — never a legitimate path
-
-        string lexical = Path.GetFullPath(rel.Length == 0 ? root : Path.Combine(root, rel));
-        string real;
-        try { real = CanonicalRealPath(lexical); }
-        catch (IOException) { return false; } // symlink loop or similar — refuse rather than hang/throw
-
-        bool contained = string.Equals(real, root, StringComparison.Ordinal)
-            || real.StartsWith(root + "/", StringComparison.Ordinal);
-        if (!contained) { normRel = rel; return false; }
-
-        realTarget = real;
-        string display = Path.GetRelativePath(root, lexical);
-        normRel = display is "." or "" ? "" : display.Replace('\\', '/');
-        return true;
-    }
-
-    /// <summary>Canonical real path (POSIX <c>realpath</c>): resolves <c>.</c>, <c>..</c> AND symlinks at
-    /// EVERY path component — following symlink chains and re-resolving their targets — so an
-    /// intermediate-directory symlink (<c>working_dir/foo</c> → <c>/etc</c>, request <c>foo/passwd</c>) is
-    /// caught, which a single leaf-only resolve misses. A non-existent tail component is accepted
-    /// verbatim (so a create/rename target's not-yet-created name works). <paramref name="absolutePath"/>
-    /// must be rooted.</summary>
-    private static string CanonicalRealPath(string absolutePath)
-    {
-        var todo = new LinkedList<string>();
-        foreach (string p in absolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries))
-            todo.AddLast(p);
-
-        var resolved = new List<string>();
-        int hops = 0;
-        while (todo.First is { } node)
-        {
-            todo.RemoveFirst();
-            string comp = node.Value;
-            if (comp == ".") continue;
-            if (comp == "..")
-            {
-                if (resolved.Count > 0) resolved.RemoveAt(resolved.Count - 1);
-                continue;
-            }
-
-            string current = resolved.Count == 0 ? "/" + comp : "/" + string.Join('/', resolved) + "/" + comp;
-            string? link;
-            try { link = new FileInfo(current).LinkTarget; }
-            catch { link = null; }
-
-            if (link is null)
-            {
-                resolved.Add(comp); // not a symlink (or doesn't exist) → accept verbatim
-                continue;
-            }
-
-            if (++hops > MaxSymlinkHops)
-                throw new IOException("symlink chain too long (possible loop)");
-
-            // Expand: an absolute target restarts from root; a relative target is relative to the
-            // link's PARENT directory (= the current `resolved`, since `comp` was not pushed). Prepend
-            // the target's components to the work queue so they resolve against that parent.
-            string[] parts = link.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            if (Path.IsPathRooted(link)) resolved.Clear();
-            for (int i = parts.Length - 1; i >= 0; i--) todo.AddFirst(parts[i]);
-        }
-
-        return "/" + string.Join('/', resolved);
-    }
 
     // ---- helpers ---------------------------------------------------------------------------------
 
