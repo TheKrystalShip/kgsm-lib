@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`IInstanceService.DeleteBackup(instance, backupId, actor, origin)`** — remove one backup by id.
+  The engine accepts only an id it itself lists as a backup, so a directory in the backups store
+  carrying no manifest is refused rather than removed.
+
+- **`InstanceBackupDeletedData` and `InstanceBackupsPrunedData`** — the two backup-removal events,
+  registered in the type map and `KgsmJsonContext`. Separate types because they answer different
+  questions: a delete is an operator naming one snapshot, a prune is retention policy sweeping
+  whatever fell outside the keep window. The delete carries the backup id in `Source`; the prune
+  carries `Deleted`/`Kept` as ints, since one event covers the whole sweep and the ids it removed are
+  exactly the ones the instance no longer lists.
+
 ### Removed
 
 - **`IWatchdogClient.OpenUpnpAsync` / `CloseUpnpAsync`**, and the `WatchdogUpnpActionResult` /

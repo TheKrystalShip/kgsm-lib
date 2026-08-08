@@ -413,6 +413,44 @@ public class InstanceBackupRestoredData : EventDataBase
 }
 
 /// <summary>
+/// Event data for when one named instance backup is deleted.
+/// </summary>
+/// <remarks>
+/// Carries no version: the deleted backup's manifest is gone with it, and the instance's current
+/// version would be a fact about the instance rather than about the backup.
+/// </remarks>
+public class InstanceBackupDeletedData : EventDataBase
+{
+    /// <summary>
+    /// Gets or sets the id of the backup that was deleted.
+    /// </summary>
+    public string Source { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Event data for when retention swept an instance's old backups.
+/// </summary>
+/// <remarks>
+/// One event covers the whole sweep, so it reports counts rather than the ids it removed — the ids
+/// are exactly the ones the instance no longer lists. Distinct from
+/// <see cref="InstanceBackupDeletedData"/> because the two answer different questions: a delete is
+/// an operator naming one snapshot, a prune is policy running. A sweep that removed nothing emits
+/// no event at all, so <see cref="Deleted"/> is never zero on a received event.
+/// </remarks>
+public class InstanceBackupsPrunedData : EventDataBase
+{
+    /// <summary>
+    /// Gets or sets how many backups were actually removed — never how many were attempted.
+    /// </summary>
+    public int Deleted { get; set; }
+
+    /// <summary>
+    /// Gets or sets the retention window the sweep ran with (the number of most-recent backups kept).
+    /// </summary>
+    public int Kept { get; set; }
+}
+
+/// <summary>
 /// Event data for when instance files are removed.
 /// </summary>
 public class InstanceFilesRemovedData : EventDataBase

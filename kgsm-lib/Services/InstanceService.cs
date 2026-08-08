@@ -286,6 +286,18 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
+    public KgsmResult DeleteBackup(string instanceName, string backupName, string? actor = null, string? origin = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+        ArgumentException.ThrowIfNullOrWhiteSpace(backupName, nameof(backupName));
+
+        IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
+        return provenance is null
+            ? _commandExecutor.Execute(_timeouts.Backup, "instances", "delete-backup", instanceName, backupName)
+            : _commandExecutor.Execute(provenance, _timeouts.Backup, "instances", "delete-backup", instanceName, backupName);
+    }
+
+    /// <inheritdoc/>
     public KgsmResult RestoreBackup(string instanceName, string backupName, string? actor = null, string? origin = null)
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));

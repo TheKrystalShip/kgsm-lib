@@ -256,6 +256,23 @@ public interface IInstanceService
     KgsmResult PruneBackups(string instanceName, int keepN, string? actor = null, string? origin = null);
 
     /// <summary>
+    /// Deletes one of an instance's backups by id. There is no undo — the backup and its manifest
+    /// are removed from the backups store.
+    /// </summary>
+    /// <remarks>
+    /// Only an id the engine itself lists as a backup is accepted; a directory in the backups store
+    /// carrying no manifest is not a backup and is refused rather than removed. An unknown id fails
+    /// with the engine's own error rather than succeeding silently.
+    /// </remarks>
+    /// <param name="instanceName">The instance whose backup to delete.</param>
+    /// <param name="backupName">The id of the backup to delete.</param>
+    /// <param name="actor">Optional audit principal — see <see cref="Install"/>.</param>
+    /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
+    /// <returns>Result of the delete operation.</returns>
+    /// <exception cref="ArgumentException">Thrown when either argument is null or whitespace.</exception>
+    KgsmResult DeleteBackup(string instanceName, string backupName, string? actor = null, string? origin = null);
+
+    /// <summary>
     /// Restores a backup for an instance.
     /// </summary>
     /// <param name="instanceName">Instance name to restore backup for.</param>

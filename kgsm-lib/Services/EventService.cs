@@ -70,6 +70,8 @@ public class EventService : IEventService, IAsyncDisposable
 
         { "instance_backup_created", typeof(InstanceBackupCreatedData) },
         { "instance_backup_restored", typeof(InstanceBackupRestoredData) },
+        { "instance_backup_deleted", typeof(InstanceBackupDeletedData) },
+        { "instance_backups_pruned", typeof(InstanceBackupsPrunedData) },
 
         { "instance_files_removed", typeof(InstanceFilesRemovedData) },
         { "instance_directories_removed", typeof(InstanceDirectoriesRemovedData) },

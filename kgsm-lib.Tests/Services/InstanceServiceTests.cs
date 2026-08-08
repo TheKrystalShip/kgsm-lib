@@ -1100,6 +1100,32 @@ public class InstanceServiceTests
     }
 
     [Fact]
+    public void DeleteBackup_WithProvenance_StampsEnv()
+    {
+        SetupEnvTimeout();
+
+        _instanceService.DeleteBackup("valheim", "backup-1", actor: "discord:haru", origin: "discord");
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.Is<IReadOnlyDictionary<string, string>>(e => e["KGSM_EVENT_ORIGIN"] == "discord"),
+            It.IsAny<TimeSpan>(),
+            It.Is<string[]>(a => ArgsAre(a, "instances", "delete-backup", "valheim", "backup-1"))), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public void DeleteBackup_WithBlankBackupName_Throws(string? backupName)
+    {
+        // A blank id must never reach the engine: `instances delete-backup <instance> ""` would be a
+        // missing-argument error there, but the throw keeps the failure at the caller where the bug is.
+        // ThrowsAny, because null yields ArgumentNullException and blank yields ArgumentException —
+        // both are the same contract to a caller, and xUnit's Assert.Throws is exact-type.
+        Assert.ThrowsAny<ArgumentException>(() => _instanceService.DeleteBackup("valheim", backupName!));
+    }
+
+    [Fact]
     public void SetInstanceConfigValue_WithProvenance_UsesTheDefaultTimeoutEnvOverload()
     {
         // config-set is quick → the env overload WITHOUT an explicit timeout, not the env+timeout one.
