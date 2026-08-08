@@ -193,6 +193,13 @@ public class EventDeserializationTests
         {"EventType":"instance_upnp_closed","Data":{"InstanceName":"factorio-01","Ports":[{"start":7777,"end":7777,"protocol":"udp"}]},"Timestamp":"2026-06-20T08:00:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"3.0.0"}
         """;
 
+    // The sweep's re-assert: the router dropped a forward while the instance kept running. Ports
+    // carries only the subset that was missing, so a partial restoration deserializes as exactly
+    // what was restored.
+    private const string UpnpReassertedWireJson = """
+        {"EventType":"instance_upnp_reasserted","Data":{"InstanceName":"factorio-01","Ports":[{"start":27015,"end":27020,"protocol":"tcp"}]},"Timestamp":"2026-06-20T08:00:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+        """;
+
     [Fact]
     public void UpnpOpenedEvent_DeserializesStructuredRangePreservingPorts()
     {
@@ -221,6 +228,22 @@ public class EventDeserializationTests
         Assert.Equal("factorio-01", closed.InstanceName);
         Assert.Single(closed.Ports);
         Assert.Equal(new PortMapping { Start = 7777, End = 7777, Protocol = "udp" }, closed.Ports[0]);
+    }
+
+    [Fact]
+    public void UpnpReassertedEvent_DeserializesOnlyTheRestoredSubset()
+    {
+        (string eventType, EventDataBase? data) =
+            Deserialize(UpnpReassertedWireJson, typeof(InstanceUpnpReassertedData));
+
+        Assert.Equal("instance_upnp_reasserted", eventType);
+        var reasserted = Assert.IsType<InstanceUpnpReassertedData>(data);
+        Assert.Equal("factorio-01", reasserted.InstanceName);
+
+        // The instance also forwards 34197/udp; only the tcp range was missing, so only it is
+        // reported. A re-assert claiming the whole configured set would overstate what changed.
+        Assert.Single(reasserted.Ports);
+        Assert.Equal(new PortMapping { Start = 27015, End = 27020, Protocol = "tcp" }, reasserted.Ports[0]);
     }
 
     // Models the kgsm `_build_event_payload instance_player_joined factorio-01 76561198000000000 haru`

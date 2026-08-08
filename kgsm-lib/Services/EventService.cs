@@ -86,6 +86,7 @@ public class EventService : IEventService, IAsyncDisposable
 
         { "instance_upnp_opened", typeof(InstanceUpnpOpenedData) },
         { "instance_upnp_closed", typeof(InstanceUpnpClosedData) },
+        { "instance_upnp_reasserted", typeof(InstanceUpnpReassertedData) },
 
         { "instance_player_joined", typeof(InstancePlayerJoinedData) },
         { "instance_player_left", typeof(InstancePlayerLeftData) },

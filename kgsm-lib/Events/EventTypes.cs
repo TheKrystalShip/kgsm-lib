@@ -528,6 +528,26 @@ public class InstanceUpnpClosedData : EventDataBase
 }
 
 /// <summary>
+/// Event data for a router forward that went missing while its instance kept running and was put
+/// back by the kgsm-watchdog's periodic sweep. Distinct from <see cref="InstanceUpnpOpenedData"/>
+/// because the two answer different questions: an open accompanies a bring-up, whereas this says the
+/// mapping disappeared with nothing on this host asking for it. It is the only evidence a consumer
+/// gets that a router discards mappings it accepted — an IGD may report a lease as infinite and drop
+/// it anyway — and how often. Stamped <c>Actor == "system"</c> / <c>Origin == "system"</c>, and only
+/// a confirmed re-open (<c>upnpc</c> exited 0) emits it.
+/// </summary>
+public class InstanceUpnpReassertedData : EventDataBase
+{
+    /// <summary>
+    /// Gets or sets the ports the sweep restored, as the canonical range-preserving
+    /// <see cref="PortMapping"/> array. This is the subset the router was found to be missing, not
+    /// the instance's whole configured set — a forward that was still in place is not reported as
+    /// re-asserted.
+    /// </summary>
+    public List<PortMapping> Ports { get; set; } = [];
+}
+
+/// <summary>
 /// Event data for when an instance's <c>.config.ini</c> had a single key changed
 /// (via <c>kgsm config-set</c> / the lib's config setter). Both fields are always
 /// present non-null strings — <see cref="EventDataBase.InstanceName"/> identifies the

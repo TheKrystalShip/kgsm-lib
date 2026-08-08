@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`InstanceUpnpReassertedData`** — the typed half of kgsm's `instance_upnp_reasserted`
+  (kgsm 3.11.0-rc1), registered in the event-type map and in `KgsmJsonContext`. A router forward that
+  went missing while its instance kept running, put back by the watchdog's sweep. Separate from
+  `InstanceUpnpOpenedData` because an open accompanies a bring-up while this one says the mapping
+  disappeared with nothing on this host asking for it. `Ports` holds the subset that was missing, not
+  the instance's whole configured set.
+
 - **`InstanceRestartStartedData` / `InstanceRestartFinishedData`** — the typed halves of kgsm's restart
   bracket (`instance_restart_started` / `instance_restart_finished`, kgsm 3.7.4-rc1), registered in the
   event-type map and in `KgsmJsonContext`. A restart runs its stop and its start internally, so no
