@@ -144,40 +144,6 @@ public record class WatchdogUpnpList
 }
 
 /// <summary>
-/// Outcome of an on-demand UPnP open/close (kgsm-watchdog: <c>POST /upnp/{name}/open|close</c>).
-/// <see cref="Outcome"/> is <c>"applied"</c> (the IGD confirmed the change), <c>"skipped"</c>
-/// (port-forwarding disabled for the instance, or it has no ports — nothing changed), or <c>"failed"</c>
-/// (upnpc could not deliver). A skipped or failed open is never reported as an open — the three-way
-/// distinction is preserved rather than collapsed into a boolean.
-/// </summary>
-public record class WatchdogUpnpActionResult
-{
-    /// <summary>The instance the action targeted.</summary>
-    [JsonPropertyName("instance")]
-    public string Instance { get; set; } = string.Empty;
-
-    /// <summary>The honest outcome: <c>"applied"</c>, <c>"skipped"</c>, or <c>"failed"</c>.</summary>
-    [JsonPropertyName("outcome")]
-    public string Outcome { get; set; } = string.Empty;
-
-    /// <summary>Human-readable detail describing the outcome.</summary>
-    [JsonPropertyName("detail")]
-    public string Detail { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// Request body for <c>POST /upnp/{name}/open</c> when forwarding an explicit port set instead of the
-/// instance's configured ports (parity with the firewall's <c>ensure-open &lt;instance&gt; &lt;ports&gt;</c>).
-/// Serialized by <c>IWatchdogClient.OpenUpnpAsync</c> only when ports are supplied.
-/// </summary>
-public record class WatchdogUpnpOpenRequest
-{
-    /// <summary>The explicit ports to forward; the daemon uses the instance's own ports when this is null/empty.</summary>
-    [JsonPropertyName("ports")]
-    public List<PortMapping>? Ports { get; set; }
-}
-
-/// <summary>
 /// A single player session tracked by the watchdog's in-memory session map. Served by
 /// <c>GET /players</c> so consumers (kgsm-api) can reconcile their roster on startup.
 /// </summary>

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **`IWatchdogClient.OpenUpnpAsync` / `CloseUpnpAsync`**, and the `WatchdogUpnpActionResult` /
+  `WatchdogUpnpOpenRequest` models they carried. An instance's router forwards are opened by the
+  supervisor when it starts and released when it stops, so there is no on-demand open for a client to
+  drive; the watchdog no longer serves the routes these called. `GetUpnpAsync` stays — reading what the
+  router actually holds is a question a diagnosing operator has. **Breaking**, hence the major bump: an
+  implementer of the interface loses two members.
+
 ### Added
 
 - **`InstanceRestartStartedData` / `InstanceRestartFinishedData`** — the typed halves of kgsm's restart

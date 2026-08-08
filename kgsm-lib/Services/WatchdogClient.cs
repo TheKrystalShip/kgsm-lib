@@ -337,59 +337,6 @@ public sealed class WatchdogClient : IWatchdogClient
     }
 
     /// <inheritdoc/>
-    public async Task<WatchdogUpnpActionResult> OpenUpnpAsync(
-        string instanceName,
-        IReadOnlyList<PortMapping>? ports = null,
-        string origin = "control",
-        CancellationToken cancellationToken = default)
-    {
-        ThrowIfDisposed();
-        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
-
-        var url = $"/upnp/{Uri.EscapeDataString(instanceName)}/open?origin={Uri.EscapeDataString(origin)}";
-
-        // A JSON body carrying an explicit port set is sent ONLY when ports are supplied; otherwise the
-        // POST is bodyless and the daemon forwards the instance's own configured ports.
-        HttpContent? content = null;
-        if (ports is { Count: > 0 })
-        {
-            var request = new WatchdogUpnpOpenRequest { Ports = [.. ports] };
-            string json = JsonSerializer.Serialize(request, KgsmJsonContext.Default.WatchdogUpnpOpenRequest);
-            content = new StringContent(json, Encoding.UTF8, "application/json");
-        }
-
-        try
-        {
-            using var response = await _http.PostAsync(url, content, cancellationToken).ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
-            return await ReadJsonAsync(response, KgsmJsonContext.Default.WatchdogUpnpActionResult, cancellationToken)
-                       .ConfigureAwait(false)
-                   ?? new WatchdogUpnpActionResult { Instance = instanceName, Outcome = "failed", Detail = "empty response" };
-        }
-        finally
-        {
-            content?.Dispose();
-        }
-    }
-
-    /// <inheritdoc/>
-    public async Task<WatchdogUpnpActionResult> CloseUpnpAsync(
-        string instanceName,
-        string origin = "control",
-        CancellationToken cancellationToken = default)
-    {
-        ThrowIfDisposed();
-        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
-
-        var url = $"/upnp/{Uri.EscapeDataString(instanceName)}/close?origin={Uri.EscapeDataString(origin)}";
-        using var response = await _http.PostAsync(url, content: null, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        return await ReadJsonAsync(response, KgsmJsonContext.Default.WatchdogUpnpActionResult, cancellationToken)
-                   .ConfigureAwait(false)
-               ?? new WatchdogUpnpActionResult { Instance = instanceName, Outcome = "failed", Detail = "empty response" };
-    }
-
-    /// <inheritdoc/>
     public async IAsyncEnumerable<string> FollowConsoleAsync(
         string instanceName,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)

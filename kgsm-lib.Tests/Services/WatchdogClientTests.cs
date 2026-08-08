@@ -184,34 +184,6 @@ public class WatchdogClientTests
         Assert.Empty(list.Mappings);
     }
 
-    [Fact]
-    public void UpnpActionResult_DeserializesHonestOutcome()
-    {
-        const string json = """{"instance":"factorio-test","outcome":"skipped","detail":"port-forwarding disabled for this instance, or no ports configured — nothing opened"}""";
-
-        var result = JsonSerializer.Deserialize(json, KgsmJsonContext.Default.WatchdogUpnpActionResult);
-
-        Assert.NotNull(result);
-        Assert.Equal("factorio-test", result!.Instance);
-        Assert.Equal("skipped", result.Outcome); // three-way outcome preserved, not collapsed to a bool
-    }
-
-    [Fact]
-    public void UpnpOpenRequest_SerializesPortsBodyCamelCase()
-    {
-        var request = new WatchdogUpnpOpenRequest
-        {
-            Ports = [new PortMapping { Start = 27015, End = 27020, Protocol = "udp" }],
-        };
-
-        string json = JsonSerializer.Serialize(request, KgsmJsonContext.Default.WatchdogUpnpOpenRequest);
-
-        Assert.Contains("\"ports\"", json);
-        Assert.Contains("\"start\":27015", json);
-        Assert.Contains("\"end\":27020", json);
-        Assert.Contains("\"protocol\":\"udp\"", json);
-    }
-
     // --- Request-shape + response-parse over a stub transport (no live daemon) ---
 
     [Fact]
@@ -238,57 +210,6 @@ public class WatchdogClientTests
             NullLogger<WatchdogClient>.Instance);
 
         Assert.Null(await client.GetUpnpAsync("factorio-test"));
-    }
-
-    [Fact]
-    public async Task OpenUpnpAsync_WithPorts_PostsBodyAndOriginQuery()
-    {
-        var handler = new CapturingHandler(
-            """{"instance":"factorio-test","outcome":"applied","detail":"router mapping opened"}""");
-        using var client = new WatchdogClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") },
-            NullLogger<WatchdogClient>.Instance);
-
-        var result = await client.OpenUpnpAsync(
-            "factorio-test",
-            [new PortMapping { Start = 34197, End = 34197, Protocol = "udp" }],
-            origin: "assistant");
-
-        Assert.Equal(HttpMethod.Post, handler.LastMethod);
-        Assert.Equal("/upnp/factorio-test/open", handler.LastPath);
-        Assert.Contains("origin=assistant", handler.LastQuery);
-        Assert.Contains("\"start\":34197", handler.LastBody);
-        Assert.Equal("applied", result.Outcome);
-    }
-
-    [Fact]
-    public async Task OpenUpnpAsync_NoPorts_PostsBodyless()
-    {
-        var handler = new CapturingHandler(
-            """{"instance":"factorio-test","outcome":"applied","detail":"router mapping opened"}""");
-        using var client = new WatchdogClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") },
-            NullLogger<WatchdogClient>.Instance);
-
-        await client.OpenUpnpAsync("factorio-test"); // default origin "control", no ports
-
-        Assert.Equal("/upnp/factorio-test/open", handler.LastPath);
-        Assert.Contains("origin=control", handler.LastQuery);
-        Assert.Equal("", handler.LastBody); // no body → daemon uses the instance's own ports
-    }
-
-    [Fact]
-    public async Task CloseUpnpAsync_PostsCloseRouteWithOrigin()
-    {
-        var handler = new CapturingHandler(
-            """{"instance":"factorio-test","outcome":"skipped","detail":"no active mapping to remove"}""");
-        using var client = new WatchdogClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") },
-            NullLogger<WatchdogClient>.Instance);
-
-        var result = await client.CloseUpnpAsync("factorio-test", origin: "operator");
-
-        Assert.Equal(HttpMethod.Post, handler.LastMethod);
-        Assert.Equal("/upnp/factorio-test/close", handler.LastPath);
-        Assert.Contains("origin=operator", handler.LastQuery);
-        Assert.Equal("skipped", result.Outcome);
     }
 
     [Fact]
