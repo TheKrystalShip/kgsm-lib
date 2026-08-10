@@ -301,6 +301,18 @@ public record class Instance
     public string RconPlayersCommand { get; set; } = "players";
 
     /// <summary>
+    /// Gets or sets the pattern that reads one player out of
+    /// <see cref="RconPlayersCommand"/>'s output, applied per line, with optional named groups
+    /// <c>id</c> and <c>name</c>. Every game words its roster differently — one prints
+    /// <c>-Name</c> under a header, another an id and a name in columns — so the shape is carried
+    /// as blueprint data and a consumer applies it without knowing which game it is polling.
+    /// Empty means the output cannot be read, which disables RCON presence for the instance rather
+    /// than guessing a roster out of the server's own prose.
+    /// </summary>
+    [JsonPropertyName("rcon_players_regex")]
+    public string RconPlayersRegex { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets whether the resident supervisor (kgsm-watchdog) should UPnP
     /// port-forward this instance — the per-instance gate its <c>UpnpService</c>
     /// reads. <see langword="false"/> (the safe default) when absent from the wire:

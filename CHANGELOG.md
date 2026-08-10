@@ -7,7 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`RconClient` authenticates with `SERVERDATA_AUTH`.** The auth packet is type 3; type 0 is
+  `SERVERDATA_RESPONSE_VALUE`, a server→client type. A server answers it with id -1 — the same
+  rejection a wrong password earns — so the failure reads as a credentials problem and survives any
+  amount of checking the password.
+
+- **The auth verdict is matched by packet type, not by arrival order.** Servers may precede
+  `SERVERDATA_AUTH_RESPONSE` with an empty `SERVERDATA_RESPONSE_VALUE` carrying the same id. Taking
+  the first packet as the verdict leaves the real one queued and every later read returns the
+  previous request's packet.
+
+- **A command response ends at the protocol's sentinel.** `ExecuteCommandAsync` follows the command
+  with an empty `SERVERDATA_RESPONSE_VALUE` and reads until the server echoes it, which orders
+  correctly behind however many packets the response occupies. Waiting instead for an empty body
+  never returns for a server whose reply is a single packet with content and no trailer.
+
+- **Split responses are concatenated verbatim.** The parts are byte continuations; the newline
+  previously inserted between them landed inside whatever token straddled the split.
+
+- **Reads have a deadline.** `NetworkStream.ReadTimeout` governs only synchronous reads, so an async
+  read carried no timeout of its own and a server that stopped answering hung the call for as long as
+  the caller's token allowed. Exhausting it now raises `RconException`.
+
+- **A 1–2 character response body is no longer dropped.** The body was read only when the packet
+  exceeded 12 bytes, two more than the 10 an empty body occupies.
+
 ### Added
+
+- **`Instance.RconPlayersRegex`** — the blueprint's pattern for reading one player out of
+  `RconPlayersCommand`'s output, with optional named groups `id` and `name`. Rosters are worded per
+  game — a header and one `-Name` line per player here, an id and a name in columns there — so the
+  shape travels as data and a consumer applies it without knowing which game it is polling. Empty
+  means the output cannot be read, which is not the same as a server reporting nobody connected.
 
 - **`InstanceUpdateAvailableData`** — the engine's `instance_update_available` event, carrying
   `CurrentVersion` and `LatestVersion`. Update availability is a fact kgsm establishes and announces

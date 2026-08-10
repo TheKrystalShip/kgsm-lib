@@ -16,10 +16,14 @@ namespace TheKrystalShip.KGSM.Services;
 /// The Source RCON protocol (Valve) uses length-prefixed binary packets over TCP:
 /// <list type="bullet">
 ///   <item>Packet = [Size:4][Id:4][Type:4][Body:N][0x00 0x00]</item>
-///   <item>Type 0 = Auth (client→server), auth response id=original for success, id=-1 for failure</item>
-///   <item>Type 2 = ExecCommand (client→server)</item>
-///   <item>Type 3 = Response (server→client)</item>
+///   <item>Type 3 = <c>SERVERDATA_AUTH</c> (client→server)</item>
+///   <item>Type 2 = <c>SERVERDATA_EXECCOMMAND</c> (client→server)</item>
+///   <item>Type 2 = <c>SERVERDATA_AUTH_RESPONSE</c> (server→client) — id echoes the request on
+///         success, and is -1 when the password is rejected</item>
+///   <item>Type 0 = <c>SERVERDATA_RESPONSE_VALUE</c> (server→client, and the client's end-of-response
+///         sentinel)</item>
 /// </list>
+/// Type 2 carries two meanings, separated by direction; a packet's type alone does not identify it.
 /// See https://developer.valvesoftware.com/wiki/Source_RCON_Protocol
 /// </remarks>
 public sealed class RconClient : IRconClient
@@ -30,10 +34,11 @@ public sealed class RconClient : IRconClient
     private bool _authenticated;
     private bool _disposed;
 
-    private const int TypeAuth = 0;
+    private const int TypeResponseValue = 0;
     private const int TypeExecCommand = 2;
-    private const int TypeResponse = 3;
-    private const int AuthResponseId = -1;
+    private const int TypeAuthResponse = 2;
+    private const int TypeAuth = 3;
+    private const int AuthFailureId = -1;
     private const int ConnectTimeoutMs = 5000;
     private const int ReadTimeoutMs = 5000;
 
@@ -67,12 +72,24 @@ public sealed class RconClient : IRconClient
         var authPacket = BuildPacket(_packetId, TypeAuth, password);
         await SendPacketAsync(authPacket, cts.Token).ConfigureAwait(false);
 
-        var response = await ReadPacketAsync(cts.Token).ConfigureAwait(false);
-
-        if (response.Id != _packetId)
+        // The verdict is the SERVERDATA_AUTH_RESPONSE, and it is not necessarily the first thing on
+        // the wire: servers may precede it with an empty SERVERDATA_RESPONSE_VALUE carrying the same
+        // id. Judging whichever packet arrives first reads that filler as the verdict and leaves the
+        // real one queued, so every later read is off by a packet — match on the type instead.
+        while (true)
         {
-            Disconnect();
-            throw new RconException("RCON authentication failed (server rejected password)");
+            var response = await ReadPacketAsync(cts.Token).ConfigureAwait(false);
+
+            if (response.Type != TypeAuthResponse)
+                continue;
+
+            if (response.Id == AuthFailureId)
+            {
+                Disconnect();
+                throw new RconException("RCON authentication failed (server rejected password)");
+            }
+
+            break;
         }
 
         _authenticated = true;
@@ -86,27 +103,46 @@ public sealed class RconClient : IRconClient
         if (!_authenticated || _stream is null)
             throw new RconException("Not connected. Call ConnectAsync first.");
 
-        _packetId++;
-        int id = _packetId;
+        int id = ++_packetId;
+        int sentinelId = ++_packetId;
 
-        var packet = BuildPacket(id, TypeExecCommand, command);
-        await SendPacketAsync(packet, cancellationToken).ConfigureAwait(false);
+        await SendPacketAsync(BuildPacket(id, TypeExecCommand, command), cancellationToken).ConfigureAwait(false);
 
-        // Read response(s) — multi-packet responses end with an empty body.
+        // A response is split across packets once it exceeds the packet limit, and nothing in a
+        // response announces how many parts follow. The protocol's marker is this empty packet: the
+        // server answers requests in order, so its echo cannot arrive before the last part of the
+        // response ahead of it. Waiting instead for an empty body ends the read on the first game
+        // whose reply is a single packet with content and no trailer — the read then blocks until
+        // the timeout and the poll returns nothing, having had the answer in hand the whole time.
+        await SendPacketAsync(BuildPacket(sentinelId, TypeResponseValue, string.Empty), cancellationToken).ConfigureAwait(false);
+
+        // NetworkStream.ReadTimeout governs only synchronous reads, so an async read has no deadline
+        // of its own — a server that never echoes the sentinel would hang this call for as long as
+        // the caller's token allows, which for a polling loop is until shutdown.
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(ReadTimeoutMs);
+
         var sb = new StringBuilder();
-        while (true)
+        try
         {
-            var response = await ReadPacketAsync(cancellationToken).ConfigureAwait(false);
+            while (true)
+            {
+                var response = await ReadPacketAsync(cts.Token).ConfigureAwait(false);
 
-            if (response.Id != id)
-                continue; // stale or unrelated packet
+                if (response.Id == sentinelId)
+                    break;
 
-            if (response.Body.Length == 0)
-                break; // end of multi-packet response
+                if (response.Id != id)
+                    continue; // stale or unrelated packet
 
-            if (sb.Length > 0)
-                sb.Append('\n');
-            sb.Append(response.Body);
+                // Parts of a split response are byte continuations, not lines: anything inserted
+                // between them lands in the middle of whatever token straddled the split.
+                sb.Append(response.Body);
+            }
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new RconException($"Timed out awaiting the response to '{command}'.");
         }
 
         return sb.ToString();
@@ -148,7 +184,7 @@ public sealed class RconClient : IRconClient
         await _stream.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<(int Id, string Body)> ReadPacketAsync(CancellationToken cancellationToken)
+    private async Task<(int Id, int Type, string Body)> ReadPacketAsync(CancellationToken cancellationToken)
     {
         if (_stream is null)
             throw new RconException("Not connected.");
@@ -168,15 +204,14 @@ public sealed class RconClient : IRconClient
         int id = BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(0, 4));
         int type = BinaryPrimitives.ReadInt32LittleEndian(payload.AsSpan(4, 4));
 
-        // Body is everything between the type field and the two null terminators at the end
-        string body = string.Empty;
-        if (size > 12) // 4(id) + 4(type) + 2(null) + 2(null) minimum = 12; body = size - 12
-        {
-            // Strip the two trailing null bytes
-            body = Encoding.UTF8.GetString(payload, 8, size - 10);
-        }
+        // Body is everything between the type field and the two null terminators at the end:
+        // size = 4(id) + 4(type) + body + 2(null), so an empty body is size 10 and the body runs
+        // for size - 10 bytes from offset 8.
+        string body = size > 10
+            ? Encoding.UTF8.GetString(payload, 8, size - 10)
+            : string.Empty;
 
-        return (id, body);
+        return (id, type, body);
     }
 
     private static async Task ReadExactAsync(NetworkStream stream, byte[] buffer, CancellationToken cancellationToken)
