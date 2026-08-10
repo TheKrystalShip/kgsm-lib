@@ -171,18 +171,29 @@ public interface IWatchdogClient : IDisposable
     Task<IReadOnlyList<string>> GetConsoleTailAsync(string instanceName, int lines, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Fetches the live player sessions across all instances from the watchdog's in-memory
-    /// session map. Returns a dictionary keyed by instance name, each value an array of
-    /// <see cref="WatchdogPlayer"/> sessions. Returns <c>null</c> when the daemon is
-    /// unreachable (graceful degradation).
+    /// Fetches live player presence for every instance: whether the supervisor can observe each
+    /// one's players, and who it currently sees connected.
     /// </summary>
     /// <remarks>
-    /// The session map is populated by the native player-presence ingester from game log
-    /// matching. It reflects who is <em>currently connected</em> — not a historical roster.
-    /// The map is volatile: a watchdog restart clears it (rebuilds from logs on next match).
+    /// <para>
+    /// <b>Every instance appears, including the ones with nobody on them.</b> That is the point: a
+    /// bare session list makes an absent instance ambiguous between "nobody is online" and "this
+    /// game cannot report players", and a consumer rendering the first reading of the second states
+    /// something the host does not know. Check
+    /// <see cref="WatchdogInstancePresence.IsDetected"/> before reading an empty list as zero.
+    /// </para>
+    /// <para>
+    /// The map reflects who is <em>currently connected</em> — not a historical roster — and it is
+    /// volatile: a watchdog restart clears it and it rebuilds as the game logs the next events.
+    /// </para>
     /// </remarks>
     /// <param name="cancellationToken">Cancels the request.</param>
-    Task<IReadOnlyDictionary<string, IReadOnlyList<WatchdogPlayer>>?> GetAllPlayersAsync(CancellationToken cancellationToken = default);
+    /// <returns>
+    /// Presence keyed by instance name, or <c>null</c> when the daemon is unreachable. <b>Null is
+    /// not an empty host</b> — it is the supervisor being unavailable, and a caller must report it
+    /// as unknown rather than as nobody online.
+    /// </returns>
+    Task<IReadOnlyDictionary<string, WatchdogInstancePresence>?> GetPlayerPresenceAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Reads the UPnP port-forward mappings the local IGD currently holds for

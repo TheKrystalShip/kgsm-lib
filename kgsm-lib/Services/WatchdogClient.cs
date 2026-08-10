@@ -280,29 +280,44 @@ public sealed class WatchdogClient : IWatchdogClient
     }
 
     /// <inheritdoc/>
-    public async Task<IReadOnlyDictionary<string, IReadOnlyList<WatchdogPlayer>>?> GetAllPlayersAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyDictionary<string, WatchdogInstancePresence>?> GetPlayerPresenceAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
 
-        using var response = await _http.GetAsync("/players", cancellationToken).ConfigureAwait(false);
+        try
+        {
+            using var response = await _http.GetAsync("/players", cancellationToken).ConfigureAwait(false);
 
-        if (response.StatusCode == HttpStatusCode.NotFound)
+            // A daemon without the route (older build) answers 404. Null either way: this build
+            // cannot learn what that daemon can observe, which is the same not-knowing as it being
+            // down — and strictly better than reading a shapeless body as an empty host.
+            if (response.StatusCode == HttpStatusCode.NotFound)
+                return null;
+
+            response.EnsureSuccessStatusCode();
+
+            return await ReadJsonAsync(response, KgsmJsonContext.Default.DictionaryStringWatchdogInstancePresence, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (HttpRequestException ex)
+        {
+            // The daemon is down or its socket is gone. A graceful null, because the caller's honest
+            // answer is "unknown" — and an exception here would take out a caller that is asking
+            // about every instance on behalf of one.
+            _logger.LogDebug(ex, "Watchdog /players fetch failed to connect");
             return null;
-
-        response.EnsureSuccessStatusCode();
-
-        var raw = await ReadJsonAsync(response, KgsmJsonContext.Default.DictionaryStringWatchdogPlayerArray, cancellationToken)
-            .ConfigureAwait(false);
-
-        if (raw is null)
+        }
+        catch (JsonException ex)
+        {
+            // A daemon serving a shape this build does not understand — the two halves of a deploy
+            // caught mid-swap, in either order. That is the same not-knowing as an unreachable
+            // daemon and must degrade the same way: a version skew has to cost the roster, not take
+            // down the surface asking for it.
+            _logger.LogWarning(ex,
+                "Watchdog /players returned a shape this build cannot read — treating player presence "
+                + "as unknown. The daemon and this library are probably different versions.");
             return null;
-
-        // The daemon serializes as Dictionary<string, WatchdogPlayer[]> — convert to the
-        // interface type so consumers get a read-only view.
-        var result = new Dictionary<string, IReadOnlyList<WatchdogPlayer>>(StringComparer.Ordinal);
-        foreach (var kvp in raw)
-            result[kvp.Key] = kvp.Value;
-        return result;
+        }
     }
 
     /// <inheritdoc/>

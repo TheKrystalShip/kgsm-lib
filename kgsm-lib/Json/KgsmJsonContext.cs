@@ -51,6 +51,8 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(WatchdogPlayer))]
 [JsonSerializable(typeof(WatchdogPlayer[]))]
 [JsonSerializable(typeof(Dictionary<string, WatchdogPlayer[]>))]
+[JsonSerializable(typeof(WatchdogInstancePresence))]
+[JsonSerializable(typeof(Dictionary<string, WatchdogInstancePresence>))]
 [JsonSerializable(typeof(WatchdogUpnpMapping))]
 [JsonSerializable(typeof(WatchdogUpnpList))]
 // --- Event envelope + every event data payload (the Type-keyed dispatch in EventService) ---

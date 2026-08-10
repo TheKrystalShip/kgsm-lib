@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`IWatchdogClient.GetAllPlayersAsync` → `GetPlayerPresenceAsync`, and it now answers whether a
+  roster is knowable at all.** It returns
+  `IReadOnlyDictionary<string, WatchdogInstancePresence>` — every instance the supervisor knows,
+  each carrying `Detection` (`log` / `rcon` / `none` / `unknown`) beside its sessions.
+
+  The old shape listed only instances with tracked sessions, which made an absent instance ambiguous
+  between "nobody is online" and "this game cannot report players" — and every consumer that read the
+  first meaning of the second stated something the host does not know. Detection travels with the
+  roster so a caller cannot take one without the other; `WatchdogInstancePresence.IsDetected` is the
+  guard, true only for `log` and `rcon`.
+
+  **The supervisor decides it.** The predicate includes whether a pattern *compiles*, which is not
+  something a consumer can re-derive from an instance's config — and three surfaces each deriving it
+  is how they come to disagree. Renamed rather than overloaded so the shape change is a compile error
+  at every call site.
+
+- **`GetPlayerPresenceAsync` returns null on an unreachable daemon** instead of throwing
+  `HttpRequestException`, matching what the contract already documented and what every other read on
+  this client does. Null is the daemon being unavailable, never a host with nobody playing.
+
 ### Fixed
 
 - **`RconClient` authenticates with `SERVERDATA_AUTH`.** The auth packet is type 3; type 0 is

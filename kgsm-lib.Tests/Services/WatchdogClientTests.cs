@@ -229,6 +229,105 @@ public class WatchdogClientTests
         Assert.Equal("deregistered", result.Message);
     }
 
+    // --- Player presence: the roster and the qualifier that makes it readable ---
+
+    /// <summary>
+    /// The daemon's wire shape for <c>GET /players</c>. A casing mismatch here binds to all-defaults
+    /// with no error, which for this payload means every instance silently reads as undetectable.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerPresenceAsync_ParsesDetectionAndSessions()
+    {
+        var handler = new CapturingHandler(
+            """
+            {"minecraft":{"detection":"log","players":[{"sessionKey":"Flysenberg","id":null,"name":"Flysenberg","addr":"10.0.0.4:53210"}]},
+             "starbound":{"detection":"none","players":[]}}
+            """);
+        using var client = new WatchdogClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") },
+            NullLogger<WatchdogClient>.Instance);
+
+        var presence = await client.GetPlayerPresenceAsync();
+
+        Assert.Equal(HttpMethod.Get, handler.LastMethod);
+        Assert.Equal("/players", handler.LastPath);
+        Assert.NotNull(presence);
+
+        var minecraft = presence!["minecraft"];
+        Assert.Equal("log", minecraft.Detection);
+        Assert.True(minecraft.IsDetected);
+        Assert.Equal("Flysenberg", Assert.Single(minecraft.Players).Name);
+        Assert.Null(minecraft.Players[0].Id); // never fabricated — Minecraft logs the UUID elsewhere
+
+        var starbound = presence["starbound"];
+        Assert.False(starbound.IsDetected);
+        Assert.Empty(starbound.Players);
+    }
+
+    /// <summary>
+    /// The distinction the whole type exists for. Both instances report zero players; only one of
+    /// them means nobody is online.
+    /// </summary>
+    [Fact]
+    public void AnEmptyRosterIsOnlyZeroWhenPresenceIsDetected()
+    {
+        Assert.True(new WatchdogInstancePresence { Detection = "log" }.IsDetected);
+        Assert.True(new WatchdogInstancePresence { Detection = "rcon" }.IsDetected);
+
+        Assert.False(new WatchdogInstancePresence { Detection = "none" }.IsDetected);
+
+        // A capability that could not be established is not one that exists. "The inventory was
+        // unreadable" and "this game reports nothing" are different reasons for the same honest
+        // refusal to call an empty list zero.
+        Assert.False(new WatchdogInstancePresence { Detection = "unknown" }.IsDetected);
+
+        // An unparsed or future spelling is not detection either — defaulting the other way would
+        // turn a value this build does not understand into a confident roster.
+        Assert.False(new WatchdogInstancePresence { Detection = "carrier-pigeon" }.IsDetected);
+    }
+
+    /// <summary>
+    /// A default-constructed value must not claim detection: the parameterless case is what a
+    /// missing or misspelled JSON field produces.
+    /// </summary>
+    [Fact]
+    public void PresenceDefaultsToUndetected()
+    {
+        var presence = new WatchdogInstancePresence();
+
+        Assert.Equal("unknown", presence.Detection);
+        Assert.False(presence.IsDetected);
+        Assert.Empty(presence.Players);
+    }
+
+    /// <summary>
+    /// A daemon on the other side of a version skew — here an older one still serving a bare array of
+    /// sessions per instance. Both halves of a deploy are briefly mismatched in either order, and that
+    /// has to cost the roster rather than take down the surface asking for it.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerPresenceAsync_UnreadableShape_ReturnsNull_DoesNotThrow()
+    {
+        var handler = new CapturingHandler("""{"Ketchup":[{"sessionKey":"abc","name":"someone"}]}""");
+        using var client = new WatchdogClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") },
+            NullLogger<WatchdogClient>.Instance);
+
+        Assert.Null(await client.GetPlayerPresenceAsync());
+    }
+
+    /// <summary>
+    /// An unreachable daemon is null, and a caller must read that as unknown rather than as a host
+    /// with nobody playing anywhere.
+    /// </summary>
+    [Fact]
+    public async Task GetPlayerPresenceAsync_DaemonUnreachable_ReturnsNull_DoesNotThrow()
+    {
+        var handler = new CapturingHandler(throws: true);
+        using var client = new WatchdogClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") },
+            NullLogger<WatchdogClient>.Instance);
+
+        Assert.Null(await client.GetPlayerPresenceAsync());
+    }
+
     /// <summary>
     /// A stub <see cref="HttpMessageHandler"/> that captures the request shape and returns a canned JSON
     /// body — so the UPnP request routing/serialization and response parsing are unit-tested without a

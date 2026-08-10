@@ -165,3 +165,50 @@ public record class WatchdogPlayer
     [JsonPropertyName("addr")]
     public string? Addr { get; set; }
 }
+
+/// <summary>
+/// One instance's player presence: whether the supervisor can observe it, and who it currently
+/// sees connected. Served by <c>GET /players</c>, one entry per instance.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b><see cref="Detection"/> is what makes <see cref="Players"/> readable, and the pair is why this
+/// is one type.</b> An empty list under <c>log</c> or <c>rcon</c> means nobody is connected — a
+/// measured fact. An empty list under <c>none</c> means the game reports nothing, and a surface that
+/// renders it as "0 online" states something the host does not know. A consumer cannot take the
+/// list without the qualifier because they arrive together.
+/// </para>
+/// <para>
+/// <b>The supervisor decides this, not the consumer.</b> The predicate behind it includes whether a
+/// pattern <i>compiles</i>, so re-deriving it from an instance's config is something no surface can
+/// get right — and three surfaces each deriving it is how they come to disagree. Use
+/// <see cref="IsDetected"/> rather than comparing the string.
+/// </para>
+/// </remarks>
+public record class WatchdogInstancePresence
+{
+    /// <summary>
+    /// How presence is observed: <c>log</c> (matched from the game's output — real transitions),
+    /// <c>rcon</c> (polled and diffed — cannot see churn between polls), <c>none</c> (not observable
+    /// at all), or <c>unknown</c> (the supervisor could not read the instance inventory, so the
+    /// capability could not be established either way).
+    /// </summary>
+    [JsonPropertyName("detection")]
+    public string Detection { get; set; } = "unknown";
+
+    /// <summary>
+    /// The sessions currently tracked. <b>Empty means "nobody" only when <see cref="IsDetected"/>
+    /// is true</b>; otherwise it means nobody can tell.
+    /// </summary>
+    [JsonPropertyName("players")]
+    public List<WatchdogPlayer> Players { get; set; } = [];
+
+    /// <summary>
+    /// Whether this instance's roster is a measurement. False for both <c>none</c> and
+    /// <c>unknown</c> — a capability that could not be established is not one that exists, and the
+    /// honest answer to "who is online" is the same in both cases.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsDetected =>
+        Detection is "log" or "rcon";
+}
