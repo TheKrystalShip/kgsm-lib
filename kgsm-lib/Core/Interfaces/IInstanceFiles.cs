@@ -50,6 +50,40 @@ public interface IInstanceFiles
     FileOpResult<DirListing> List(string instance, string? subdir, int maxEntries);
 
     /// <summary>
+    /// Walks the instance's tree below <paramref name="subdir"/> and returns the entries whose name —
+    /// or whose path relative to the jail root, when <paramref name="pattern"/> contains a
+    /// <c>/</c> — matches the glob <paramref name="pattern"/> (<c>*</c> and <c>?</c>), case-insensitively.
+    /// <para>
+    /// <b>Symlinked directories are never descended into.</b> That, rather than a check applied
+    /// afterwards, is what keeps a recursive walk inside the jail: a link cannot be followed out if it
+    /// is not followed at all. Matched entries are additionally re-resolved through the same
+    /// containment rule every other operation uses.
+    /// </para>
+    /// <para>
+    /// Bounded by <paramref name="options"/>, and the result distinguishes "more matched than were
+    /// returned" from "the walk stopped early" — a caller must not read the second as the tree having
+    /// been exhausted.
+    /// </para>
+    /// </summary>
+    FileOpResult<FindResult> Find(string instance, string pattern, string? subdir, FindOptions? options = null);
+
+    /// <summary>
+    /// Searches the contents of the instance's text files below <paramref name="subdir"/> for the
+    /// .NET regular expression <paramref name="pattern"/>, returning matching lines with their paths.
+    /// <para>
+    /// Same walk containment as <see cref="Find"/>. Candidates over
+    /// <see cref="FileSearchOptions.MaxFileBytes"/> are skipped unread, and binary files are skipped by
+    /// the same NUL-scan-plus-UTF-8 test <see cref="Read"/> uses — a byte blob has no lines to report.
+    /// </para>
+    /// <para>
+    /// An invalid or catastrophically slow expression is refused as
+    /// <see cref="FileOpOutcome.InvalidArgument"/> rather than being allowed to run: the pattern comes
+    /// from a caller, and a backtracking regex over thousands of files is a denial of service.
+    /// </para>
+    /// </summary>
+    FileOpResult<FileSearchResult> Search(string instance, string pattern, string? subdir, FileSearchOptions? options = null);
+
+    /// <summary>
     /// Reads a text file inside the instance's jail.
     /// </summary>
     /// <param name="instance">The instance whose working directory to read within.</param>

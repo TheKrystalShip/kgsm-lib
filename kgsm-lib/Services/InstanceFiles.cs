@@ -1,4 +1,6 @@
+using System.IO.Enumeration;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.KGSM.Core.Interfaces;
@@ -89,6 +91,220 @@ public sealed class InstanceFiles : IInstanceFiles
         int take = Math.Max(0, maxEntries);
         IReadOnlyList<FileEntry> page = truncated ? all.GetRange(0, take) : all;
         return FileOpResult<DirListing>.Ok(new DirListing { Entries = page, Truncated = truncated });
+    }
+
+    /// <inheritdoc/>
+    public FileOpResult<FindResult> Find(string instance, string pattern, string? subdir, FindOptions? options = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instance, nameof(instance));
+        if (string.IsNullOrWhiteSpace(pattern))
+            return FileOpResult<FindResult>.Fail(FileOpOutcome.InvalidArgument, "a search pattern is required");
+
+        FindOptions opts = options ?? new FindOptions();
+        if (!TryWalkRoot(instance, subdir, out string root, out string start, out FileOpOutcome failure))
+            return FileOpResult<FindResult>.Fail(failure);
+
+        // A pattern naming a path segment is matched against the whole relative path; a bare name is
+        // matched against the file name alone. That is what lets "*.ini" mean "anywhere" while
+        // "Config/*.ini" still means "under a Config directory".
+        bool pathScoped = pattern.Contains('/', StringComparison.Ordinal);
+
+        var matches = new List<FindMatch>();
+        bool truncated = false;
+        WalkOutcome walk = Walk(root, start, opts, entry =>
+        {
+            string candidate = pathScoped ? entry.RelativePath : Path.GetFileName(entry.RelativePath);
+            if (!FileSystemName.MatchesSimpleExpression(pattern, candidate, ignoreCase: true))
+                return true;
+
+            if (matches.Count >= opts.MaxResults) { truncated = true; return false; }
+            matches.Add(new FindMatch(entry.RelativePath, entry.Kind, entry.SizeBytes, entry.Mtime));
+            return true;
+        });
+
+        matches.Sort(static (a, b) => string.Compare(a.Path, b.Path, StringComparison.Ordinal));
+        return FileOpResult<FindResult>.Ok(new FindResult
+        {
+            Matches = matches,
+            Truncated = truncated,
+            ScanLimitHit = walk.LimitHit,
+            EntriesScanned = walk.Scanned,
+        });
+    }
+
+    /// <inheritdoc/>
+    public FileOpResult<FileSearchResult> Search(
+        string instance, string pattern, string? subdir, FileSearchOptions? options = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instance, nameof(instance));
+        if (string.IsNullOrWhiteSpace(pattern))
+            return FileOpResult<FileSearchResult>.Fail(FileOpOutcome.InvalidArgument, "a search pattern is required");
+
+        FileSearchOptions opts = options ?? new FileSearchOptions();
+
+        Regex regex;
+        try
+        {
+            RegexOptions ro = RegexOptions.CultureInvariant | RegexOptions.NonBacktracking;
+            if (opts.IgnoreCase) ro |= RegexOptions.IgnoreCase;
+            // NonBacktracking removes catastrophic backtracking as a category rather than bounding it
+            // with a timeout; a caller-supplied expression is not one we can assume is well-behaved.
+            regex = new Regex(pattern, ro);
+        }
+        catch (ArgumentException ex)
+        {
+            return FileOpResult<FileSearchResult>.Fail(FileOpOutcome.InvalidArgument, ex.Message);
+        }
+
+        if (!TryWalkRoot(instance, subdir, out string root, out string start, out FileOpOutcome failure))
+            return FileOpResult<FileSearchResult>.Fail(failure);
+
+        var hits = new List<SearchHit>();
+        bool truncated = false;
+        int filesRead = 0;
+        bool readLimitHit = false;
+
+        WalkOutcome walk = Walk(root, start, opts.Walk ?? new FindOptions(), entry =>
+        {
+            if (entry.Kind != FileKind.File) return true;
+            if (entry.SizeBytes is > 0 && entry.SizeBytes > opts.MaxFileBytes) return true;
+            if (filesRead >= opts.MaxFilesRead) { readLimitHit = true; return false; }
+
+            byte[] bytes;
+            try { bytes = File.ReadAllBytes(Path.Combine(root, entry.RelativePath)); }
+            catch (IOException) { return true; }
+            catch (UnauthorizedAccessException) { return true; }
+
+            filesRead++;
+            if (LooksBinary(bytes)) return true;
+
+            string text;
+            try { text = Encoding.UTF8.GetString(bytes); }
+            catch (ArgumentException) { return true; }
+
+            int line = 0;
+            foreach (string raw in text.Split('\n'))
+            {
+                line++;
+                if (!regex.IsMatch(raw)) continue;
+
+                if (hits.Count >= opts.MaxHits) { truncated = true; return false; }
+                hits.Add(new SearchHit(entry.RelativePath, line, raw.TrimEnd('\r')));
+                if (opts.FilesOnly) return true;   // one hit per file is the whole report
+            }
+
+            return true;
+        });
+
+        return FileOpResult<FileSearchResult>.Ok(new FileSearchResult
+        {
+            Hits = hits,
+            Truncated = truncated,
+            ScanLimitHit = walk.LimitHit || readLimitHit,
+            FilesRead = filesRead,
+        });
+    }
+
+    /// <summary>One entry seen by <see cref="Walk"/>, with its path relative to the jail root.</summary>
+    private readonly record struct WalkEntry(string RelativePath, FileKind Kind, long? SizeBytes, DateTimeOffset? Mtime);
+
+    /// <summary>How a walk ended: how much it saw, and whether it stopped on a budget.</summary>
+    private readonly record struct WalkOutcome(int Scanned, bool LimitHit);
+
+    /// <summary>
+    /// Depth-first walk from <paramref name="start"/>, invoking <paramref name="visit"/> per entry and
+    /// stopping when it returns false.
+    /// <para>
+    /// <b>A symlinked directory is recorded and never descended into.</b> Containment therefore does not
+    /// rest on a check applied after the fact — the walk simply has no path out of the jail. Directories
+    /// named <c>backups</c> are skipped unless asked for.
+    /// </para>
+    /// </summary>
+    private WalkOutcome Walk(string root, string start, FindOptions opts, Func<WalkEntry, bool> visit)
+    {
+        var queue = new Stack<(string Dir, int Depth)>();
+        queue.Push((start, 0));
+        int scanned = 0;
+
+        while (queue.Count > 0)
+        {
+            (string dir, int depth) = queue.Pop();
+
+            IEnumerable<string> names;
+            try { names = Directory.EnumerateFileSystemEntries(dir); }
+            catch (IOException) { continue; }
+            catch (UnauthorizedAccessException) { continue; }
+
+            foreach (string full in names)
+            {
+                if (scanned >= opts.MaxEntriesScanned)
+                    return new WalkOutcome(scanned, true);
+                scanned++;
+
+                LstatKind lk = LibC.Lstat(full);
+                FileKind kind = lk switch
+                {
+                    LstatKind.Regular => FileKind.File,
+                    LstatKind.Directory => FileKind.Dir,
+                    LstatKind.Symlink => FileKind.Symlink,
+                    LstatKind.Missing => FileKind.Special,
+                    _ => FileKind.Special,
+                };
+                if (lk == LstatKind.Missing) continue;
+
+                string rel = Path.GetRelativePath(root, full).Replace('\\', '/');
+                long? size = null;
+                DateTimeOffset? mtime = null;
+                if (kind == FileKind.File)
+                {
+                    try
+                    {
+                        var fi = new FileInfo(full);
+                        size = fi.Length;
+                        mtime = fi.LastWriteTimeUtc;
+                    }
+                    catch (IOException) { }
+                    catch (UnauthorizedAccessException) { }
+                }
+
+                if (!visit(new WalkEntry(rel, kind, size, mtime)))
+                    return new WalkOutcome(scanned, false);
+
+                // Descend only into real directories. A symlink is reported above and then left alone,
+                // which is the whole containment guarantee for this walk.
+                if (kind != FileKind.Dir || depth + 1 > opts.MaxDepth) continue;
+                if (!opts.IncludeBackups
+                    && string.Equals(Path.GetFileName(full), "backups", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                queue.Push((full, depth + 1));
+            }
+        }
+
+        return new WalkOutcome(scanned, false);
+    }
+
+    /// <summary>Resolves the jail root and the walk's starting directory, both jail-checked.</summary>
+    private bool TryWalkRoot(
+        string instance, string? subdir, out string root, out string start, out FileOpOutcome failure)
+    {
+        start = string.Empty;
+        failure = FileOpOutcome.Ok;
+
+        if (!TryRoot(instance, out root, out failure))
+            return false;
+        if (!InstanceJail.TryResolve(root, subdir, out string real, out _))
+        {
+            failure = FileOpOutcome.OutOfJail;
+            return false;
+        }
+
+        LstatKind kind = LibC.Lstat(real);
+        if (kind == LstatKind.Missing) { failure = FileOpOutcome.NotFound; return false; }
+        if (kind != LstatKind.Directory) { failure = FileOpOutcome.NotADirectory; return false; }
+
+        start = real;
+        return true;
     }
 
     /// <inheritdoc/>

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`IInstanceFiles.Find` and `IInstanceFiles.Search`** — a recursive name walk (glob) and a content
+  search (regex) inside an instance's jail, so a consumer can locate a game's own config without
+  descending a directory at a time. A game's config layout is a fact about the game, not about KGSM's
+  paths, so it is found rather than known: reaching Palworld's `PalWorldSettings.ini` cost five
+  sequential single-level listings before this.
+- **Symlinked directories are recorded and never descended into.** Containment for the walk is that
+  absence of a path out, not a check applied afterwards — the weaker of two containment rules is the
+  one an attacker picks, so there is only the one.
+- Both bound the work (`FindOptions` / `FileSearchOptions`) and report **truncation separately from an
+  incomplete walk**: "more matched than were returned" and "the walk stopped early" are different
+  facts, and collapsing them lets *I stopped looking* read as *that is all there is*. Directories
+  named `backups` are skipped unless asked for — an archived copy is not the file a question about the
+  live server is about. Content search skips binaries and oversized files, and refuses an expression
+  that does not compile (`FileOpOutcome.InvalidArgument`); patterns run `NonBacktracking`, since a
+  caller-supplied regex over thousands of files is otherwise a denial of service.
+
 ### Changed
 
 - **`IWatchdogClient.GetAllPlayersAsync` → `GetPlayerPresenceAsync`, and it now answers whether a

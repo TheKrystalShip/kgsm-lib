@@ -606,4 +606,128 @@ public sealed class InstanceFilesTests : IDisposable
         var result = _sut.List(InstanceName, "../", 100);
         Assert.Equal(FileOpOutcome.OutOfJail, result.Outcome);
     }
+
+    // --- Find / Search: the recursive walk, and the containment it must not lose -------------------
+
+    [Fact]
+    public void Find_MatchesByNameAnywhereInTheTree()
+    {
+        Directory.CreateDirectory(Abs("install/Pal/Saved/Config/LinuxServer"));
+        File.WriteAllText(Abs("install/Pal/Saved/Config/LinuxServer/PalWorldSettings.ini"), "x=1");
+        File.WriteAllText(Abs("install/other.txt"), "no");
+
+        var result = _sut.Find(InstanceName, "*.ini", subdir: null);
+
+        Assert.Equal(FileOpOutcome.Ok, result.Outcome);
+        Assert.Equal(
+            new[] { "install/Pal/Saved/Config/LinuxServer/PalWorldSettings.ini" },
+            result.Value!.Matches.Select(m => m.Path));
+    }
+
+    [Fact]
+    public void Find_WithPathScopedPattern_MatchesAgainstTheRelativePath()
+    {
+        Directory.CreateDirectory(Abs("a/Config"));
+        Directory.CreateDirectory(Abs("b"));
+        File.WriteAllText(Abs("a/Config/server.ini"), "x");
+        File.WriteAllText(Abs("b/server.ini"), "x");
+
+        var result = _sut.Find(InstanceName, "*/Config/*.ini", subdir: null);
+
+        Assert.Equal(new[] { "a/Config/server.ini" }, result.Value!.Matches.Select(m => m.Path));
+    }
+
+    [Fact]
+    public void Find_DoesNotDescendIntoASymlinkedDirectory_SoTheWalkCannotLeaveTheJail()
+    {
+        // A secret outside the jail, reachable only by following the link.
+        string outside = Path.Combine(_tempBase, "outside");
+        Directory.CreateDirectory(outside);
+        File.WriteAllText(Path.Combine(outside, "secret.ini"), "top secret");
+
+        Directory.CreateDirectory(Abs("install"));
+        Directory.CreateSymbolicLink(Abs("install/escape"), outside);
+
+        var result = _sut.Find(InstanceName, "*.ini", subdir: null);
+
+        Assert.Equal(FileOpOutcome.Ok, result.Outcome);
+        Assert.DoesNotContain(result.Value!.Matches, m => m.Path.Contains("secret", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Find_ReportsTruncationSeparatelyFromAnIncompleteWalk()
+    {
+        Directory.CreateDirectory(Abs("many"));
+        for (int i = 0; i < 10; i++)
+            File.WriteAllText(Abs($"many/f{i}.ini"), "x");
+
+        var capped = _sut.Find(InstanceName, "*.ini", null, new FindOptions(MaxResults: 3));
+        Assert.True(capped.Value!.Truncated);
+        Assert.False(capped.Value!.ScanLimitHit);      // it finished looking; it just returned fewer
+        Assert.Equal(3, capped.Value!.Matches.Count);
+
+        var starved = _sut.Find(InstanceName, "*.ini", null, new FindOptions(MaxEntriesScanned: 2));
+        Assert.True(starved.Value!.ScanLimitHit);      // it stopped looking — NOT "that is all there is"
+    }
+
+    [Fact]
+    public void Find_SkipsBackupsUnlessAsked()
+    {
+        Directory.CreateDirectory(Abs("backups/old"));
+        File.WriteAllText(Abs("backups/old/server.ini"), "archived");
+        File.WriteAllText(Abs("server.ini"), "live");
+
+        Assert.Equal(new[] { "server.ini" },
+            _sut.Find(InstanceName, "*.ini", null).Value!.Matches.Select(m => m.Path));
+
+        var withBackups = _sut.Find(InstanceName, "*.ini", null, new FindOptions(IncludeBackups: true));
+        Assert.Equal(2, withBackups.Value!.Matches.Count);
+    }
+
+    [Fact]
+    public void Search_ReportsMatchingLinesWithPathAndLineNumber()
+    {
+        Directory.CreateDirectory(Abs("cfg"));
+        File.WriteAllText(Abs("cfg/a.ini"), "alpha=1\nMaxPlayers=32\ngamma=3\n");
+
+        var result = _sut.Search(InstanceName, "MaxPlayers", subdir: null);
+
+        Assert.Equal(FileOpOutcome.Ok, result.Outcome);
+        SearchHit hit = Assert.Single(result.Value!.Hits);
+        Assert.Equal("cfg/a.ini", hit.Path);
+        Assert.Equal(2, hit.LineNumber);
+        Assert.Equal("MaxPlayers=32", hit.Line);
+    }
+
+    [Fact]
+    public void Search_SkipsBinaryFiles_AndRefusesAnUncompilableExpression()
+    {
+        File.WriteAllBytes(Abs("blob.dat"), new byte[] { 0x00, 0x01, (byte)'h', (byte)'i' });
+        Assert.Empty(_sut.Search(InstanceName, "hi", null).Value!.Hits);
+
+        var bad = _sut.Search(InstanceName, "([unclosed", null);
+        Assert.Equal(FileOpOutcome.InvalidArgument, bad.Outcome);
+    }
+
+    [Fact]
+    public void Search_DoesNotReadThroughASymlinkedDirectory()
+    {
+        string outside = Path.Combine(_tempBase, "outside2");
+        Directory.CreateDirectory(outside);
+        File.WriteAllText(Path.Combine(outside, "creds.cfg"), "password=hunter2");
+
+        Directory.CreateSymbolicLink(Abs("escape2"), outside);
+
+        var result = _sut.Search(InstanceName, "hunter2", subdir: null);
+
+        Assert.Equal(FileOpOutcome.Ok, result.Outcome);
+        Assert.Empty(result.Value!.Hits);
+    }
+
+    [Fact]
+    public void Find_RefusesASubdirThatEscapesTheJail()
+    {
+        Assert.Equal(FileOpOutcome.OutOfJail, _sut.Find(InstanceName, "*", "../..").Outcome);
+        Assert.Equal(FileOpOutcome.OutOfJail, _sut.Search(InstanceName, "x", "../..").Outcome);
+    }
 }

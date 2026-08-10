@@ -67,6 +67,10 @@ public enum FileOpOutcome
     /// <c>native.executable_file</c>) — refused before any write. Never a semantic/schema judgment (that
     /// stays the engine's authority via <see cref="Interfaces.IBlueprintService.GetInfo(string)"/>).</summary>
     InvalidDraft,
+
+    /// <summary>An argument the caller supplied cannot be used — today, a search expression that does
+    /// not compile. Distinct from <see cref="IoError"/>: nothing was attempted, so nothing failed.</summary>
+    InvalidArgument,
 }
 
 /// <summary>
@@ -332,4 +336,87 @@ public sealed record BackupArchive(
     /// ASP.NET <c>FileStreamResult</c>, say) and also disposing this is safe rather than a double-free.
     /// </remarks>
     public void Dispose() => Content.Dispose();
+}
+
+/// <summary>
+/// How a recursive walk is bounded. The defaults exist because an instance's working directory spans
+/// three orders of magnitude across games — a few hundred entries for one, several hundred thousand
+/// for a mod-heavy one — so an unbounded walk is not a usable operation on the large end.
+/// </summary>
+/// <param name="MaxResults">Stop collecting after this many matches.</param>
+/// <param name="MaxDepth">How many directory levels below the start to descend.</param>
+/// <param name="MaxEntriesScanned">Stop walking after inspecting this many entries, however few matched.</param>
+/// <param name="IncludeBackups">
+/// Whether to descend into directories named <c>backups</c>. False by default: an archived copy of a
+/// config is not the file a question about the live server is about, and a search that returns both
+/// makes the caller choose between two paths that look equally right.
+/// </param>
+public sealed record FindOptions(
+    int MaxResults = 200,
+    int MaxDepth = 16,
+    int MaxEntriesScanned = 200_000,
+    bool IncludeBackups = false);
+
+/// <summary>One entry a walk matched. <see cref="Path"/> is relative to the jail root.</summary>
+public sealed record FindMatch(string Path, FileKind Kind, long? SizeBytes, DateTimeOffset? Mtime);
+
+/// <summary>
+/// Result of a name walk. <see cref="Truncated"/> and <see cref="ScanLimitHit"/> are separate on
+/// purpose: the first says more files matched than were returned, the second says the walk stopped
+/// before it had seen everything. Collapsing them would let "I stopped looking" read as "that is all
+/// there is" — which is how a caller concludes a file does not exist when it was simply never reached.
+/// </summary>
+public sealed record FindResult
+{
+    /// <summary>The matches, ordinal by relative path, capped at <see cref="FindOptions.MaxResults"/>.</summary>
+    public IReadOnlyList<FindMatch> Matches { get; init; } = [];
+
+    /// <summary>True when more entries matched than were returned.</summary>
+    public bool Truncated { get; init; }
+
+    /// <summary>True when the walk stopped on its entry budget rather than finishing the tree.</summary>
+    public bool ScanLimitHit { get; init; }
+
+    /// <summary>How many filesystem entries the walk inspected.</summary>
+    public int EntriesScanned { get; init; }
+}
+
+/// <summary>
+/// How a content search is bounded. Beyond <see cref="FindOptions"/>'s walk limits, a content search
+/// also opens every candidate, so it caps file size and skips binaries.
+/// </summary>
+/// <param name="MaxHits">Stop collecting after this many matching lines (or files, when <paramref name="FilesOnly"/>).</param>
+/// <param name="MaxFileBytes">Skip a candidate larger than this rather than reading it.</param>
+/// <param name="MaxFilesRead">Stop after opening this many candidate files.</param>
+/// <param name="IgnoreCase">Match case-insensitively.</param>
+/// <param name="FilesOnly">Report each matching file once, without line detail (<c>grep -l</c>).</param>
+/// <param name="Walk">The walk bounds applied while finding candidates.</param>
+public sealed record FileSearchOptions(
+    int MaxHits = 100,
+    long MaxFileBytes = 1_000_000,
+    int MaxFilesRead = 20_000,
+    bool IgnoreCase = false,
+    bool FilesOnly = false,
+    FindOptions? Walk = null);
+
+/// <summary>One matching line. <see cref="Path"/> is relative to the jail root; <see cref="LineNumber"/> is 1-based.</summary>
+public sealed record SearchHit(string Path, int LineNumber, string Line);
+
+/// <summary>
+/// Result of a content search. Carries the same two distinct truncation signals as
+/// <see cref="FindResult"/>, for the same reason, plus how many files were actually opened.
+/// </summary>
+public sealed record FileSearchResult
+{
+    /// <summary>The matching lines, in walk order, capped at <see cref="FileSearchOptions.MaxHits"/>.</summary>
+    public IReadOnlyList<SearchHit> Hits { get; init; } = [];
+
+    /// <summary>True when more lines matched than were returned.</summary>
+    public bool Truncated { get; init; }
+
+    /// <summary>True when the search stopped on a walk or file-read budget rather than finishing.</summary>
+    public bool ScanLimitHit { get; init; }
+
+    /// <summary>How many candidate files were opened and scanned.</summary>
+    public int FilesRead { get; init; }
 }
