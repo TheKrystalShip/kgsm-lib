@@ -245,6 +245,53 @@ public class InstanceServiceTests
         Assert.Empty(result);
     }
 
+    // --- CheckUpdate : Execute(timeout, "instances", "check-update", name, ["--emit"]) ---
+    // Carries a timeout because it reaches the game's upstream, and the tight default meant for
+    // local reads would kill a registry probe the engine was about to answer.
+
+    [Fact]
+    public void CheckUpdate_NullInstanceName_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _instanceService.CheckUpdate(null!));
+    }
+
+    [Fact]
+    public void CheckUpdate_ByDefault_DoesNotEmit()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(
+                It.IsAny<TimeSpan>(),
+                It.Is<string[]>(a => ArgsAre(a, "instances", "check-update", Instance))))
+            .Returns(new KgsmResult(new ProcessResult(0, "Already up to date", string.Empty)));
+
+        KgsmResult result = _instanceService.CheckUpdate(Instance);
+
+        Assert.True(result.IsSuccess);
+        // --emit is what writes the record that makes a repeated sweep silent. A caller that only
+        // wants an answer must not consume an announcement, so it is never passed by default.
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.IsAny<TimeSpan>(),
+            It.Is<string[]>(a => a.Contains("--emit"))), Times.Never);
+    }
+
+    [Fact]
+    public void CheckUpdate_WithEmit_PassesTheFlag()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(
+                It.IsAny<TimeSpan>(),
+                It.Is<string[]>(a => ArgsAre(a, "instances", "check-update", Instance, "--emit"))))
+            .Returns(new KgsmResult(new ProcessResult(0, string.Empty, string.Empty)));
+
+        KgsmResult result = _instanceService.CheckUpdate(Instance, emit: true);
+
+        Assert.True(result.IsSuccess);
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.IsAny<TimeSpan>(),
+            It.Is<string[]>(a => ArgsAre(a, "instances", "check-update", Instance, "--emit"))),
+            Times.Once);
+    }
+
     // --- Install : Execute(timeout, "install", blueprint, [--install-dir, --version, --name]) ---
 
     [Fact]

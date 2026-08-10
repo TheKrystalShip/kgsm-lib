@@ -17,10 +17,23 @@ public class KgsmTimeoutOptions
 {
     /// <summary>
     /// Fallback for any command without a more specific timeout: status, info,
-    /// version, check-update, listing, find, save, input, etc. These are quick,
-    /// so the default stays tight enough to surface a hang promptly.
+    /// version, listing, find, save, input, etc. These are quick, so the default
+    /// stays tight enough to surface a hang promptly.
     /// </summary>
     public TimeSpan Default { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Asking an instance's upstream whether a newer build exists (<c>check-update</c>). This is a
+    /// network call to something outside the host — a SteamCMD login, a container registry — and is
+    /// the slow half of a status query, not a local read.
+    ///
+    /// The engine already bounds it from the inside: a container's registry probe is capped per image,
+    /// and a check that gets no answer reports one rather than hanging. This ceiling therefore sits
+    /// well above that inner one on purpose — if the OUTER timeout fires first it kills the process
+    /// tree and reports a timeout for a check the engine was about to answer honestly, which is the
+    /// same failure the lifecycle tier is shaped to avoid.
+    /// </summary>
+    public TimeSpan UpdateCheck { get; set; } = TimeSpan.FromMinutes(3);
 
     /// <summary>
     /// Lifecycle verbs (start / stop / restart). These are not quick commands: a stop writes the

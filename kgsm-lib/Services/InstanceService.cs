@@ -221,15 +221,19 @@ public class InstanceService : IInstanceService
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        return _commandExecutor.Execute("instances", "version", instanceName, "--latest");
+        // Reaches the game's upstream, exactly like check-update — so it gets the same ceiling, not
+        // the tight default meant for local reads.
+        return _commandExecutor.Execute(_timeouts.UpdateCheck, "instances", "version", instanceName, "--latest");
     }
 
     /// <inheritdoc/>
-    public KgsmResult CheckUpdate(string instanceName)
+    public KgsmResult CheckUpdate(string instanceName, bool emit = false)
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        return _commandExecutor.Execute("instances", "check-update", instanceName);
+        return emit
+            ? _commandExecutor.Execute(_timeouts.UpdateCheck, "instances", "check-update", instanceName, "--emit")
+            : _commandExecutor.Execute(_timeouts.UpdateCheck, "instances", "check-update", instanceName);
     }
 
     /// <inheritdoc/>

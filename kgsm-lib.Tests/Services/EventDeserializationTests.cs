@@ -88,6 +88,28 @@ public class EventDeserializationTests
         Assert.Equal("7dtd", failed.InstanceName);
     }
 
+    // Captured verbatim from the journal after a live `kgsm instances check-update starbound --emit`.
+    // Origin is null because a bare CLI call declares no surface — the scheduler's sweep stamps one.
+    private const string UpdateAvailableWireJson = """
+        {"EventType":"instance_update_available","Data":{"InstanceName":"starbound","CurrentVersion":"16000000","LatestVersion":"16302742"},"Timestamp":"2026-08-10T11:17:48Z","Actor":"heisen","Origin":null,"Hostname":"hotrod","KGSMVersion":"3.12.0-rc5"}
+        """;
+
+    [Fact]
+    public void UpdateAvailableEvent_DeserializesBothVersions()
+    {
+        (string eventType, EventDataBase? data) =
+            Deserialize(UpdateAvailableWireJson, typeof(InstanceUpdateAvailableData));
+
+        Assert.Equal("instance_update_available", eventType);
+        var available = Assert.IsType<InstanceUpdateAvailableData>(data);
+        Assert.Equal("starbound", available.InstanceName);
+
+        // Both versions, because "an update is available" without saying from what to what is not
+        // something a surface can announce or an audit row can be read back from.
+        Assert.Equal("16000000", available.CurrentVersion);
+        Assert.Equal("16302742", available.LatestVersion);
+    }
+
     // Models the kgsm `_build_event_payload instance_crashed 7dtd 139 2` wire shape: the
     // watchdog crash-restart event, stamped Actor=system / Origin=system (autonomous engine
     // action), carrying the exit code + restart-attempt count as strings (the jq --arg wire

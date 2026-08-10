@@ -55,6 +55,7 @@ public class EventService : IEventService, IAsyncDisposable
         { "instance_update_finished", typeof(InstanceUpdateFinishedData) },
         { "instance_updated", typeof(InstanceUpdatedData) },
 
+        { "instance_update_available", typeof(InstanceUpdateAvailableData) },
         { "instance_version_updated", typeof(InstanceVersionUpdatedData) },
 
         { "instance_installation_started", typeof(InstanceInstallationStartedData) },

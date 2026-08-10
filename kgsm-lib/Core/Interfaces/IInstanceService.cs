@@ -198,11 +198,18 @@ public interface IInstanceService
     KgsmResult GetLatestVersion(string instanceName);
 
     /// <summary>
-    /// Checks if there's an update available for an instance.
+    /// Checks if there's an update available for an instance. This reaches the game's upstream
+    /// (SteamCMD, a registry, a vendor API) and takes seconds, not milliseconds.
     /// </summary>
     /// <param name="instanceName">Instance name to check for updates.</param>
+    /// <param name="emit">
+    /// When <see langword="true"/>, the engine records what it found beside the instance and emits
+    /// <c>instance_update_available</c> for a version it has not announced before. Recording is what
+    /// makes a repeated sweep silent, so exactly one caller per host should own this — the scheduler.
+    /// Left <see langword="false"/>, the check answers the caller and changes nothing.
+    /// </param>
     /// <returns>Result indicating if an update is available.</returns>
-    KgsmResult CheckUpdate(string instanceName);
+    KgsmResult CheckUpdate(string instanceName, bool emit = false);
 
     /// <summary>
     /// Updates an instance to the latest version.

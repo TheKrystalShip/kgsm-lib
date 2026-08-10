@@ -51,11 +51,22 @@ public record class VersionInfo
     public string? Latest { get; set; }
 
     /// <summary>
-    /// Gets or sets whether KGSM actually performed an update check.
-    /// False in fast mode or when the current version is unknown.
+    /// Gets or sets whether a comparison against <see cref="Latest"/> was possible.
+    /// False when the current version is unknown, or when nothing has ever checked
+    /// this instance's upstream.
     /// </summary>
     [JsonPropertyName("checked")]
     public bool Checked { get; set; } = false;
+
+    /// <summary>
+    /// Gets or sets when <see cref="Latest"/> was fetched from upstream (UTC).
+    /// <see langword="null"/> when no check has ever run. In fast mode the answer
+    /// comes off the record the engine keeps beside the instance, so this is how
+    /// stale it is — a surface that shows the version without the moment claims a
+    /// freshness it cannot support.
+    /// </summary>
+    [JsonPropertyName("checked_at")]
+    public DateTimeOffset? CheckedAt { get; set; }
 
     /// <summary>
     /// Gets or sets whether updates are available. Null when not checked

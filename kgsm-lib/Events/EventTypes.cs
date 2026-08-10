@@ -257,6 +257,26 @@ public class InstanceUpdatedData : EventDataBase
 }
 
 /// <summary>
+/// Event data for when a newer version of an instance's game becomes available upstream. Emitted once
+/// per version by <c>kgsm instances check-update &lt;instance&gt; --emit</c>: the engine records what it
+/// found beside the instance, so the same upstream version is announced once and a check run by hand
+/// never consumes an announcement. It states that an update EXISTS — <see cref="InstanceUpdatedData"/>
+/// states that one was applied.
+/// </summary>
+public class InstanceUpdateAvailableData : EventDataBase
+{
+    /// <summary>
+    /// Gets or sets the version currently installed.
+    /// </summary>
+    public string CurrentVersion { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the version found upstream.
+    /// </summary>
+    public string LatestVersion { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// Event data for when an instance version is updated.
 /// </summary>
 public class InstanceVersionUpdatedData : EventDataBase

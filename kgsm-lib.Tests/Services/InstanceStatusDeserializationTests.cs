@@ -42,7 +42,7 @@ public class InstanceStatusDeserializationTests
             "instance_name": "7dtd",
             "status": false,
             "process": { "pid": null, "status": null, "start_time": null },
-            "version": { "current": "22422094", "latest": null, "checked": false, "updates_available": null },
+            "version": { "current": "22422094", "latest": null, "checked": false, "updates_available": null, "checked_at": null },
             "configuration": {
               "blueprint": "7dtd.bp",
               "runtime": "native",
@@ -80,11 +80,60 @@ public class InstanceStatusDeserializationTests
         // recent_logs arrives as a string — the regression this test exists for.
         Assert.Contains("Peak Allocated memory", s.RecentLogs);
 
-        // version is tri-state in fast mode: checked=false, nothing fabricated.
+        // An instance nothing has ever checked: tri-state, nothing fabricated, and no check
+        // time — a recorded version with no moment would read as fresh.
         Assert.Equal("22422094", s.Version.Current);
         Assert.False(s.Version.Checked);
         Assert.Null(s.Version.Latest);
         Assert.Null(s.Version.UpdatesAvailable);
+        Assert.Null(s.Version.CheckedAt);
+    }
+
+    // Captured verbatim from `kgsm instances list --status --json --fast` against an instance the
+    // engine HAS checked. Fast mode does no network: it answers from the record `check-update --emit`
+    // wrote beside the instance, and `checked_at` is when that upstream fetch really happened.
+    private const string LiveBulkFastCheckedJson = """
+        {
+          "minecraft": {
+            "instance_name": "minecraft",
+            "status": false,
+            "process": { "pid": null, "status": null, "start_time": null },
+            "version": { "current": "26.2", "latest": "26.2", "checked": true, "updates_available": false, "checked_at": "2026-08-10T11:24:13Z" },
+            "configuration": {
+              "blueprint": "minecraft.bp",
+              "runtime": "native",
+              "lifecycle_manager": "standalone",
+              "directory": "/opt/minecraft/minecraft",
+              "ports": "25565/tcp"
+            },
+            "resources": { "disk_usage": "1.2G" },
+            "backups": [],
+            "recent_logs": ""
+          }
+        }
+        """;
+
+    [Fact]
+    public void BulkFastStatus_CheckedInstance_CarriesTheMomentTheUpstreamWasFetched()
+    {
+        StubProcessOutput(LiveBulkFastCheckedJson);
+
+        Dictionary<string, Reading<InstanceRuntimeStatus>>? result =
+            Create().ExecuteForJson<Dictionary<string, Reading<InstanceRuntimeStatus>>>(
+                ["instances", "list", "--status", "--json", "--fast"]);
+
+        Assert.NotNull(result);
+        InstanceRuntimeStatus s = result!["minecraft"].Value!;
+
+        Assert.Equal("26.2", s.Version.Current);
+        Assert.Equal("26.2", s.Version.Latest);
+        Assert.True(s.Version.Checked);
+        Assert.False(s.Version.UpdatesAvailable);
+
+        // The answer came off disk, so how old it is IS part of the answer.
+        Assert.Equal(
+            new DateTimeOffset(2026, 8, 10, 11, 24, 13, TimeSpan.Zero),
+            s.Version.CheckedAt);
     }
 
     [Fact]
@@ -100,7 +149,7 @@ public class InstanceStatusDeserializationTests
                 "instance_name": "fresh",
                 "status": false,
                 "process": { "pid": null, "status": null, "start_time": null },
-                "version": { "current": "1", "latest": null, "checked": false, "updates_available": null },
+                "version": { "current": "1", "latest": null, "checked": false, "updates_available": null, "checked_at": null },
                 "configuration": { "blueprint": "x.bp", "runtime": "native", "lifecycle_manager": "standalone", "directory": "/x", "ports": "1/tcp" },
                 "resources": { "disk_usage": "0" },
                 "backups": [],
@@ -131,7 +180,7 @@ public class InstanceStatusDeserializationTests
                 "instance_name": "ok",
                 "status": true,
                 "process": { "pid": 1234, "status": "running", "start_time": null },
-                "version": { "current": "1", "latest": null, "checked": false, "updates_available": null },
+                "version": { "current": "1", "latest": null, "checked": false, "updates_available": null, "checked_at": null },
                 "configuration": { "blueprint": "x.bp", "runtime": "native", "lifecycle_manager": "standalone", "directory": "/x", "ports": "1/tcp" },
                 "resources": { "disk_usage": "1G" },
                 "backups": [],
@@ -196,7 +245,7 @@ public class StartTimeConverterTests
                 "instance_name": "x",
                 "status": true,
                 "process": { "pid": 1234, "status": "running", "start_time": {{startTimeJsonValue}} },
-                "version": { "current": "1", "latest": null, "checked": false, "updates_available": null },
+                "version": { "current": "1", "latest": null, "checked": false, "updates_available": null, "checked_at": null },
                 "configuration": { "blueprint": "x.bp", "runtime": "native", "directory": "/x" },
                 "resources": { "disk_usage": "1G" },
                 "backups": [],

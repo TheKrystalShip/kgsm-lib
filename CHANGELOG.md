@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`InstanceUpdateAvailableData`** — the engine's `instance_update_available` event, carrying
+  `CurrentVersion` and `LatestVersion`. Update availability is a fact kgsm establishes and announces
+  through the journal, so every consumer reads it the same way it reads the rest of `server.*`;
+  nothing has to run its own probe or keep the answer in memory.
+
+- **`IInstanceService.CheckUpdate(instanceName, emit)`** — `emit` runs the engine's recording check,
+  which writes what it found beside the instance and announces a version it has not announced before.
+  Recording is what makes a repeated sweep silent, so exactly one caller per host owns it; left
+  `false`, the check answers the caller and changes nothing.
+
+- **`VersionInfo.CheckedAt`** — when `Latest` was fetched from upstream. A fast status read answers
+  from the record the engine keeps, so how old the answer is comes with it. `null` means no check has
+  ever run, never a substituted moment.
+
+- **`KgsmTimeoutOptions.UpdateCheck`** (3 minutes) for the two commands that reach a game's upstream —
+  `check-update` and `version --latest`. Both sat on the 30-second default meant for local reads,
+  which is the same ceiling a container's registry probe already uses internally: the outer timeout
+  would kill the process tree and report a timeout for a check the engine was about to answer
+  honestly.
+
 - **`IInstanceBackups.OpenArchive(instance, backupId)`** — read access to a compressed backup's archive
   bytes, plus the sha256 its manifest recorded. Its own service rather than a second root on
   `IInstanceFiles`, because backups deliberately live OUTSIDE the working directory (uninstalling an
