@@ -292,6 +292,38 @@ public class InstanceServiceTests
             Times.Once);
     }
 
+    [Fact]
+    public void CheckUpdate_WithProvenance_StampsEnvOnTheEmittingCall()
+    {
+        SetupEnvTimeout();
+
+        _instanceService.CheckUpdate(Instance, emit: true, actor: "system:scheduler", origin: "system");
+
+        // --emit is the only form that produces an event, so this is the one that has an actor to get
+        // wrong: without the stamp the engine attributes the announcement to whichever OS user the
+        // sweep runs as, and an unattended check reads as a person having asked for it.
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.Is<IReadOnlyDictionary<string, string>>(e =>
+                e["KGSM_EVENT_ACTOR"] == "system:scheduler" && e["KGSM_EVENT_ORIGIN"] == "system"),
+            It.IsAny<TimeSpan>(),
+            It.Is<string[]>(a => ArgsAre(a, "instances", "check-update", Instance, "--emit"))), Times.Once);
+    }
+
+    [Fact]
+    public void CheckUpdate_WithoutProvenance_TakesThePlainTimeoutPath_NoEnvOverload()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.IsAny<TimeSpan>(), It.IsAny<string[]>()))
+            .Returns(new KgsmResult(new ProcessResult(0, string.Empty, string.Empty)));
+
+        _instanceService.CheckUpdate(Instance);
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.IsAny<IReadOnlyDictionary<string, string>>(),
+            It.IsAny<TimeSpan>(),
+            It.IsAny<string[]>()), Times.Never);
+    }
+
     // --- Install : Execute(timeout, "install", blueprint, [--install-dir, --version, --name]) ---
 
     [Fact]

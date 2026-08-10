@@ -14,10 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   through the journal, so every consumer reads it the same way it reads the rest of `server.*`;
   nothing has to run its own probe or keep the answer in memory.
 
-- **`IInstanceService.CheckUpdate(instanceName, emit)`** — `emit` runs the engine's recording check,
-  which writes what it found beside the instance and announces a version it has not announced before.
-  Recording is what makes a repeated sweep silent, so exactly one caller per host owns it; left
-  `false`, the check answers the caller and changes nothing.
+- **`IInstanceService.CheckUpdate(instanceName, emit, actor, origin)`** — `emit` runs the engine's
+  recording check, which writes what it found beside the instance and announces a version it has not
+  announced before. Recording is what makes a repeated sweep silent, so exactly one caller per host
+  owns it; left `false`, the check answers the caller and changes nothing. `actor`/`origin` stamp the
+  announcement the same way every other mutating verb stamps its events — an unattended sweep that
+  omits them is attributed to whatever OS user it runs as, which reads as a person having asked.
 
 - **`VersionInfo.CheckedAt`** — when `Latest` was fetched from upstream. A fast status read answers
   from the record the engine keeps, so how old the answer is comes with it. `null` means no check has

@@ -227,13 +227,18 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
-    public KgsmResult CheckUpdate(string instanceName, bool emit = false)
+    public KgsmResult CheckUpdate(string instanceName, bool emit = false, string? actor = null, string? origin = null)
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
-        return emit
-            ? _commandExecutor.Execute(_timeouts.UpdateCheck, "instances", "check-update", instanceName, "--emit")
-            : _commandExecutor.Execute(_timeouts.UpdateCheck, "instances", "check-update", instanceName);
+        string[] args = emit
+            ? ["instances", "check-update", instanceName, "--emit"]
+            : ["instances", "check-update", instanceName];
+
+        IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
+        return provenance is null
+            ? _commandExecutor.Execute(_timeouts.UpdateCheck, args)
+            : _commandExecutor.Execute(provenance, _timeouts.UpdateCheck, args);
     }
 
     /// <inheritdoc/>

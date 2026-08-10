@@ -208,8 +208,14 @@ public interface IInstanceService
     /// makes a repeated sweep silent, so exactly one caller per host should own this — the scheduler.
     /// Left <see langword="false"/>, the check answers the caller and changes nothing.
     /// </param>
+    /// <param name="actor">
+    /// Optional audit principal — see <see cref="Install"/>. It stamps the <c>instance_update_available</c>
+    /// event <paramref name="emit"/> produces; without it the engine falls back to the OS user the sweep
+    /// happens to run as, which reads as a person having asked.
+    /// </param>
+    /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result indicating if an update is available.</returns>
-    KgsmResult CheckUpdate(string instanceName, bool emit = false);
+    KgsmResult CheckUpdate(string instanceName, bool emit = false, string? actor = null, string? origin = null);
 
     /// <summary>
     /// Updates an instance to the latest version.
