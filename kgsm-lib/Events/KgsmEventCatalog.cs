@@ -63,6 +63,7 @@ public static class KgsmEventCatalog
         Weight: EventWeight.Fact,
         Outcome: EventOutcome.Neutral,
         Fields: [],
+        PayloadType: null,
         Known: false);
 
     // ---- the classification -------------------------------------------------------------------
@@ -85,96 +86,96 @@ public static class KgsmEventCatalog
         var all = new List<EventDescriptor>
         {
             // -- install -----------------------------------------------------------------------
-            Instance("instance_created", EventWeight.Phase, fields: [Blueprint]),
-            Instance("instance_directories_created", EventWeight.Phase),
-            Instance("instance_files_created", EventWeight.Phase),
-            Instance("instance_download_started", EventWeight.Phase),
-            Instance("instance_download_finished", EventWeight.Phase),
-            Instance("instance_download_failed", EventWeight.Fact, EventOutcome.Failure),
-            Instance("instance_downloaded", EventWeight.Phase),
-            Instance("instance_deploy_started", EventWeight.Phase),
-            Instance("instance_deploy_finished", EventWeight.Phase),
-            Instance("instance_deploy_failed", EventWeight.Fact, EventOutcome.Failure),
-            Instance("instance_deployed", EventWeight.Phase),
-            Instance("instance_installation_started", EventWeight.Phase, fields: [Blueprint]),
-            Instance("instance_installation_finished", EventWeight.Phase, fields: [Blueprint]),
-            Instance("instance_installed", EventWeight.Fact, EventOutcome.Success, [Blueprint]),
+            Instance<InstanceCreatedData>("instance_created", EventWeight.Phase, fields: [Blueprint]),
+            Instance<InstanceDirectoriesCreatedData>("instance_directories_created", EventWeight.Phase),
+            Instance<InstanceFilesCreatedData>("instance_files_created", EventWeight.Phase),
+            Instance<InstanceDownloadStartedData>("instance_download_started", EventWeight.Phase),
+            Instance<InstanceDownloadFinishedData>("instance_download_finished", EventWeight.Phase),
+            Instance<InstanceDownloadFailedData>("instance_download_failed", EventWeight.Fact, EventOutcome.Failure),
+            Instance<InstanceDownloadedData>("instance_downloaded", EventWeight.Phase),
+            Instance<InstanceDeployStartedData>("instance_deploy_started", EventWeight.Phase),
+            Instance<InstanceDeployFinishedData>("instance_deploy_finished", EventWeight.Phase),
+            Instance<InstanceDeployFailedData>("instance_deploy_failed", EventWeight.Fact, EventOutcome.Failure),
+            Instance<InstanceDeployedData>("instance_deployed", EventWeight.Phase),
+            Instance<InstanceInstallationStartedData>("instance_installation_started", EventWeight.Phase, fields: [Blueprint]),
+            Instance<InstanceInstallationFinishedData>("instance_installation_finished", EventWeight.Phase, fields: [Blueprint]),
+            Instance<InstanceInstalledData>("instance_installed", EventWeight.Fact, EventOutcome.Success, [Blueprint]),
 
             // -- uninstall ---------------------------------------------------------------------
-            Instance("instance_uninstall_started", EventWeight.Phase),
-            Instance("instance_uninstall_finished", EventWeight.Phase),
-            Instance("instance_uninstall_failed", EventWeight.Fact, EventOutcome.Failure),
-            Instance("instance_uninstalled", EventWeight.Fact, EventOutcome.Success),
-            Instance("instance_files_removed", EventWeight.Phase),
-            Instance("instance_directories_removed", EventWeight.Phase),
-            Instance("instance_removed", EventWeight.Phase),
+            Instance<InstanceUninstallStartedData>("instance_uninstall_started", EventWeight.Phase),
+            Instance<InstanceUninstallFinishedData>("instance_uninstall_finished", EventWeight.Phase),
+            Instance<InstanceUninstallFailedData>("instance_uninstall_failed", EventWeight.Fact, EventOutcome.Failure),
+            Instance<InstanceUninstalledData>("instance_uninstalled", EventWeight.Fact, EventOutcome.Success),
+            Instance<InstanceFilesRemovedData>("instance_files_removed", EventWeight.Phase),
+            Instance<InstanceDirectoriesRemovedData>("instance_directories_removed", EventWeight.Phase),
+            Instance<InstanceRemovedData>("instance_removed", EventWeight.Phase),
 
             // -- run state ---------------------------------------------------------------------
-            Instance("instance_started", EventWeight.Fact),
+            Instance<InstanceStartedData>("instance_started", EventWeight.Fact),
 
             // The moment players can actually connect, which is not what instance_started reports —
             // that one says the process launched. Two facts about two different moments.
-            Instance("instance_ready", EventWeight.Fact, EventOutcome.Success),
+            Instance<InstanceReadyData>("instance_ready", EventWeight.Fact, EventOutcome.Success),
 
-            Instance("instance_stopped", EventWeight.Fact),
-            Instance("instance_stop_started", EventWeight.Phase),
-            Instance("instance_stop_finished", EventWeight.Phase),
-            Instance("instance_restarted", EventWeight.Fact),
-            Instance("instance_restart_started", EventWeight.Phase),
-            Instance("instance_restart_finished", EventWeight.Phase),
-            Instance("instance_crashed", EventWeight.Fact, EventOutcome.Failure, [ExitCode, Restarts]),
-            Instance("instance_failed", EventWeight.Fact, EventOutcome.Failure, [ExitCode, Restarts]),
+            Instance<InstanceStoppedData>("instance_stopped", EventWeight.Fact),
+            Instance<InstanceStopStartedData>("instance_stop_started", EventWeight.Phase),
+            Instance<InstanceStopFinishedData>("instance_stop_finished", EventWeight.Phase),
+            Instance<InstanceRestartedData>("instance_restarted", EventWeight.Fact),
+            Instance<InstanceRestartStartedData>("instance_restart_started", EventWeight.Phase),
+            Instance<InstanceRestartFinishedData>("instance_restart_finished", EventWeight.Phase),
+            Instance<InstanceCrashedData>("instance_crashed", EventWeight.Fact, EventOutcome.Failure, [ExitCode, Restarts]),
+            Instance<InstanceFailedData>("instance_failed", EventWeight.Fact, EventOutcome.Failure, [ExitCode, Restarts]),
 
             // -- versions ----------------------------------------------------------------------
-            Instance("instance_update_started", EventWeight.Phase),
-            Instance("instance_update_finished", EventWeight.Phase),
+            Instance<InstanceUpdateStartedData>("instance_update_started", EventWeight.Phase),
+            Instance<InstanceUpdateFinishedData>("instance_update_finished", EventWeight.Phase),
 
             // The update run ended; whether the version moved is instance_version_updated's to say.
-            Instance("instance_updated", EventWeight.Phase),
+            Instance<InstanceUpdatedData>("instance_updated", EventWeight.Phase),
 
-            Instance("instance_update_available", EventWeight.Fact, EventOutcome.Neutral,
+            Instance<InstanceUpdateAvailableData>("instance_update_available", EventWeight.Fact, EventOutcome.Neutral,
                 [Field("CurrentVersion", FieldShape.Version), Field("LatestVersion", FieldShape.Version)]),
-            Instance("instance_version_updated", EventWeight.Fact, EventOutcome.Success,
+            Instance<InstanceVersionUpdatedData>("instance_version_updated", EventWeight.Fact, EventOutcome.Success,
                 [Field("OldVersion", FieldShape.Version), Field("NewVersion", FieldShape.Version)]),
 
             // -- backups -----------------------------------------------------------------------
-            Instance("instance_backup_created", EventWeight.Fact, EventOutcome.Success, [Source, Version]),
-            Instance("instance_backup_restored", EventWeight.Fact, EventOutcome.Success, [Source, Version]),
-            Instance("instance_backup_deleted", EventWeight.Fact, EventOutcome.Neutral, [Source]),
-            Instance("instance_backups_pruned", EventWeight.Fact, EventOutcome.Neutral,
+            Instance<InstanceBackupCreatedData>("instance_backup_created", EventWeight.Fact, EventOutcome.Success, [Source, Version]),
+            Instance<InstanceBackupRestoredData>("instance_backup_restored", EventWeight.Fact, EventOutcome.Success, [Source, Version]),
+            Instance<InstanceBackupDeletedData>("instance_backup_deleted", EventWeight.Fact, EventOutcome.Neutral, [Source]),
+            Instance<InstanceBackupsPrunedData>("instance_backups_pruned", EventWeight.Fact, EventOutcome.Neutral,
                 [Field("Deleted", FieldShape.Number), Field("Kept", FieldShape.Number)]),
 
             // -- the doors ---------------------------------------------------------------------
             // A host firewall rule and a router NAT forward are different facts about different
             // machines, and both bracket a run rather than stepping through one — so both are facts.
-            Instance("instance_ports_opened", EventWeight.Fact, EventOutcome.Neutral, [Ports]),
-            Instance("instance_ports_closed", EventWeight.Fact, EventOutcome.Neutral, [Ports]),
-            Instance("instance_upnp_opened", EventWeight.Fact, EventOutcome.Neutral, [Ports]),
-            Instance("instance_upnp_closed", EventWeight.Fact, EventOutcome.Neutral, [Ports]),
-            Instance("instance_upnp_reasserted", EventWeight.Fact, EventOutcome.Neutral, [Ports]),
+            Instance<InstancePortsOpenedData>("instance_ports_opened", EventWeight.Fact, EventOutcome.Neutral, [Ports]),
+            Instance<InstancePortsClosedData>("instance_ports_closed", EventWeight.Fact, EventOutcome.Neutral, [Ports]),
+            Instance<InstanceUpnpOpenedData>("instance_upnp_opened", EventWeight.Fact, EventOutcome.Neutral, [Ports]),
+            Instance<InstanceUpnpClosedData>("instance_upnp_closed", EventWeight.Fact, EventOutcome.Neutral, [Ports]),
+            Instance<InstanceUpnpReassertedData>("instance_upnp_reasserted", EventWeight.Fact, EventOutcome.Neutral, [Ports]),
 
             // -- players -----------------------------------------------------------------------
-            Instance("instance_player_joined", EventWeight.Fact, EventOutcome.Neutral,
+            Instance<InstancePlayerJoinedData>("instance_player_joined", EventWeight.Fact, EventOutcome.Neutral,
                 [PlayerId, PlayerName, PlayerAddr, SessionKey]),
-            Instance("instance_player_left", EventWeight.Fact, EventOutcome.Neutral,
+            Instance<InstancePlayerLeftData>("instance_player_left", EventWeight.Fact, EventOutcome.Neutral,
                 [PlayerId, PlayerName, PlayerAddr, SessionKey, Field("Reason", FieldShape.Text)]),
 
-            Instance("instance_player_kicked", EventWeight.Fact, EventOutcome.Neutral, [Target, Command]),
-            Instance("instance_player_banned", EventWeight.Fact, EventOutcome.Neutral, [Target, Command]),
-            Instance("instance_player_unbanned", EventWeight.Fact, EventOutcome.Neutral, [Target, Command]),
+            Instance<InstancePlayerKickedData>("instance_player_kicked", EventWeight.Fact, EventOutcome.Neutral, [Target, Command]),
+            Instance<InstancePlayerBannedData>("instance_player_banned", EventWeight.Fact, EventOutcome.Neutral, [Target, Command]),
+            Instance<InstancePlayerUnbannedData>("instance_player_unbanned", EventWeight.Fact, EventOutcome.Neutral, [Target, Command]),
 
             // -- operator actions --------------------------------------------------------------
             // The key only: kgsm deliberately never puts the value on the event, because a config
             // value can be an rcon password.
-            Instance("instance_config_changed", EventWeight.Fact, EventOutcome.Neutral,
+            Instance<InstanceConfigChangedData>("instance_config_changed", EventWeight.Fact, EventOutcome.Neutral,
                 [Field("Key", FieldShape.Text)]),
 
-            Instance("instance_input_sent", EventWeight.Fact, EventOutcome.Neutral, [Command]),
+            Instance<InstanceInputSentData>("instance_input_sent", EventWeight.Fact, EventOutcome.Neutral, [Command]),
 
             // -- blueprints --------------------------------------------------------------------
-            BlueprintEvent("blueprint_created", [Tier, OverridesSystem, Runtime]),
-            BlueprintEvent("blueprint_updated", [Tier, OverridesSystem, Runtime]),
-            BlueprintEvent("blueprint_removed", [Tier, Field("RevertedToSystem", FieldShape.Text)]),
+            BlueprintEvent<BlueprintCreatedData>("blueprint_created", [Tier, OverridesSystem, Runtime]),
+            BlueprintEvent<BlueprintUpdatedData>("blueprint_updated", [Tier, OverridesSystem, Runtime]),
+            BlueprintEvent<BlueprintRemovedData>("blueprint_removed", [Tier, Field("RevertedToSystem", FieldShape.Text)]),
         };
 
         var byType = new Dictionary<string, EventDescriptor>(all.Count, StringComparer.Ordinal);
@@ -184,15 +185,30 @@ public static class KgsmEventCatalog
         return byType;
     }
 
-    private static EventDescriptor Instance(
+    /// <summary>
+    /// One instance-subject event, named together with the class its payload deserializes into.
+    /// </summary>
+    /// <remarks>
+    /// <b>The type parameter is what makes the classification and the dispatch one registry.</b>
+    /// <see cref="Services.EventService"/> reads <see cref="EventDescriptor.PayloadType"/> to decide
+    /// what to deserialize, so an event cannot be dispatched without being described — that is now
+    /// true by construction rather than by a test comparing two lists. Its constraint carries a second
+    /// guarantee for free: an instance-subject event must have an instance-shaped payload, so the
+    /// subject and the payload's own base cannot disagree.
+    /// </remarks>
+    private static EventDescriptor Instance<TData>(
         string type,
         EventWeight weight,
         EventOutcome outcome = EventOutcome.Neutral,
-        IReadOnlyList<EventField>? fields = null) =>
-        new(type, EventSubject.Instance, weight, outcome, fields ?? [], Known: true);
+        IReadOnlyList<EventField>? fields = null)
+        where TData : EventDataBase =>
+        new(type, EventSubject.Instance, weight, outcome, fields ?? [], typeof(TData), Known: true);
 
-    private static EventDescriptor BlueprintEvent(string type, IReadOnlyList<EventField> fields) =>
-        new(type, EventSubject.Blueprint, EventWeight.Fact, EventOutcome.Neutral, fields, Known: true);
+    /// <summary>The blueprint-subject counterpart, constrained to the sibling payload base.</summary>
+    private static EventDescriptor BlueprintEvent<TData>(string type, IReadOnlyList<EventField> fields)
+        where TData : BlueprintEventDataBase =>
+        new(type, EventSubject.Blueprint, EventWeight.Fact, EventOutcome.Neutral, fields,
+            typeof(TData), Known: true);
 
     private static EventField Field(
         string name, FieldShape shape, FieldSensitivity sensitivity = FieldSensitivity.Public) =>
@@ -262,6 +278,13 @@ public static class KgsmEventCatalog
 /// which is not the same as the payload being empty — an event whose fields nobody has classified may
 /// carry anything.
 /// </param>
+/// <param name="PayloadType">
+/// The class this event's <c>Data</c> deserializes into, and the reason the catalog is the <em>only</em>
+/// registry of what the engine emits: <see cref="Services.EventService"/> dispatches off this, so an
+/// event that can be deserialized is necessarily one that has been classified. Null exactly when
+/// <paramref name="Known"/> is false — nothing can be deserialized for a type this build has never
+/// heard of, which is why an unknown event reaches a handler only as a raw envelope.
+/// </param>
 /// <param name="Known">
 /// Whether this build classifies the type at all. On <see langword="false"/> the only load-bearing
 /// values are <paramref name="Type"/> and the empty <paramref name="Fields"/>; the subject is read off
@@ -274,6 +297,7 @@ public sealed record EventDescriptor(
     EventWeight Weight,
     EventOutcome Outcome,
     IReadOnlyList<EventField> Fields,
+    System.Type? PayloadType,
     bool Known)
 {
     /// <summary>The classification of <paramref name="name"/>, or null if the event has no such field.</summary>

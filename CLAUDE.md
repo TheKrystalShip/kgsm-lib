@@ -141,12 +141,19 @@ happened into the audit trail.
 
 ### 4·b. What an event *is*: `KgsmEventCatalog`
 
-`EventService`'s type map says which class an event deserializes into. `KgsmEventCatalog` says what
-it **means**: its subject, whether it is a `Fact` or a `Phase` (a step inside a multi-step operation
-that has its own fact event), whether it reports a `Success` or a `Failure`, and per payload field
-what kind of data that field holds. It lives here because it is a property of the engine's events,
-and because every consumer that renders the journal was otherwise deriving it independently — which
-is how two surfaces came to disagree about whether a player's network address may be shown.
+**`KgsmEventCatalog` is the one registry of what the engine emits.** For each event it holds the
+class the payload deserializes into (`PayloadType`), its subject, whether it is a `Fact` or a `Phase`
+(a step inside a multi-step operation that has its own fact event), whether it reports a `Success` or
+a `Failure`, and per payload field what kind of data that field holds. It lives here because it is a
+property of the engine's events, and because every consumer that renders the journal was otherwise
+deriving it independently — which is how two surfaces came to disagree about whether a player's
+network address may be shown.
+
+- **Dispatch reads it.** `EventService` deserializes into `Describe(type).PayloadType`, so **an event
+  that can be dispatched is necessarily one that has been classified** — there is no second table to
+  fall out of step with. Add an event by adding a descriptor; there is nowhere else to register it.
+  The `Instance<TData>` / `BlueprintEvent<TData>` helpers are constrained to the matching payload
+  base, so an event's subject and its payload's own base cannot disagree either.
 
 - **It states facts and never policy.** `Phase` does not mean "hide this"; `Personal` does not mean
   "refuse this". A consumer decides what to do with a fact, and two consumers are allowed to decide
@@ -170,10 +177,12 @@ is how two surfaces came to disagree about whether a player's network address ma
   *render nothing from the payload* — not that the payload is empty. An event nobody has classified
   may carry anything, and a consumer that prints unclassified fields is one engine release away from
   publishing something it should not.
-- **Three tests are the whole point** (`KgsmEventCatalogTests`): every type in the dispatch table has
-  a descriptor, every declared payload property is classified, and no descriptor names a field the
-  payload lacks. A new event type or a new field **fails this build** until somebody classifies it,
-  which is the only moment anyone is thinking about it. They reflect over the data classes; the
+- **The drift tests are the whole point.** Every declared payload property is classified, no
+  descriptor names a field the payload lacks (`KgsmEventCatalogTests`), and every event data class in
+  the assembly is named by some descriptor (`EventDeserializationTests.EveryEventDataType_HasAMappingEntry`
+  — the one that catches a payload class added and never wired, which would be dropped at runtime as
+  an unknown type). A new event type or a new field **fails this build** until somebody classifies
+  it, which is the only moment anyone is thinking about it. They reflect over the data classes; the
   catalog itself is static data, so the library stays reflection-free for its AOT consumers.
 - Field classification walks up through intermediate bases (the moderation events carry theirs on a
   shared one) and stops before `EventDataBase`/`BlueprintEventDataBase`/`KgsmEventDataBase` — the

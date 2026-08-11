@@ -35,7 +35,15 @@ public class KgsmEventCatalogTests
         typeof(KgsmEventDataBase),
     ];
 
-    private static IReadOnlyDictionary<string, Type> TypedEvents => EventService._eventTypeMapping;
+    /// <summary>
+    /// Every classified event beside the class its payload deserializes into. One source, because the
+    /// catalog <em>is</em> the dispatch registry — <see cref="EventService"/> reads
+    /// <see cref="EventDescriptor.PayloadType"/> to decide what to deserialize.
+    /// </summary>
+    private static IEnumerable<(string Type, Type Data)> TypedEvents =>
+        KgsmEventCatalog.All
+            .Where(d => d.PayloadType is not null)
+            .Select(d => (d.Type, Data: d.PayloadType!));
 
     /// <summary>
     /// Every property this event declares of its own, walking up through any intermediate base (the
@@ -54,20 +62,25 @@ public class KgsmEventCatalogTests
     }
 
     /// <summary>
-    /// <b>Drift check one.</b> An event type kgsm-lib can deserialize but nobody has classified reaches
-    /// every consumer as an unknown — which each one then handles by guessing, which is the state the
-    /// catalog was built to end.
+    /// <b>An event that can be deserialized is one that has been classified — by construction.</b>
+    /// There is no separate dispatch table to fall out of step with: a descriptor carries the payload
+    /// type, and that is what <see cref="EventService"/> deserializes into, so the check this replaces
+    /// (comparing the two registries) can no longer fail. What is still worth asserting is the shape
+    /// that makes it true — every known descriptor names a payload, and an unknown one names none,
+    /// which is what sends an unrecognised event down the raw-envelope path instead of a typed one.
     /// </summary>
     [Fact]
-    public void EveryTypedEventIsClassified()
+    public void AClassifiedEventNamesItsPayloadAndAnUnknownOneNamesNothing()
     {
-        string[] unclassified = [.. TypedEvents.Keys
-            .Where(type => !KgsmEventCatalog.Describe(type).Known)
+        string[] unnamed = [.. KgsmEventCatalog.All
+            .Where(d => d.PayloadType is null)
+            .Select(d => d.Type)
             .OrderBy(type => type, StringComparer.Ordinal)];
 
-        Assert.True(unclassified.Length == 0,
-            "these event types deserialize but are not in the catalog — classify them in " +
-            $"KgsmEventCatalog: {string.Join(", ", unclassified)}");
+        Assert.True(unnamed.Length == 0,
+            $"these classified events would deserialize into nothing: {string.Join(", ", unnamed)}");
+
+        Assert.Null(KgsmEventCatalog.Describe("instance_teleported_sideways").PayloadType);
     }
 
     /// <summary>
@@ -254,10 +267,13 @@ public class KgsmEventCatalogTests
         Assert.Equal(FieldSensitivity.Public, session.Sensitivity);
     }
 
+    /// <summary>
+    /// The checks above walk the catalog, so an empty one would pass every last of them.
+    /// </summary>
     [Fact]
     public void TheCatalogIsNotVacuouslyEmpty()
     {
         Assert.NotEmpty(TypedEvents);
-        Assert.Equal(TypedEvents.Count, KgsmEventCatalog.All.Count);
+        Assert.Equal(TypedEvents.Count(), KgsmEventCatalog.All.Count);
     }
 }

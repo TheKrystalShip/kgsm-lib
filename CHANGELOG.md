@@ -9,11 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`KgsmEventCatalog`** — what each engine event *is*, so every consumer stops working it out
-  separately. Per type: its subject, whether it reports a fact or a step inside one
-  (`EventWeight`), whether it reports something completing or failing (`EventOutcome`), and per
-  payload field what kind of data that field holds (`FieldSensitivity`, `FieldShape`). All 55 typed
-  events are classified.
+- **`KgsmEventCatalog`** — the one registry of what the engine emits, so every consumer stops
+  working it out separately. Per type: the class its payload deserializes into (`PayloadType`), its
+  subject, whether it reports a fact or a step inside one (`EventWeight`), whether it reports
+  something completing or failing (`EventOutcome`), and per payload field what kind of data that
+  field holds (`FieldSensitivity`, `FieldShape`). All 55 typed events are classified.
+
+  **`EventService` dispatches off it**, so an event that can be deserialized is necessarily one that
+  has been classified — there is no second table to fall out of step with, and an event is added by
+  adding a descriptor because there is nowhere else to register it. The `Instance<TData>` /
+  `BlueprintEvent<TData>` helpers are constrained to the matching payload base, so an event's subject
+  and its payload's own base cannot disagree either.
 
   **It states facts and never policy.** `Phase` does not mean "hide this" and `Personal` does not
   mean "refuse this" — a consumer decides what to do with a fact, and two consumers may decide
@@ -31,13 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   read off the engine's naming convention, and **no fields** — which means "render nothing from the
   payload", not "the payload is empty". An event nobody has classified may carry anything.
 
-  Three tests hold it to the engine: every type in `EventService`'s dispatch table has a
-  descriptor, every declared payload property is classified, and no descriptor names a field its
-  payload does not have. A new event or a new field fails this build until somebody classifies it.
-  The library stays reflection-free at runtime — the reflection is in the test project.
-
-  `EventService._eventTypeMapping` is now `internal static` so those tests can read the dispatch
-  table without standing a transport up behind it.
+  Three tests hold it to the engine: every declared payload property is classified, no descriptor
+  names a field its payload does not have, and every event data class in the assembly is named by
+  some descriptor — that last one catching a payload class added and never wired, which the runtime
+  would drop as an unknown type. A new event or a new field fails this build until somebody
+  classifies it. The library stays reflection-free at runtime; the reflection is in the test project.
 
 - **`IInstanceFiles.Find` and `IInstanceFiles.Search`** — a recursive name walk (glob) and a content
   search (regex) inside an instance's jail, so a consumer can locate a game's own config without

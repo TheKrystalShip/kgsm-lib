@@ -10,7 +10,7 @@ namespace TheKrystalShip.KGSM.Tests.Services;
 ///
 /// Event names and payload shapes are maintained by hand in two places that
 /// must agree: kgsm's <c>EVENT_CONFIGS</c> registry (bash) and the C#
-/// <c>_eventTypeMapping</c> + <see cref="EventDataBase"/> types. They had drifted
+/// <see cref="KgsmEventCatalog"/> + <see cref="EventDataBase"/> types. They had drifted
 /// — <c>instance-restarted</c> and the <c>*-failed</c> events were emitted by
 /// kgsm but had no C# type, so they were dropped as "Unknown event type". These
 /// tests pin (1) the real wire payloads for the newly-aligned events, captured
@@ -453,16 +453,19 @@ public class EventDeserializationTests
             + string.Join(", ", unregistered));
     }
 
-    // EventService's name→type dispatch table, read directly: it is internal and static, so these
-    // checks need neither reflection nor an instance to stand a transport up behind.
-    private static Dictionary<string, Type> GetEventTypeMapping() => EventService._eventTypeMapping;
+    // The name→type dispatch, read off the catalog that holds it. EventService deserializes into
+    // EventDescriptor.PayloadType, so this IS the table the runtime uses — not a copy of it.
+    private static Dictionary<string, Type> GetEventTypeMapping() =>
+        KgsmEventCatalog.All
+            .Where(d => d.PayloadType is not null)
+            .ToDictionary(d => d.Type, d => d.PayloadType!, StringComparer.Ordinal);
 
     [Fact]
     public void EveryEventDataType_HasAMappingEntry()
     {
         // Guards the (c)-direction the original incident was in: a type + its
-        // [JsonSerializable] can exist while the _eventTypeMapping entry is missing,
-        // in which case the event is dropped at runtime as "Unknown event type" and
+        // [JsonSerializable] can exist while nothing in the catalog names it, in
+        // which case the event is dropped at runtime as "Unknown event type" and
         // every other test still passes. This catches the omission with no external
         // dependency.
         var mapped = new HashSet<Type>(GetEventTypeMapping().Values);
@@ -473,7 +476,7 @@ public class EventDeserializationTests
             .ToList();
 
         Assert.True(missing.Count == 0,
-            "Event types absent from EventService._eventTypeMapping (would be dropped "
+            "Event types no KgsmEventCatalog descriptor names (would be dropped "
             + "as 'Unknown event type'): " + string.Join(", ", missing));
     }
 
@@ -496,7 +499,7 @@ public class EventDeserializationTests
         var missing = bashEvents.Where(e => !mappingKeys.Contains(e)).OrderBy(e => e).ToList();
 
         Assert.True(missing.Count == 0,
-            "kgsm EVENT_CONFIGS events with no C# _eventTypeMapping entry "
+            "kgsm EVENT_CONFIGS events with no KgsmEventCatalog descriptor "
             + "(would be dropped as 'Unknown event type'): " + string.Join(", ", missing));
     }
 

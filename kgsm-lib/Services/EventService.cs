@@ -24,96 +24,6 @@ public class EventService : IEventService, IAsyncDisposable
     private bool _initialized = false;
 
     /// <summary>
-    /// A dictionary to map event types to their corresponding data types.
-    /// This mapping is used to deserialize the event data
-    /// based on the event type received from the KGSM Unix Socket.
-    /// </summary>
-    /// <remarks>
-    /// Static and internal so the catalog's drift tests can hold
-    /// <see cref="Events.KgsmEventCatalog"/> against it without standing up a transport: this is the
-    /// registry of what the engine emits, and a type here with no descriptor there is the drift those
-    /// tests exist to fail on. Never mutated after initialization.
-    /// </remarks>
-    internal static readonly Dictionary<string, Type> _eventTypeMapping = new()
-    {
-        { "instance_created", typeof(InstanceCreatedData) },
-
-        { "instance_directories_created", typeof(InstanceDirectoriesCreatedData) },
-        { "instance_files_created", typeof(InstanceFilesCreatedData) },
-
-        { "instance_download_started", typeof(InstanceDownloadStartedData) },
-        { "instance_download_finished", typeof(InstanceDownloadFinishedData) },
-        { "instance_download_failed", typeof(InstanceDownloadFailedData) },
-        { "instance_downloaded", typeof(InstanceDownloadedData) },
-
-        { "instance_deploy_started", typeof(InstanceDeployStartedData) },
-        { "instance_deploy_finished", typeof(InstanceDeployFinishedData) },
-        { "instance_deploy_failed", typeof(InstanceDeployFailedData) },
-        { "instance_deployed", typeof(InstanceDeployedData) },
-
-        { "instance_restart_started", typeof(InstanceRestartStartedData) },
-        { "instance_restart_finished", typeof(InstanceRestartFinishedData) },
-
-        { "instance_stop_started", typeof(InstanceStopStartedData) },
-        { "instance_stop_finished", typeof(InstanceStopFinishedData) },
-
-        { "instance_update_started", typeof(InstanceUpdateStartedData) },
-        { "instance_update_finished", typeof(InstanceUpdateFinishedData) },
-        { "instance_updated", typeof(InstanceUpdatedData) },
-
-        { "instance_update_available", typeof(InstanceUpdateAvailableData) },
-        { "instance_version_updated", typeof(InstanceVersionUpdatedData) },
-
-        { "instance_installation_started", typeof(InstanceInstallationStartedData) },
-        { "instance_installation_finished", typeof(InstanceInstallationFinishedData) },
-        { "instance_installed", typeof(InstanceInstalledData) },
-
-        { "instance_started", typeof(InstanceStartedData) },
-        { "instance_stopped", typeof(InstanceStoppedData) },
-        { "instance_restarted", typeof(InstanceRestartedData) },
-        { "instance_crashed", typeof(InstanceCrashedData) },
-        { "instance_failed", typeof(InstanceFailedData) },
-        { "instance_ready", typeof(InstanceReadyData) },
-
-        { "instance_backup_created", typeof(InstanceBackupCreatedData) },
-        { "instance_backup_restored", typeof(InstanceBackupRestoredData) },
-        { "instance_backup_deleted", typeof(InstanceBackupDeletedData) },
-        { "instance_backups_pruned", typeof(InstanceBackupsPrunedData) },
-
-        { "instance_files_removed", typeof(InstanceFilesRemovedData) },
-        { "instance_directories_removed", typeof(InstanceDirectoriesRemovedData) },
-
-        { "instance_removed", typeof(InstanceRemovedData) },
-
-        { "instance_uninstall_started", typeof(InstanceUninstallStartedData) },
-        { "instance_uninstall_finished", typeof(InstanceUninstallFinishedData) },
-        { "instance_uninstall_failed", typeof(InstanceUninstallFailedData) },
-        { "instance_uninstalled", typeof(InstanceUninstalledData) },
-
-        { "instance_ports_opened", typeof(InstancePortsOpenedData) },
-        { "instance_ports_closed", typeof(InstancePortsClosedData) },
-
-        { "instance_upnp_opened", typeof(InstanceUpnpOpenedData) },
-        { "instance_upnp_closed", typeof(InstanceUpnpClosedData) },
-        { "instance_upnp_reasserted", typeof(InstanceUpnpReassertedData) },
-
-        { "instance_player_joined", typeof(InstancePlayerJoinedData) },
-        { "instance_player_left", typeof(InstancePlayerLeftData) },
-
-        { "instance_player_kicked", typeof(InstancePlayerKickedData) },
-        { "instance_player_banned", typeof(InstancePlayerBannedData) },
-        { "instance_player_unbanned", typeof(InstancePlayerUnbannedData) },
-
-        { "instance_config_changed", typeof(InstanceConfigChangedData) },
-
-        { "instance_input_sent", typeof(InstanceInputSentData) },
-
-        { "blueprint_created", typeof(BlueprintCreatedData) },
-        { "blueprint_updated", typeof(BlueprintUpdatedData) },
-        { "blueprint_removed", typeof(BlueprintRemovedData) }
-    };
-
-    /// <summary>
     /// A dictionary to hold event handlers for the different event types.
     /// </summary>
     private readonly Dictionary<Type, Delegate> _eventHandlers = new();
@@ -401,7 +311,11 @@ public class EventService : IEventService, IAsyncDisposable
             // typed dispatch runs, and never suppress it.
             await InvokeRawHandlersAsync(eventWrapper, position).ConfigureAwait(false);
 
-            if (_eventTypeMapping.TryGetValue(eventWrapper.EventType, out var targetType))
+            // What an event deserializes into is read off the catalog, which is the one registry of
+            // what the engine emits: a type that can be dispatched here is necessarily one that has
+            // been classified there. A name it does not know has no payload type, and falls through
+            // to the unknown branch below — the raw handlers above have already seen the envelope.
+            if (KgsmEventCatalog.Describe(eventWrapper.EventType).PayloadType is Type targetType)
             {
                 _logger.LogDebug("Deserializing event data to type {TargetType}", targetType.Name);
 
