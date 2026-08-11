@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`KgsmEventCatalog`** — what each engine event *is*, so every consumer stops working it out
+  separately. Per type: its subject, whether it reports a fact or a step inside one
+  (`EventWeight`), whether it reports something completing or failing (`EventOutcome`), and per
+  payload field what kind of data that field holds (`FieldSensitivity`, `FieldShape`). All 55 typed
+  events are classified.
+
+  **It states facts and never policy.** `Phase` does not mean "hide this" and `Personal` does not
+  mean "refuse this" — a consumer decides what to do with a fact, and two consumers may decide
+  differently. The moment the catalog carries a permission, every surface inherits whichever one
+  wrote the rule.
+
+  `FieldSensitivity` is why: `PlayerAddr` is `Personal` (it identifies a person rather than a
+  player, and the game shows it to nobody), `Command` is `Privileged` (a console command can create
+  an operator or carry a token), and a moderation `Target` is `Conditional` — it may be an address,
+  a name or an id, the blueprint declares which, and the event does not carry that. This library
+  already refuses to classify a `Target` on a consumer's behalf; the catalog refuses for the same
+  reason rather than guessing.
+
+  `Describe` never returns null. An unrecognised type comes back with `Known` false, its subject
+  read off the engine's naming convention, and **no fields** — which means "render nothing from the
+  payload", not "the payload is empty". An event nobody has classified may carry anything.
+
+  Three tests hold it to the engine: every type in `EventService`'s dispatch table has a
+  descriptor, every declared payload property is classified, and no descriptor names a field its
+  payload does not have. A new event or a new field fails this build until somebody classifies it.
+  The library stays reflection-free at runtime — the reflection is in the test project.
+
+  `EventService._eventTypeMapping` is now `internal static` so those tests can read the dispatch
+  table without standing a transport up behind it.
+
 - **`IInstanceFiles.Find` and `IInstanceFiles.Search`** — a recursive name walk (glob) and a content
   search (regex) inside an instance's jail, so a consumer can locate a game's own config without
   descending a directory at a time. A game's config layout is a fact about the game, not about KGSM's

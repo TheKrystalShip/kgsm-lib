@@ -453,18 +453,9 @@ public class EventDeserializationTests
             + string.Join(", ", unregistered));
     }
 
-    // Reflects EventService's private name→type dispatch table. The ctor only
-    // assigns fields (the listener starts in Initialize(), not here), so a
-    // mock-constructed instance is safe and side-effect free.
-    private static Dictionary<string, Type> GetEventTypeMapping()
-    {
-        var svc = new EventService(
-            new Mock<IEventSource>().Object,
-            new Mock<ILogger<EventService>>().Object);
-        FieldInfo field = typeof(EventService).GetField(
-            "_eventTypeMapping", BindingFlags.NonPublic | BindingFlags.Instance)!;
-        return (Dictionary<string, Type>)field.GetValue(svc)!;
-    }
+    // EventService's name→type dispatch table, read directly: it is internal and static, so these
+    // checks need neither reflection nor an instance to stand a transport up behind.
+    private static Dictionary<string, Type> GetEventTypeMapping() => EventService._eventTypeMapping;
 
     [Fact]
     public void EveryEventDataType_HasAMappingEntry()

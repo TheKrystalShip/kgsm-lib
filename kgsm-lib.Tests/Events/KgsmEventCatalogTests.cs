@@ -1,0 +1,263 @@
+using System.Reflection;
+
+using TheKrystalShip.KGSM.Events;
+
+namespace TheKrystalShip.KGSM.Tests.Events;
+
+/// <summary>
+/// The two checks that keep the catalog true, and the properties consumers are allowed to rely on.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The catalog exists because every surface that renders the journal was working out what each event
+/// means for itself, and they drifted. A catalog that drifts from the engine is worse than none — it
+/// is the same guesswork with an authoritative-looking home — so the two tests below are the point of
+/// the whole exercise: <b>a new event type cannot be added to this library without being classified,
+/// and a new payload field cannot be added without being classified.</b> Each fails this build at the
+/// only moment anybody is thinking about that event.
+/// </para>
+/// <para>
+/// Reflection here is deliberate and stays here. The library is embedded by Native-AOT consumers and
+/// is reflection-free at runtime; a test project is neither.
+/// </para>
+/// </remarks>
+public class KgsmEventCatalogTests
+{
+    /// <summary>
+    /// The subject and envelope metadata every event carries. Excluded from the field classification
+    /// because they are structural — the subject is <see cref="EventDescriptor.Subject"/>, and actor,
+    /// origin and timestamp are the envelope's, identical on every event and never part of a payload.
+    /// </summary>
+    private static readonly Type[] StructuralBases =
+    [
+        typeof(EventDataBase),
+        typeof(BlueprintEventDataBase),
+        typeof(KgsmEventDataBase),
+    ];
+
+    private static IReadOnlyDictionary<string, Type> TypedEvents => EventService._eventTypeMapping;
+
+    /// <summary>
+    /// Every property this event declares of its own, walking up through any intermediate base (the
+    /// moderation events carry their fields on a shared one) but stopping before the structural bases.
+    /// </summary>
+    private static IEnumerable<PropertyInfo> PayloadProperties(Type dataType)
+    {
+        for (Type? t = dataType; t is not null && !StructuralBases.Contains(t); t = t.BaseType)
+        {
+            foreach (PropertyInfo p in t.GetProperties(
+                BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+            {
+                yield return p;
+            }
+        }
+    }
+
+    /// <summary>
+    /// <b>Drift check one.</b> An event type kgsm-lib can deserialize but nobody has classified reaches
+    /// every consumer as an unknown — which each one then handles by guessing, which is the state the
+    /// catalog was built to end.
+    /// </summary>
+    [Fact]
+    public void EveryTypedEventIsClassified()
+    {
+        string[] unclassified = [.. TypedEvents.Keys
+            .Where(type => !KgsmEventCatalog.Describe(type).Known)
+            .OrderBy(type => type, StringComparer.Ordinal)];
+
+        Assert.True(unclassified.Length == 0,
+            "these event types deserialize but are not in the catalog — classify them in " +
+            $"KgsmEventCatalog: {string.Join(", ", unclassified)}");
+    }
+
+    /// <summary>
+    /// <b>Drift check two, and the one that matters most.</b> A payload field nobody has classified is
+    /// a field a generic renderer either prints blindly or drops silently. This is how a player's
+    /// network address came to be shown on one surface and refused on another, and it is how a
+    /// credential would reach a channel.
+    /// </summary>
+    [Fact]
+    public void EveryPayloadFieldIsClassified()
+    {
+        List<string> unclassified = [];
+
+        foreach ((string type, Type dataType) in TypedEvents)
+        {
+            EventDescriptor descriptor = KgsmEventCatalog.Describe(type);
+
+            foreach (PropertyInfo property in PayloadProperties(dataType))
+            {
+                if (descriptor.Field(property.Name) is null)
+                    unclassified.Add($"{type}.{property.Name}");
+            }
+        }
+
+        Assert.True(unclassified.Count == 0,
+            "these payload fields carry data no consumer has been told how to treat — classify them " +
+            $"in KgsmEventCatalog: {string.Join(", ", unclassified.Order(StringComparer.Ordinal))}");
+    }
+
+    /// <summary>
+    /// The mirror of the check above: a descriptor naming a field the payload does not have sends a
+    /// consumer looking for something that is never there, and would survive the field being renamed
+    /// out from under it.
+    /// </summary>
+    [Fact]
+    public void NoDescriptorNamesAFieldThePayloadDoesNotHave()
+    {
+        List<string> phantom = [];
+
+        foreach ((string type, Type dataType) in TypedEvents)
+        {
+            HashSet<string> actual = [.. PayloadProperties(dataType).Select(p => p.Name)];
+
+            foreach (EventField field in KgsmEventCatalog.Describe(type).Fields)
+            {
+                if (!actual.Contains(field.Name))
+                    phantom.Add($"{type}.{field.Name}");
+            }
+        }
+
+        Assert.True(phantom.Count == 0,
+            $"these classified fields do not exist on their event's payload: {string.Join(", ", phantom)}");
+    }
+
+    /// <summary>
+    /// One field name means one thing everywhere. Two events classifying <c>Command</c> differently is
+    /// the same divergence one level down, and it would be invisible.
+    /// </summary>
+    [Fact]
+    public void AFieldNameIsClassifiedTheSameWayOnEveryEvent()
+    {
+        var disagreements = KgsmEventCatalog.All
+            .SelectMany(d => d.Fields)
+            .GroupBy(f => f.Name, StringComparer.Ordinal)
+            .Where(g => g.Select(f => (f.Sensitivity, f.Shape)).Distinct().Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+
+        Assert.True(disagreements.Count == 0,
+            $"these fields are classified inconsistently across events: {string.Join(", ", disagreements)}");
+    }
+
+    /// <summary>
+    /// An unrecognised type must come back describable rather than absent — a consumer that has to
+    /// distinguish "no descriptor" from "a descriptor saying nothing" writes the null branch itself,
+    /// which is the guesswork this replaces.
+    /// </summary>
+    [Fact]
+    public void AnUnrecognisedTypeIsStillDescribed()
+    {
+        EventDescriptor descriptor = KgsmEventCatalog.Describe("instance_teleported_sideways");
+
+        Assert.False(descriptor.Known);
+        Assert.Equal("instance_teleported_sideways", descriptor.Type);
+        Assert.Equal(EventSubject.Instance, descriptor.Subject);
+    }
+
+    /// <summary>
+    /// <b>An unknown event carries no classified fields, and that means "print nothing from the
+    /// payload".</b> It is the fail-safe half of the field classification: an event nobody has looked
+    /// at may carry anything at all, and a renderer that reaches into it is one engine release away
+    /// from publishing something it should not.
+    /// </summary>
+    [Fact]
+    public void AnUnrecognisedTypeExposesNoFields()
+    {
+        Assert.Empty(KgsmEventCatalog.Describe("instance_teleported_sideways").Fields);
+    }
+
+    /// <summary>
+    /// The subject is read off the engine's naming convention so that every consumer does not write
+    /// that same derivation itself. It is a reading of what the engine said, not a claim — which is
+    /// what <see cref="EventDescriptor.Known"/> being false says.
+    /// </summary>
+    [Fact]
+    public void AnUnrecognisedBlueprintEventIsNotReadAsBeingAboutAServer()
+    {
+        Assert.Equal(EventSubject.Blueprint, KgsmEventCatalog.Describe("blueprint_reticulated").Subject);
+    }
+
+    /// <summary>
+    /// A failure is always a fact. A step that did not happen is precisely what somebody reading a
+    /// history back is looking for, and classifying one as a phase invites every surface that hides
+    /// phases to hide it.
+    /// </summary>
+    [Fact]
+    public void NoFailureIsClassifiedAsAPhase()
+    {
+        string[] hidden = [.. KgsmEventCatalog.All
+            .Where(d => d.Outcome == EventOutcome.Failure && d.Weight == EventWeight.Phase)
+            .Select(d => d.Type)];
+
+        Assert.True(hidden.Length == 0, $"failures classified as phase signals: {string.Join(", ", hidden)}");
+    }
+
+    /// <summary>
+    /// The classification a surface is most likely to get wrong on its own, pinned by name. Each of
+    /// these is a decision somebody made for a reason, and a silent flip would change what two
+    /// independent surfaces show without either of them being touched.
+    /// </summary>
+    [Theory]
+    // The moment players can actually connect — which instance_started does not report; that one says
+    // the process launched. Two facts about two different moments.
+    [InlineData("instance_ready", EventWeight.Fact)]
+    // Brackets around an operation whose own event is the news.
+    [InlineData("instance_stop_started", EventWeight.Phase)]
+    [InlineData("instance_stop_finished", EventWeight.Phase)]
+    [InlineData("instance_stopped", EventWeight.Fact)]
+    // A router forward and a host firewall rule are facts about different machines, not steps.
+    [InlineData("instance_upnp_reasserted", EventWeight.Fact)]
+    public void ContestedWeightsAreWhatTheyWereDecidedToBe(string type, EventWeight expected)
+    {
+        Assert.Equal(expected, KgsmEventCatalog.Describe(type).Weight);
+    }
+
+    /// <summary>
+    /// The three fields that are not plain public data, pinned by name and by reason. A surface may
+    /// decide what to do with each — that is the whole design — but none of them may quietly become
+    /// <see cref="FieldSensitivity.Public"/>, because every consumer's handling keys off this.
+    /// </summary>
+    [Fact]
+    public void TheFieldsThatNeedCareStaySoClassified()
+    {
+        // Where somebody connected from. It identifies a person rather than a player, and the game
+        // shows it to nobody.
+        Assert.Equal(FieldSensitivity.Personal,
+            KgsmEventCatalog.Describe("instance_player_joined").Field("PlayerAddr")!.Sensitivity);
+        Assert.Equal(FieldSensitivity.Personal,
+            KgsmEventCatalog.Describe("instance_player_left").Field("PlayerAddr")!.Sensitivity);
+
+        // May be an address, a name or an id — the blueprint declares which, and the event does not
+        // carry that. Nothing here may resolve it on a consumer's behalf.
+        Assert.Equal(FieldSensitivity.Conditional,
+            KgsmEventCatalog.Describe("instance_player_banned").Field("Target")!.Sensitivity);
+
+        // Admin-level by nature: a console command can create an operator or carry a token.
+        Assert.Equal(FieldSensitivity.Privileged,
+            KgsmEventCatalog.Describe("instance_input_sent").Field("Command")!.Sensitivity);
+    }
+
+    /// <summary>
+    /// The canonical port list is structured, and a generic renderer flattening it puts JSON in a
+    /// sentence. Marked by shape so a consumer skips it without having to know what "Ports" means.
+    /// </summary>
+    [Fact]
+    public void StructuredAndMeaninglessFieldsAreMarkedByShape()
+    {
+        Assert.Equal(FieldShape.Ports, KgsmEventCatalog.Describe("instance_ports_opened").Field("Ports")!.Shape);
+
+        // The supervisor's correlation token: public — it says nothing about anybody — but meaningless
+        // to a reader, so nothing renders it for want of meaning rather than for privacy.
+        EventField session = KgsmEventCatalog.Describe("instance_player_joined").Field("SessionKey")!;
+        Assert.Equal(FieldShape.Opaque, session.Shape);
+        Assert.Equal(FieldSensitivity.Public, session.Sensitivity);
+    }
+
+    [Fact]
+    public void TheCatalogIsNotVacuouslyEmpty()
+    {
+        Assert.NotEmpty(TypedEvents);
+        Assert.Equal(TypedEvents.Count, KgsmEventCatalog.All.Count);
+    }
+}

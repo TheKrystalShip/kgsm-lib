@@ -28,7 +28,13 @@ public class EventService : IEventService, IAsyncDisposable
     /// This mapping is used to deserialize the event data
     /// based on the event type received from the KGSM Unix Socket.
     /// </summary>
-    private readonly Dictionary<string, Type> _eventTypeMapping = new()
+    /// <remarks>
+    /// Static and internal so the catalog's drift tests can hold
+    /// <see cref="Events.KgsmEventCatalog"/> against it without standing up a transport: this is the
+    /// registry of what the engine emits, and a type here with no descriptor there is the drift those
+    /// tests exist to fail on. Never mutated after initialization.
+    /// </remarks>
+    internal static readonly Dictionary<string, Type> _eventTypeMapping = new()
     {
         { "instance_created", typeof(InstanceCreatedData) },
 
