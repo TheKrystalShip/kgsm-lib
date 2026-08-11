@@ -244,17 +244,47 @@ public sealed class WatchdogClient : IWatchdogClient
     }
 
     /// <inheritdoc/>
-    public async Task<IReadOnlyList<string>> GetConsoleTailAsync(string instanceName, int lines, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<string>> GetConsoleTailAsync(string instanceName, int lines, CancellationToken cancellationToken = default) =>
+        // Run 0 is the most recent, which is what this call has always read.
+        GetConsoleRunTailAsync(instanceName, lines, run: 0, cancellationToken);
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<WatchdogConsoleRun>> GetConsoleRunsAsync(
+        string instanceName, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
         ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
 
         using var response = await _http
-            .GetAsync($"/console/{Uri.EscapeDataString(instanceName)}?tail={lines}", cancellationToken)
+            .GetAsync($"/console/{Uri.EscapeDataString(instanceName)}/runs", cancellationToken)
             .ConfigureAwait(false);
 
-        // An unknown / non-native / no-console instance has no console — an honest empty
-        // read, not an error (mirrors GetStatusAsync degrading a 404 to null).
+        // No console, or a daemon too old to serve the route — an honest empty read either way,
+        // mirroring how GetConsoleTailAsync degrades a 404.
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return [];
+
+        response.EnsureSuccessStatusCode();
+
+        var runs = await ReadJsonAsync(response, KgsmJsonContext.Default.WatchdogConsoleRunArray, cancellationToken)
+            .ConfigureAwait(false);
+        return runs ?? [];
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyList<string>> GetConsoleRunTailAsync(
+        string instanceName, int lines, int run, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+
+        using var response = await _http
+            .GetAsync($"/console/{Uri.EscapeDataString(instanceName)}?tail={lines}&run={run}", cancellationToken)
+            .ConfigureAwait(false);
+
+        // An unknown / non-native / no-console instance has no console, and a run index that does
+        // not exist has nothing behind it — an honest empty read in both cases, not an error
+        // (mirrors GetStatusAsync degrading a 404 to null).
         if (response.StatusCode == HttpStatusCode.NotFound)
             return [];
 

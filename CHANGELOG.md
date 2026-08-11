@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`IWatchdogClient.GetConsoleRunsAsync` + `GetConsoleRunTailAsync`** — a console's runs, and one
+  run's output. The supervisor rotates an instance's log on every fresh spawn, so a crash and the
+  restart behind it are two runs: reading the live console after a crash-restart shows a clean boot
+  and nothing of what went wrong. A consumer diagnosing a crash lists the runs, matches it against
+  `WatchdogConsoleRun.EndedAt`, and reads that index.
+
+  `EndedAt` is null only while a run is `Current` — meaning a process is alive in the instance's
+  cgroup writing it. A stopped instance has no current run, including the one still sitting at the
+  live path awaiting the next spawn's rotation, so a crash with nothing restarting behind it is
+  still findable by its end time.
+
+  The index is positional and newest-first, so it is only meaningful against the listing it came
+  from — read, pick, use, rather than store. No file path is exposed; the bytes come back through
+  the client. `GetConsoleTailAsync` keeps its meaning exactly (run 0, the most recent) and now
+  delegates. A daemon too old to serve the route answers 404, which reads as no runs.
+
 - **`KgsmEventCatalog`** — the one registry of what the engine emits, so every consumer stops
   working it out separately. Per type: the class its payload deserializes into (`PayloadType`), its
   subject, whether it reports a fact or a step inside one (`EventWeight`), whether it reports

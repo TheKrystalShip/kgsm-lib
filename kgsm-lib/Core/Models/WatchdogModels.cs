@@ -212,3 +212,52 @@ public record class WatchdogInstancePresence
     public bool IsDetected =>
         Detection is "log" or "rcon";
 }
+
+/// <summary>
+/// One run of a native instance's console — a single stretch of stdout between a spawn and the exit
+/// that followed it. Served by <c>GET /console/{name}/runs</c>, newest first.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>The supervisor rotates the log on every fresh spawn, so a crash and the restart behind it are
+/// two runs, not one.</b> Reading only the live console after a crash-restart shows a clean boot and
+/// nothing of what went wrong. A consumer diagnosing a crash matches it against
+/// <see cref="EndedAt"/> and reads that <see cref="Index"/>.
+/// </para>
+/// <para>
+/// <b><see cref="Index"/> is the whole address.</b> It is positional and newest-first, so it is only
+/// meaningful against the listing it came from — read the runs, pick one, use its index straight
+/// away rather than storing it. No file path is exposed: the run's bytes come back from
+/// <see cref="IWatchdogClient.GetConsoleRunTailAsync"/>, never from the caller opening anything.
+/// </para>
+/// </remarks>
+public record class WatchdogConsoleRun
+{
+    /// <summary>Newest-first position; 0 is the most recent run.</summary>
+    [JsonPropertyName("index")]
+    public int Index { get; set; }
+
+    /// <summary>
+    /// Whether this run is IN PROGRESS — a process alive in the instance's cgroup writing this
+    /// console right now. A stopped instance has no current run, including the one whose output is
+    /// still sitting at the live path awaiting the next spawn's rotation.
+    /// </summary>
+    [JsonPropertyName("current")]
+    public bool Current { get; set; }
+
+    /// <summary>
+    /// When the run's output stopped, UTC. Null only while <see cref="Current"/> — a run in progress
+    /// has no end. Every finished run carries one, including the last run of a stopped instance,
+    /// which is what lets a crash with no restart behind it still be found by its end time.
+    /// </summary>
+    [JsonPropertyName("endedAt")]
+    public DateTime? EndedAt { get; set; }
+
+    /// <summary>When the run last printed, UTC. Measured for every run, current or not.</summary>
+    [JsonPropertyName("lastOutputAt")]
+    public DateTime LastOutputAt { get; set; }
+
+    /// <summary>The run's console size on disk, in bytes.</summary>
+    [JsonPropertyName("sizeBytes")]
+    public long SizeBytes { get; set; }
+}

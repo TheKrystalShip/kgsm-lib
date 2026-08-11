@@ -155,20 +155,62 @@ public interface IWatchdogClient : IDisposable
 
     /// <summary>
     /// Reads a finite tail of a native, supervised instance's console — the last
-    /// <paramref name="lines"/> lines currently on disk, oldest-first.
+    /// <paramref name="lines"/> lines of its MOST RECENT run, oldest-first.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// An unknown / non-native / no-console instance (the daemon answers 404) returns an
     /// <b>empty</b> list rather than throwing — an honest "no console" read, mirroring how
     /// <see cref="GetStatusAsync"/> degrades a 404 to null. An instance with a console but
     /// no lines also returns an empty list. The daemon clamps <paramref name="lines"/> to
     /// its own bounds (0..5000); a request transport failure still throws.
+    /// </para>
+    /// <para>
+    /// <b>This is one run, and after a crash-restart it is the run that came after the crash.</b>
+    /// The supervisor rotates the log on every fresh spawn, so a server that aborted and was
+    /// restarted has its cause in the previous run and a clean boot here. Diagnosing a crash means
+    /// <see cref="GetConsoleRunsAsync"/> then <see cref="GetConsoleRunTailAsync"/>, not this.
+    /// </para>
     /// </remarks>
     /// <param name="instanceName">The instance whose console tail to read.</param>
     /// <param name="lines">How many trailing lines to request (the daemon clamps 0..5000).</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>The trailing console lines oldest-first, or an empty list when there is no console.</returns>
     Task<IReadOnlyList<string>> GetConsoleTailAsync(string instanceName, int lines, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists the runs of a native instance's console — each stretch of stdout between a spawn and
+    /// the exit after it, newest first, with when each ended.
+    /// </summary>
+    /// <remarks>
+    /// An unknown / non-native / no-console instance returns an <b>empty</b> list, as does a native
+    /// instance that has never produced output — both are honest "no runs" answers rather than
+    /// errors. A daemon too old to serve the route also answers 404 and so reads as no runs; a
+    /// consumer that needs to tell those apart should fall back to
+    /// <see cref="GetConsoleTailAsync"/>, which every build serves.
+    /// </remarks>
+    /// <param name="instanceName">The instance whose runs to list.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The runs newest-first, or an empty list when there are none.</returns>
+    Task<IReadOnlyList<WatchdogConsoleRun>> GetConsoleRunsAsync(string instanceName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads a finite tail of ONE run of a native instance's console, oldest-first — the run at
+    /// <paramref name="run"/> in the newest-first listing <see cref="GetConsoleRunsAsync"/> returns.
+    /// </summary>
+    /// <remarks>
+    /// A run index that does not exist returns an <b>empty</b> list, the same honest "nothing to
+    /// read" as an instance with no console — the index is positional and only meaningful against
+    /// the listing it came from, so pick one and use it straight away rather than storing it. Run 0
+    /// is the most recent, which is what <see cref="GetConsoleTailAsync"/> reads.
+    /// </remarks>
+    /// <param name="instanceName">The instance whose console to read.</param>
+    /// <param name="lines">How many trailing lines to request (the daemon clamps 0..5000).</param>
+    /// <param name="run">Newest-first run index; 0 is the most recent.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>That run's trailing console lines oldest-first, or an empty list.</returns>
+    Task<IReadOnlyList<string>> GetConsoleRunTailAsync(
+        string instanceName, int lines, int run, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Fetches live player presence for every instance: whether the supervisor can observe each

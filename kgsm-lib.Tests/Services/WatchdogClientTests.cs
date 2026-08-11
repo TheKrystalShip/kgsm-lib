@@ -229,6 +229,80 @@ public class WatchdogClientTests
         Assert.Equal("deregistered", result.Message);
     }
 
+    // --- Console runs: which stretch of output is which ---
+
+    [Fact]
+    public void ConsoleRun_DeserializesCamelCaseWireShape()
+    {
+        // Verbatim from a live daemon (GET /console/romestead/runs). A casing mismatch here binds
+        // to all-defaults with no error, which would read as every run having ended at DateTime
+        // .MinValue with nothing current — silently wrong rather than broken.
+        const string json =
+            """[{"index":0,"current":true,"endedAt":null,"lastOutputAt":"2026-08-11T22:02:13.9847186Z","sizeBytes":300},{"index":1,"current":false,"endedAt":"2026-08-11T21:53:14.7946633Z","lastOutputAt":"2026-08-11T21:53:14.7946633Z","sizeBytes":512}]""";
+
+        var runs = JsonSerializer.Deserialize(json, KgsmJsonContext.Default.WatchdogConsoleRunArray);
+
+        Assert.NotNull(runs);
+        Assert.Equal(2, runs!.Length);
+
+        // The run in progress has no end — a timestamp there would claim one that never happened.
+        Assert.Equal(0, runs[0].Index);
+        Assert.True(runs[0].Current);
+        Assert.Null(runs[0].EndedAt);
+        Assert.Equal(300, runs[0].SizeBytes);
+
+        // A finished run carries the moment it stopped printing, which for a rotated run is the
+        // same instant its last output landed.
+        var expected = DateTime.Parse(
+            "2026-08-11T21:53:14.7946633Z", null, System.Globalization.DateTimeStyles.RoundtripKind);
+        Assert.False(runs[1].Current);
+        Assert.Equal(expected, runs[1].EndedAt);
+        Assert.Equal(runs[1].LastOutputAt, runs[1].EndedAt);
+    }
+
+    [Fact]
+    public async Task GetConsoleRunsAsync_HitsTheRunsRoute()
+    {
+        var handler = new CapturingHandler("[]");
+        using var client = new WatchdogClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") },
+            NullLogger<WatchdogClient>.Instance);
+
+        var runs = await client.GetConsoleRunsAsync("romestead");
+
+        Assert.Equal(HttpMethod.Get, handler.LastMethod);
+        Assert.Equal("/console/romestead/runs", handler.LastPath);
+        Assert.Empty(runs); // a native instance that has never produced output — a real answer
+    }
+
+    [Fact]
+    public async Task GetConsoleRunTailAsync_AsksForTheRequestedRun()
+    {
+        var handler = new CapturingHandler("crash line\n");
+        using var client = new WatchdogClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") },
+            NullLogger<WatchdogClient>.Instance);
+
+        var lines = await client.GetConsoleRunTailAsync("romestead", lines: 50, run: 3);
+
+        Assert.Equal("/console/romestead", handler.LastPath);
+        Assert.Contains("tail=50", handler.LastQuery);
+        Assert.Contains("run=3", handler.LastQuery);
+        Assert.Equal(["crash line"], lines);
+    }
+
+    [Fact]
+    public async Task GetConsoleTailAsync_ReadsTheMostRecentRun()
+    {
+        // The pre-existing call keeps its meaning: run 0, the newest. Anything else would change
+        // what every current caller reads.
+        var handler = new CapturingHandler("live line\n");
+        using var client = new WatchdogClient(new HttpClient(handler) { BaseAddress = new Uri("http://localhost") },
+            NullLogger<WatchdogClient>.Instance);
+
+        await client.GetConsoleTailAsync("romestead", 50);
+
+        Assert.Contains("run=0", handler.LastQuery);
+    }
+
     // --- Player presence: the roster and the qualifier that makes it readable ---
 
     /// <summary>
