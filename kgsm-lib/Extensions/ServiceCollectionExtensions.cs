@@ -230,6 +230,13 @@ public static class ServiceCollectionExtensions
     /// it, which is the whole point of that indirection.
     /// </para>
     /// <para>
+    /// ⚠ <b>Called before it, this does nothing and says nothing.</b> The later
+    /// <c>AddKgsmServices</c> re-registers the single-journal pair over this one, leaving a consumer
+    /// tailing the engine alone while believing it tails every producer — which reads as a quiet host
+    /// rather than as a misconfiguration. There is no error to catch: both registrations are valid, and
+    /// only the order decides which wins.
+    /// </para>
+    /// <para>
     /// Which journals exist is discovered by finding them on disk, so this needs no list of leaves and a
     /// leaf that starts writing one later costs no rebuild. A consumer whose host is laid out
     /// unconventionally registers its own <see cref="IJournalDiscovery"/> after this call.
@@ -262,6 +269,11 @@ public static class ServiceCollectionExtensions
     /// <see cref="KgsmOptions.DefaultEventHistoryScanBudgetBytes"/>. ⚠ It applies <em>per journal</em>,
     /// so each answers to the same depth whatever the fleet size, at the cost of total work scaling
     /// with the number of producers.
+    /// </param>
+    /// <param name="namedJournals">
+    /// Journals to read that the scan would not find, because their producer writes somewhere other
+    /// than its own state directory. The case that needs it is a consumer whose OWN journal path is
+    /// configurable: left to the scan, it would write a record it could not then read back.
     /// </param>
     /// <returns>The IServiceCollection so that additional calls can be chained.</returns>
     /// <exception cref="ArgumentNullException">Thrown when services is null.</exception>

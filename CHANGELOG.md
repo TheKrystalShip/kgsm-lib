@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — `AddKgsmJournalFederation` documents what happens when it is called too early
+
+The ordering requirement was stated; the consequence of getting it wrong was not. Called **before**
+`AddKgsmServices`, the federated registration is overwritten by the single-journal one and the call
+does nothing — no exception, no log line, and a consumer tailing the engine alone while believing it
+tails every producer, which reads as a quiet host rather than a misconfiguration. Both registrations
+are valid; only the order decides which wins.
+
+`namedJournals` also gains the `<param>` tag it was missing, which was the library's one build warning.
+
 ### Changed — the journal's write half is its own package
 
 `IEventJournalWriter`, `EventJournalWriter`, `EventJournalWriterOptions` and `JournalProducer` moved to
