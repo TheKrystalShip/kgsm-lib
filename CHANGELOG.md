@@ -66,6 +66,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     consumer can qualify one journal's coverage without implying anything about the others. A journal
     whose directory does not exist yet is picked up when it appears, so a leaf installed later is
     tailed without a restart.
+  - `IJournalDiscovery` / `JournalDiscovery` — which journals a host has, worked out from the leaves
+    installed on it rather than from a list. The engine's journal is unconditional (kgsm is the engine,
+    not a leaf); every other one comes from the descriptors in `/var/lib/kgsm/leaves/`, which each
+    leaf's deploy already installs. A leaf that declares no `journalDir` writes no journal, which is the
+    honest answer for one that records nothing of its own — so discovery tracks exactly which producers
+    exist rather than needing anything excluded.
+  - ⚠ **A leaf's journal directory is declared, never derived from its name.** Only the leaf knows where
+    it can write: measured on a live host, one leaf's unit and state directory differ
+    (`kgsm-assistant-service` vs `kgsm-assistant`) and two leaves have no `StateDirectory` at all, so any
+    naming convention is right for most and silently wrong for the rest. Wrong is expensive in both
+    directions — the writer cannot create a directory under root-owned `/var/lib` so the event is lost,
+    while a reader looks in the same empty place and calls the producer unreadable forever. The producer
+    *id* is still derived (`kgsm-` + the descriptor's unique id) because an id only has to be unique and
+    stable, which a path does not.
+  - Leaves are ordered by producer so the cross-journal tie-break is identical on every host and every
+    restart; directory enumeration order is not guaranteed, and an order that varied per process would
+    make two readers of one record disagree about which of two simultaneous events came first. A
+    descriptor that cannot be read, or whose id does not make a usable producer, is logged and skipped
+    rather than costing a consumer the journals it could otherwise have read.
+  - `AddKgsmJournalFederation(...)` — opt-in registration that replaces `AddKgsmServices`'
+    `IEventJournalHistory` and `IEventSource` with the federated pair by last-registration, so every
+    handler a consumer already registers keeps working: `EventService` resolves `IEventSource` and
+    never learns what backs it. ⚠ The federated source keeps one cursor **per producer**, a different
+    store from the single-journal `IEventCursorStore` and not migratable from it — a position in the
+    engine's journal says nothing about a position in anyone else's — so a consumer switching over
+    starts each journal from the given `EventStartPosition`.
 
 - **`WatchdogConsoleRun.Outcome` + `ExitCode`** — how the supervisor classified each run's ending
   (`crashed` / `gave-up` / `exited` / `stopped` / `running` / `unknown`), and the exit code where one

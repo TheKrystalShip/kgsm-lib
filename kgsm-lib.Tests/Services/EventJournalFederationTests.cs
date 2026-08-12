@@ -645,10 +645,17 @@ public sealed class EventJournalFederationTests : IDisposable
             {
                 await WaitFor(() => count == 2, "both events to be delivered");
 
-                // The cursor is stored only PAST events already dispatched, so the file appears
-                // after delivery rather than with it — that ordering is what makes delivery
-                // at-least-once instead of at-most-once.
-                await WaitFor(() => File.Exists(cursorPath), "both cursors to be persisted");
+                // Wait for BOTH slots, not for the file: the cursor map is written by whichever
+                // reader saves first, so the file existing proves only one of them got there. The
+                // cursor is stored only past events already dispatched, which is the ordering that
+                // makes delivery at-least-once rather than at-most-once.
+                var probe = new FileFederatedEventCursorStore(
+                    cursorPath, new Mock<ILogger<FileFederatedEventCursorStore>>().Object);
+
+                await WaitFor(
+                    () => probe.LoadAsync("kgsm").GetAwaiter().GetResult() is not null
+                          && probe.LoadAsync("watchdog").GetAwaiter().GetResult() is not null,
+                    "both producers' cursors to be persisted");
             }
             finally
             {
@@ -727,5 +734,151 @@ public sealed class EventJournalFederationTests : IDisposable
     {
         using FederatedEventSource source = CreateSource(Path.Combine(_root, "c.json"), "kgsm", "watchdog");
         Assert.Equal(["kgsm", "watchdog"], source.Producers);
+    }
+    // ── Discovery ────────────────────────────────────────────────────────────────────────
+
+    private string WriteDescriptor(string leavesDir, string id, string? journalDir)
+    {
+        Directory.CreateDirectory(leavesDir);
+        string path = Path.Combine(leavesDir, id + ".json");
+        string journalField = journalDir is null
+            ? ""
+            : ",\"journalDir\":\"" + journalDir.Replace("\\", "\\\\") + "\"";
+        File.WriteAllText(path,
+            "{\"schemaVersion\":1,\"id\":\"" + id + "\",\"unit\":\"kgsm-" + id + ".service\"" + journalField + "}");
+        return path;
+    }
+
+    private JournalDiscovery Discovery(string leavesDir)
+        => new(
+            Path.Combine(_root, "kgsm"),
+            leavesDir,
+            new Mock<ILogger<JournalDiscovery>>().Object);
+
+    [Fact]
+    public void Discovery_AlwaysIncludesTheEngineFirst()
+    {
+        // kgsm is the engine, not a leaf: nothing declares it and nothing can make it absent.
+        IReadOnlyList<JournalSource> sources = Discovery(Path.Combine(_root, "no-leaves-here")).Discover();
+
+        JournalSource only = Assert.Single(sources);
+        Assert.Equal(JournalProducer.Kgsm, only.Producer);
+        Assert.Equal(Path.Combine(_root, "kgsm"), only.Directory);
+    }
+
+    [Fact]
+    public void Discovery_IgnoresALeafThatDeclaresNoJournal()
+    {
+        // Every descriptor says this until its leaf is migrated to owning a journal, so discovery
+        // tracks exactly which producers exist at each point of the migration.
+        string leaves = Path.Combine(_root, "leaves");
+        WriteDescriptor(leaves, "api", null);
+        WriteDescriptor(leaves, "bot", null);
+
+        IReadOnlyList<JournalSource> sources = Discovery(leaves).Discover();
+
+        Assert.Single(sources);
+        Assert.Equal(JournalProducer.Kgsm, sources[0].Producer);
+    }
+
+    [Fact]
+    public void Discovery_UsesTheDeclaredDirectoryRatherThanOneDerivedFromTheName()
+    {
+        // The measured case this rule exists for: the assistant's unit is kgsm-assistant-service while
+        // its state directory is kgsm-assistant. A derived path would send the writer at a directory it
+        // cannot create under root-owned /var/lib, losing the event, and point the reader at the same
+        // empty place.
+        string leaves = Path.Combine(_root, "leaves");
+        WriteDescriptor(leaves, "assistant", "/var/lib/kgsm-assistant/events");
+
+        IReadOnlyList<JournalSource> sources = Discovery(leaves).Discover();
+
+        JournalSource leaf = sources.Single(s => s.Producer != JournalProducer.Kgsm);
+        Assert.Equal("kgsm-assistant", leaf.Producer);
+        Assert.Equal("/var/lib/kgsm-assistant/events", leaf.Directory);
+    }
+
+    [Fact]
+    public void Discovery_OrdersLeavesStablyRatherThanByDirectoryEnumeration()
+    {
+        // The order is the cross-journal tie-break for two events sharing a timestamp. Enumeration
+        // order is not guaranteed, and an order that varied per process would make two readers of the
+        // same record disagree about which of two simultaneous events came first.
+        string leaves = Path.Combine(_root, "leaves");
+        foreach (string leaf in new[] { "monitor", "api", "watchdog", "firewall" })
+            WriteDescriptor(leaves, leaf, $"/var/lib/kgsm-{leaf}/events");
+
+        IReadOnlyList<JournalSource> first = Discovery(leaves).Discover();
+        IReadOnlyList<JournalSource> second = Discovery(leaves).Discover();
+
+        Assert.Equal(first.Select(s => s.Producer), second.Select(s => s.Producer));
+        Assert.Equal(
+            [JournalProducer.Kgsm, "kgsm-api", "kgsm-firewall", "kgsm-monitor", "kgsm-watchdog"],
+            first.Select(s => s.Producer));
+    }
+
+    [Fact]
+    public void Discovery_SkipsADescriptorItCannotUseWithoutLosingTheRest()
+    {
+        // One unreadable or unusable descriptor must not cost a consumer the journals it could
+        // otherwise have read.
+        string leaves = Path.Combine(_root, "leaves");
+        WriteDescriptor(leaves, "watchdog", "/var/lib/kgsm-watchdog/events");
+        File.WriteAllText(Path.Combine(leaves, "corrupt.json"), "{ not json");
+        File.WriteAllText(Path.Combine(leaves, "noid.json"),
+            "{\"schemaVersion\":1,\"journalDir\":\"/var/lib/x/events\"}");
+        File.WriteAllText(Path.Combine(leaves, "badid.json"),
+            "{\"schemaVersion\":1,\"id\":\"Bad_Id\",\"journalDir\":\"/var/lib/y/events\"}");
+
+        IReadOnlyList<JournalSource> sources = Discovery(leaves).Discover();
+
+        Assert.Equal([JournalProducer.Kgsm, "kgsm-watchdog"], sources.Select(s => s.Producer));
+    }
+
+    [Fact]
+    public void Discovery_NeverNamesOneProducerTwice()
+    {
+        // A descriptor claiming the engine's producer id must not produce a duplicate: two journals for
+        // one producer would collide on the ids derived from them.
+        string leaves = Path.Combine(_root, "leaves");
+        File.WriteAllText(Path.Combine(leaves = EnsureDir(leaves), "engine.json"),
+            "{\"schemaVersion\":1,\"id\":\"\",\"journalDir\":\"/var/lib/kgsm/events\"}");
+
+        IReadOnlyList<JournalSource> sources = Discovery(leaves).Discover();
+
+        JournalSource only = Assert.Single(sources);
+        Assert.Equal(JournalProducer.Kgsm, only.Producer);
+        // The engine keeps ITS directory, not one a descriptor claimed.
+        Assert.Equal(Path.Combine(_root, "kgsm"), only.Directory);
+    }
+
+    private static string EnsureDir(string path)
+    {
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
+    [Fact]
+    public async Task Discovery_FeedsTheFederatedReaderEndToEnd()
+    {
+        string leaves = Path.Combine(_root, "leaves");
+        WriteDescriptor(leaves, "watchdog", DirectoryFor("kgsm-watchdog"));
+
+        IReadOnlyList<JournalSource> sources = Discovery(leaves).Discover();
+
+        // Distinct timestamps, so this asserts the primary sort (time) rather than the same-instant
+        // tie-break — that one is deterministic but arbitrary, and has its own test.
+        var t0 = new DateTimeOffset(2026, 8, 12, 3, 0, 0, TimeSpan.Zero);
+        await CreateWriter("kgsm", at: t0)
+            .AppendAsync("instance_started", Payload("""{"InstanceName":"K"}"""));
+        await CreateWriter("kgsm-watchdog", at: t0.AddSeconds(3))
+            .AppendAsync("instance_ready", Payload("""{"InstanceName":"K"}"""));
+
+        EventHistoryPage page = await Federated([.. sources]).QueryAsync(new EventHistoryQuery());
+
+        Assert.Equal(2, page.Events.Count);
+        Assert.Equal(2, page.Journals!.Count);
+        Assert.All(page.Journals!, j => Assert.True(j.Readable));
+        Assert.Equal(["kgsm-watchdog", "kgsm"], page.Events.Select(e => e.Producer));
     }
 }

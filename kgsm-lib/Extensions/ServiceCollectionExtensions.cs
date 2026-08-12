@@ -217,4 +217,85 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Reads every producer's event journal instead of only the engine's.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Call <b>after</b> <see cref="AddKgsmServices(IServiceCollection, KgsmOptions)"/>: this replaces
+    /// that call's <see cref="IEventJournalHistory"/> and <see cref="IEventSource"/> with the
+    /// federated pair, by last-registration. Every handler a consumer has registered keeps working
+    /// unchanged — <c>EventService</c> resolves <see cref="IEventSource"/> and never learns what backs
+    /// it, which is the whole point of that indirection.
+    /// </para>
+    /// <para>
+    /// Which journals exist is discovered from the leaves installed on the host, so this needs no list
+    /// of leaves and a leaf added later costs no rebuild. A consumer whose host is laid out
+    /// unconventionally registers its own <see cref="IJournalDiscovery"/> after this call.
+    /// </para>
+    /// <para>
+    /// ⚠ The federated source keeps <b>one cursor per producer</b>, which is a different store from the
+    /// single-journal <see cref="IEventCursorStore"/> and cannot be migrated from it: a position in the
+    /// engine's journal says nothing about a position in anyone else's. A consumer switching over
+    /// therefore starts each journal from <paramref name="startPosition"/>, and one that indexes events
+    /// wants <see cref="EventStartPosition.CursorOrOldest"/> so it can rebuild.
+    /// </para>
+    /// </remarks>
+    /// <param name="services">The IServiceCollection to add services to.</param>
+    /// <param name="cursorPath">Where the per-producer cursor map is kept.</param>
+    /// <param name="startPosition">Where a journal with no stored position begins.</param>
+    /// <param name="engineJournalDirectory">
+    /// Where kgsm's own journal lives. Null uses <see cref="KgsmOptions.DefaultEventJournalDirectory"/>.
+    /// </param>
+    /// <param name="leavesDirectory">
+    /// Where installed leaf descriptors live. Null uses <see cref="JournalDiscovery.DefaultLeavesDirectory"/>.
+    /// </param>
+    /// <param name="scanBudgetBytes">
+    /// The scan budget allowed for each journal in a history query. Non-positive uses
+    /// <see cref="KgsmOptions.DefaultEventHistoryScanBudgetBytes"/>. ⚠ It applies <em>per journal</em>,
+    /// so each answers to the same depth whatever the fleet size, at the cost of total work scaling
+    /// with the number of producers.
+    /// </param>
+    /// <returns>The IServiceCollection so that additional calls can be chained.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when services is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when cursorPath is null, empty, or whitespace.</exception>
+    public static IServiceCollection AddKgsmJournalFederation(
+        this IServiceCollection services,
+        string cursorPath,
+        EventStartPosition startPosition = EventStartPosition.CursorOrOldest,
+        string? engineJournalDirectory = null,
+        string? leavesDirectory = null,
+        long scanBudgetBytes = 0)
+    {
+        ArgumentNullException.ThrowIfNull(services, nameof(services));
+        ArgumentException.ThrowIfNullOrWhiteSpace(cursorPath, nameof(cursorPath));
+
+        long budget = scanBudgetBytes > 0 ? scanBudgetBytes : KgsmOptions.DefaultEventHistoryScanBudgetBytes;
+
+        services.AddSingleton<IJournalDiscovery>(sp => new JournalDiscovery(
+            engineJournalDirectory ?? KgsmOptions.DefaultEventJournalDirectory,
+            leavesDirectory ?? JournalDiscovery.DefaultLeavesDirectory,
+            sp.GetRequiredService<ILogger<JournalDiscovery>>()));
+
+        services.AddSingleton<IFederatedEventCursorStore>(sp => new FileFederatedEventCursorStore(
+            cursorPath, sp.GetRequiredService<ILogger<FileFederatedEventCursorStore>>()));
+
+        services.AddSingleton<IEventJournalHistory>(sp => new FederatedEventJournalHistory(
+            sp.GetRequiredService<IJournalDiscovery>().Discover(),
+            budget,
+            sp.GetRequiredService<ILoggerFactory>(),
+            sp.GetRequiredService<ILogger<FederatedEventJournalHistory>>()));
+
+        services.AddSingleton<FederatedEventSource>(sp => new FederatedEventSource(
+            sp.GetRequiredService<IJournalDiscovery>().Discover(),
+            sp.GetRequiredService<IFederatedEventCursorStore>(),
+            startPosition,
+            sp.GetRequiredService<ILoggerFactory>(),
+            sp.GetRequiredService<ILogger<FederatedEventSource>>()));
+
+        services.AddSingleton<IEventSource>(sp => sp.GetRequiredService<FederatedEventSource>());
+
+        return services;
+    }
 }
