@@ -57,6 +57,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `IFederatedEventCursorStore` / `FileFederatedEventCursorStore` — one cursor per producer in one
     file, so a consumer reading N journals advances each independently and a leaf that was down catches
     up without replaying or skipping any other's.
+  - `FederatedEventSource` — the live counterpart to the federated history: tails every producer's
+    journal at once and delivers all of them as one stream. It **composes** one `EventJournalReader`
+    per producer rather than reimplementing the tail, because whole-line framing, segment rolling,
+    straggler grace and gap detection are solved once already and a second implementation of them
+    would be a second set of bugs. Every delivered `EventPosition` carries the producer, stamped from
+    the reader that produced it. `GapDetected` names which producer's history is incomplete, so a
+    consumer can qualify one journal's coverage without implying anything about the others. A journal
+    whose directory does not exist yet is picked up when it appears, so a leaf installed later is
+    tailed without a restart.
 
 - **`WatchdogConsoleRun.Outcome` + `ExitCode`** — how the supervisor classified each run's ending
   (`crashed` / `gave-up` / `exited` / `stopped` / `running` / `unknown`), and the exit code where one

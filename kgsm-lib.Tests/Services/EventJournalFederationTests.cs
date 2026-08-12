@@ -559,4 +559,173 @@ public sealed class EventJournalFederationTests : IDisposable
 
         Assert.Null(await store.LoadAsync("kgsm"));
     }
+
+    // ── The federated live tail ──────────────────────────────────────────────────────────
+
+    private static readonly TimeSpan TailTimeout = TimeSpan.FromSeconds(10);
+
+    private static async Task WaitFor(Func<bool> condition, string because)
+    {
+        DateTime deadline = DateTime.UtcNow + TailTimeout;
+
+        while (DateTime.UtcNow < deadline)
+        {
+            if (condition())
+                return;
+
+            await Task.Delay(25);
+        }
+
+        Assert.Fail($"Timed out after {TailTimeout.TotalSeconds}s waiting for: {because}");
+    }
+
+    private FederatedEventSource CreateSource(string cursorPath, params string[] producers)
+        => new(
+            [.. producers.Select(p => new JournalSource(p, DirectoryFor(p)))],
+            new FileFederatedEventCursorStore(
+                cursorPath, new Mock<ILogger<FileFederatedEventCursorStore>>().Object),
+            EventStartPosition.CursorOrOldest,
+            LoggerFactory(),
+            new Mock<ILogger<FederatedEventSource>>().Object);
+
+    [Fact]
+    public async Task Tail_DeliversEveryProducersEventsStampedWithItsProducer()
+    {
+        // Pre-seed both journals, then tail from oldest so the whole of each replays.
+        await CreateWriter("kgsm").AppendAsync("instance_started", Payload("""{"InstanceName":"K"}"""));
+        await CreateWriter("watchdog").AppendAsync("instance_ready", Payload("""{"InstanceName":"K"}"""));
+
+        using FederatedEventSource source = CreateSource(Path.Combine(_root, "c.json"), "kgsm", "watchdog");
+
+        var seen = new System.Collections.Concurrent.ConcurrentBag<(string Producer, string Json)>();
+        source.EventReceived += (json, position) =>
+        {
+            // The producer must ride on the position, stamped from the journal the line came from.
+            seen.Add((position.Producer ?? "(none)", json));
+            return Task.CompletedTask;
+        };
+
+        using var cts = new CancellationTokenSource();
+        Task listening = source.StartListeningAsync(cts.Token);
+
+        try
+        {
+            await WaitFor(() => seen.Count == 2, "both journals to replay");
+
+            Assert.Equal(
+                ["kgsm", "watchdog"],
+                seen.Select(s => s.Producer).Order(StringComparer.Ordinal));
+
+            Assert.Contains(seen, s => s.Producer == "watchdog" && s.Json.Contains("instance_ready", StringComparison.Ordinal));
+            Assert.Contains(seen, s => s.Producer == "kgsm" && s.Json.Contains("instance_started", StringComparison.Ordinal));
+        }
+        finally
+        {
+            cts.Cancel();
+            await listening;
+        }
+    }
+
+    [Fact]
+    public async Task Tail_AdvancesEachProducersCursorIndependently()
+    {
+        string cursorPath = Path.Combine(_root, "c.json");
+
+        await CreateWriter("kgsm").AppendAsync("instance_started", Payload("""{"InstanceName":"K"}"""));
+        await CreateWriter("watchdog").AppendAsync("instance_ready", Payload("""{"InstanceName":"K"}"""));
+
+        using (FederatedEventSource source = CreateSource(cursorPath, "kgsm", "watchdog"))
+        {
+            var count = 0;
+            source.EventReceived += (_, _) => { Interlocked.Increment(ref count); return Task.CompletedTask; };
+
+            using var cts = new CancellationTokenSource();
+            Task listening = source.StartListeningAsync(cts.Token);
+            try
+            {
+                await WaitFor(() => count == 2, "both events to be delivered");
+
+                // The cursor is stored only PAST events already dispatched, so the file appears
+                // after delivery rather than with it — that ordering is what makes delivery
+                // at-least-once instead of at-most-once.
+                await WaitFor(() => File.Exists(cursorPath), "both cursors to be persisted");
+            }
+            finally
+            {
+                cts.Cancel();
+                await listening;
+            }
+        }
+
+        var store = new FileFederatedEventCursorStore(
+            cursorPath, new Mock<ILogger<FileFederatedEventCursorStore>>().Object);
+
+        // Both journals recorded a position, and they are separate slots — one producer advancing
+        // must never move another's, or a leaf that was down would resume at the wrong place.
+        Assert.NotNull(await store.LoadAsync("kgsm"));
+        Assert.NotNull(await store.LoadAsync("watchdog"));
+        Assert.Null(await store.LoadAsync("monitor"));
+    }
+
+    [Fact]
+    public async Task Tail_PicksUpAJournalThatDoesNotExistYet()
+    {
+        string cursorPath = Path.Combine(_root, "c.json");
+
+        // "monitor" is configured but has no directory — a leaf not installed yet. It must not be an
+        // error, and the journal must be picked up when it appears, without a restart.
+        using FederatedEventSource source = new(
+            [
+                new JournalSource("kgsm", DirectoryFor("kgsm")),
+                new JournalSource("monitor", Path.Combine(_root, "monitor")),
+            ],
+            new FileFederatedEventCursorStore(
+                cursorPath, new Mock<ILogger<FileFederatedEventCursorStore>>().Object),
+            EventStartPosition.CursorOrOldest,
+            LoggerFactory(),
+            new Mock<ILogger<FederatedEventSource>>().Object);
+
+        var seen = new System.Collections.Concurrent.ConcurrentBag<string>();
+        source.EventReceived += (_, position) =>
+        {
+            seen.Add(position.Producer ?? "(none)");
+            return Task.CompletedTask;
+        };
+
+        using var cts = new CancellationTokenSource();
+        Task listening = source.StartListeningAsync(cts.Token);
+
+        try
+        {
+            await CreateWriter("kgsm").AppendAsync("instance_started", Payload("""{"InstanceName":"K"}"""));
+            await WaitFor(() => seen.Contains("kgsm"), "the existing journal to deliver");
+
+            // Now the absent producer's journal appears.
+            await CreateWriter("monitor").AppendAsync("host_threshold_breach", Payload("""{"InstanceName":"K"}"""));
+            await WaitFor(() => seen.Contains("monitor"), "the newly created journal to be picked up");
+        }
+        finally
+        {
+            cts.Cancel();
+            await listening;
+        }
+    }
+
+    [Fact]
+    public void Tail_RefusesTwoJournalsClaimingOneProducer()
+        => Assert.Throws<ArgumentException>(() => new FederatedEventSource(
+            [new JournalSource("kgsm", "/a"), new JournalSource("kgsm", "/b")],
+            new FileFederatedEventCursorStore(
+                Path.Combine(_root, "c.json"),
+                new Mock<ILogger<FileFederatedEventCursorStore>>().Object),
+            EventStartPosition.CursorOrTail,
+            LoggerFactory(),
+            new Mock<ILogger<FederatedEventSource>>().Object));
+
+    [Fact]
+    public void Tail_ReportsItsProducers()
+    {
+        using FederatedEventSource source = CreateSource(Path.Combine(_root, "c.json"), "kgsm", "watchdog");
+        Assert.Equal(["kgsm", "watchdog"], source.Producers);
+    }
 }
