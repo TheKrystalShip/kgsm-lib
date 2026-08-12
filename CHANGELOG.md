@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A consumer can name a journal the scan would not find.** `JournalDiscovery` takes a `named` list
+  (surfaced as `AddKgsmJournalFederation(namedJournals:)`), on the same footing as the engine's
+  configurable directory. It closes a real hole for a consumer that keeps its OWN journal at a
+  configured path: it would write a record and then be unable to read it back, because the scan only
+  looks under each producer's default state directory. Named entries win over scanned ones, since a
+  caller that says where a producer writes knows better than a directory that happens to share a name.
+- **The Control Panel's own facts in the catalog.** Eighteen `kgsm-api` event types — `auth_login` /
+  `auth_logout` / `auth_cluster_session` / `auth_session_revoked`, the six `user_*` account changes,
+  `identity_linked` / `_unlinked`, the four `service_*` events, `file_written` and `backup_downloaded` —
+  with their payload classes and descriptors, plus two new subjects, `EventSubject.Account` and
+  `EventSubject.Service`. Both subjects are load-bearing rather than tidy: an unclassified type falls
+  back to `Instance` by the engine's naming convention, which would have filed every sign-in on this
+  host under whichever game server the reader happened to be looking at.
+  - `Identity`, `Handle` and `UserAgent` are `Personal` — they link a panel account to a person
+    somewhere else, or describe the machine they used. `Username` and `Tier` stay `Public`, because a
+    trail that records authority changing and names nobody is not a safer log.
+  - Each `service_*` event has its own payload rather than one class with mostly-null properties: a
+    field an event can never carry still has to be classified for it, and the descriptor would end up
+    describing a shape nothing writes.
 - **An empty journal reads as "recorded nothing", not as unreadable.** A producer creates its journal
   directory up front so readers can discover it before its first event; reporting that as unreadable
   would undo exactly that, making a leaf that has simply not fired anything yet look like one nobody can

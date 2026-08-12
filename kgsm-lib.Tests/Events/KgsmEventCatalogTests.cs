@@ -314,4 +314,59 @@ public class KgsmEventCatalogTests
         // The open moment travels on both, so a reader can place the breach without holding the pair.
         Assert.Contains(cleared.Fields, f => f.Name == "OpenedTs");
     }
+
+    [Theory]
+    [InlineData("auth_login", "Identity")]
+    [InlineData("auth_login", "UserAgent")]
+    [InlineData("identity_linked", "Handle")]
+    [InlineData("identity_unlinked", "Handle")]
+    public void An_account_event_marks_what_identifies_a_person(string type, string field)
+    {
+        // These are the fields that link this host's account to somebody outside it, or describe the
+        // machine they used. Every surface reads its "may I show this" answer off this classification,
+        // so a field demoted to Public here becomes visible on every one of them at once.
+        EventField? classified = KgsmEventCatalog.Describe(type).Field(field);
+
+        Assert.NotNull(classified);
+        Assert.Equal(FieldSensitivity.Personal, classified.Sensitivity);
+    }
+
+    [Fact]
+    public void An_account_event_still_says_who_it_was_about()
+    {
+        // The counterweight to the rule above: withholding the username too would leave a trail that
+        // records privilege changing and names nobody, which is not a safer log — it is a useless one.
+        EventDescriptor login = KgsmEventCatalog.Describe("auth_login");
+
+        Assert.Equal(FieldSensitivity.Public, login.Field("Username")!.Sensitivity);
+        Assert.Equal(FieldSensitivity.Public, login.Field("Tier")!.Sensitivity);
+    }
+
+    [Fact]
+    public void A_service_config_change_carries_keys_and_never_values()
+    {
+        // The one classification that would leak a credential if it were wrong: a leaf's configuration
+        // holds tokens and passwords, so the descriptor has somewhere to put the keys and deliberately
+        // nowhere to put what they were set to.
+        EventDescriptor changed = KgsmEventCatalog.Describe("service_config_changed");
+
+        Assert.Contains(changed.Fields, f => f.Name == "Keys");
+        Assert.DoesNotContain(changed.Fields, f =>
+            f.Name.Contains("Value", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void The_panels_own_events_are_not_read_as_being_about_a_game_server()
+    {
+        // A login is not an instance event. Before Account/Service existed, an unrecognised type fell
+        // back to Instance by the engine's naming convention — which would have filed every sign-in
+        // under whichever server the reader was looking at.
+        Assert.Equal(EventSubject.Account, KgsmEventCatalog.Describe("auth_login").Subject);
+        Assert.Equal(EventSubject.Account, KgsmEventCatalog.Describe("user_tier_changed").Subject);
+        Assert.Equal(EventSubject.Service, KgsmEventCatalog.Describe("service_restarted").Subject);
+
+        // These two genuinely are about one instance, and stay that way.
+        Assert.Equal(EventSubject.Instance, KgsmEventCatalog.Describe("file_written").Subject);
+        Assert.Equal(EventSubject.Instance, KgsmEventCatalog.Describe("backup_downloaded").Subject);
+    }
 }

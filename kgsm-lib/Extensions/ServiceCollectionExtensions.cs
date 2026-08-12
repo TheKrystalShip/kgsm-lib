@@ -272,7 +272,8 @@ public static class ServiceCollectionExtensions
         EventStartPosition startPosition = EventStartPosition.CursorOrOldest,
         string? engineJournalDirectory = null,
         string? stateRoot = null,
-        long scanBudgetBytes = 0)
+        long scanBudgetBytes = 0,
+        IReadOnlyList<JournalSource>? namedJournals = null)
     {
         ArgumentNullException.ThrowIfNull(services, nameof(services));
 
@@ -281,7 +282,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IJournalDiscovery>(sp => new JournalDiscovery(
             engineJournalDirectory ?? KgsmOptions.DefaultEventJournalDirectory,
             stateRoot,
-            sp.GetRequiredService<ILogger<JournalDiscovery>>()));
+            sp.GetRequiredService<ILogger<JournalDiscovery>>(),
+            namedJournals));
 
         services.AddSingleton<IFederatedEventCursorStore>(sp => string.IsNullOrWhiteSpace(cursorPath)
             ? new NullFederatedEventCursorStore()

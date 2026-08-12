@@ -117,6 +117,16 @@ namespace TheKrystalShip.KGSM;
 // Host-scoped monitoring facts (kgsm-monitor's journal).
 [JsonSerializable(typeof(HostThresholdBreachedData))]
 [JsonSerializable(typeof(HostThresholdClearedData))]
+// The Control Panel's own facts (kgsm-api's journal).
+[JsonSerializable(typeof(AuthSessionEventData))]
+[JsonSerializable(typeof(AuthSessionRevokedData))]
+[JsonSerializable(typeof(UserAccountEventData))]
+[JsonSerializable(typeof(IdentityLinkEventData))]
+[JsonSerializable(typeof(ServiceProvisioningEventData))]
+[JsonSerializable(typeof(ServiceConfigChangedEventData))]
+[JsonSerializable(typeof(ServiceRestartedEventData))]
+[JsonSerializable(typeof(FileWrittenEventData))]
+[JsonSerializable(typeof(BackupDownloadedEventData))]
 [JsonSerializable(typeof(BlueprintCreatedData))]
 [JsonSerializable(typeof(BlueprintUpdatedData))]
 [JsonSerializable(typeof(BlueprintRemovedData))]

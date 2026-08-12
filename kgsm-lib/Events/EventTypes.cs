@@ -1026,3 +1026,239 @@ public class HostThresholdClearedData : HostThresholdEventDataBase
     /// </remarks>
     public string? CloseReason { get; set; }
 }
+
+// ---- the Control Panel's own facts ------------------------------------------------------------
+//
+// Signing in, an account's authority changing, a leaf being reconfigured. Nothing about a game
+// server, and no engine command behind any of them — the API performs these itself, so it is the
+// author and records them in its own journal.
+//
+// They are classified here rather than privately because the catalog is what every consumer reads a
+// payload through: a field left unclassified renders nowhere, and these payloads carry the values
+// most worth being careful with on this host.
+
+/// <summary>
+/// Base for an event about a KGSM account — signing in, authority changing, an identity attached.
+/// </summary>
+/// <remarks>
+/// The subject is the account, never the person: an account survives a display name changing and is
+/// what authority is actually resolved against, so a trail keyed on anything else stops answering
+/// "what did this account do" the moment somebody renames themselves.
+/// </remarks>
+public abstract class AccountEventDataBase : KgsmEventDataBase
+{
+    /// <summary>
+    /// Gets or sets the account's stable id, or <see langword="null"/> when the producer did not have
+    /// the account row in hand.
+    /// </summary>
+    /// <remarks>
+    /// Nullable because it honestly is: an administrator acting on somebody's account holds their id,
+    /// while a sign-out holds only the identity in the caller's own token. Writing a blank or
+    /// re-deriving one from the handle would put a value in the record that nothing looked up.
+    /// </remarks>
+    public string? UserId { get; set; }
+
+    /// <summary>Gets or sets the account's username at the time of the event.</summary>
+    /// <remarks>
+    /// A convenience for reading the trail back, not the key. <see cref="UserId"/> is the identity;
+    /// this is what it was called when this happened, which is the honest thing to show beside a row
+    /// that may predate a rename.
+    /// </remarks>
+    public string Username { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Data for <c>auth_login</c>, <c>auth_logout</c> and <c>auth_cluster_session</c> — somebody's
+/// session on this host began or ended.
+/// </summary>
+public class AuthSessionEventData : AccountEventDataBase
+{
+    /// <summary>Gets or sets the identity that arrived, as <c>provider:name</c>.</summary>
+    public string Identity { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the identity provider that vouched for them (<c>discord</c>, <c>local</c>, …).</summary>
+    public string? Provider { get; set; }
+
+    /// <summary>Gets or sets the authority the account store resolved for them.</summary>
+    public string? Tier { get; set; }
+
+    /// <summary>Gets or sets the session id, so a login and its logout pair up.</summary>
+    public string? Sid { get; set; }
+
+    /// <summary>Gets or sets the calling device's user agent, or <see langword="null"/> when it sent none.</summary>
+    public string? UserAgent { get; set; }
+
+    /// <summary>
+    /// Gets or sets the peer node that asserted this identity, for a cluster SSO vouch; null for a
+    /// sign-in this host performed itself.
+    /// </summary>
+    public string? PeerNode { get; set; }
+}
+
+/// <summary>
+/// Data for <c>auth_session_revoked</c> — one or more sessions were torn down before they expired.
+/// </summary>
+/// <remarks>
+/// One event with a <see cref="Scope"/> rather than three types, because it is one fact told three
+/// ways: sessions stopped being valid. Who was affected and who did it are already on the row.
+/// </remarks>
+public class AuthSessionRevokedData : AccountEventDataBase
+{
+    /// <summary>
+    /// Gets or sets what was revoked — <c>self</c> (one of the caller's own), <c>all</c> (every
+    /// session the caller holds), or <c>admin</c> (somebody else's).
+    /// </summary>
+    public string Scope { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the single session id revoked, or null when the revocation was a sweep.</summary>
+    public string? Sid { get; set; }
+
+    /// <summary>Gets or sets how many sessions the revocation ended, or null when it was not counted.</summary>
+    public int? Count { get; set; }
+}
+
+/// <summary>
+/// Data for the <c>user_*</c> events — an account was provisioned, approved, disabled, deleted, had
+/// its authority changed, or had its password set.
+/// </summary>
+/// <remarks>
+/// ⚠ <b>Never carries a password</b>, in any form, hashed or otherwise. <c>user_password_changed</c>
+/// records that a credential was set and by whom, which is the only signal an account takeover leaves;
+/// the credential itself is not part of that fact.
+/// </remarks>
+public class UserAccountEventData : AccountEventDataBase
+{
+    /// <summary>Gets or sets the authority the account held before, or null when it had none / did not change.</summary>
+    public string? FromTier { get; set; }
+
+    /// <summary>Gets or sets the authority it holds after, or null when the event did not change it.</summary>
+    public string? ToTier { get; set; }
+
+    /// <summary>Gets or sets the status the account held before, or null when it did not change.</summary>
+    public string? FromStatus { get; set; }
+
+    /// <summary>Gets or sets the status it holds after, or null when the event did not change it.</summary>
+    public string? ToStatus { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the account's own holder did this, as opposed to an administrator acting
+    /// on them. Null when the distinction does not apply to the event.
+    /// </summary>
+    /// <remarks>
+    /// The whole point of recording a password change: somebody else setting yours reads completely
+    /// differently from you setting it, and a row that could not tell them apart would report the
+    /// takeover and the routine rotation identically.
+    /// </remarks>
+    public bool? ByHolder { get; set; }
+}
+
+/// <summary>
+/// Data for <c>identity_linked</c> / <c>identity_unlinked</c> — an external identity was attached to
+/// or detached from an account.
+/// </summary>
+/// <remarks>
+/// A link is a privilege event: afterwards, whoever controls that provider account can sign in as
+/// this one.
+/// </remarks>
+public class IdentityLinkEventData : AccountEventDataBase
+{
+    /// <summary>Gets or sets the provider the identity comes from.</summary>
+    public string Provider { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the identity's handle at that provider, as <c>provider:name</c>.</summary>
+    public string Handle { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Base for an event about a leaf service on this host.
+/// </summary>
+/// <remarks>
+/// Each <c>service_*</c> event has its own payload rather than one shared class with mostly-null
+/// properties: a field a given event can never carry is one every consumer has to be told how to
+/// treat anyway, and the classification would end up describing a shape nothing writes.
+/// </remarks>
+public abstract class ServiceEventData : KgsmEventDataBase
+{
+    /// <summary>Gets or sets the leaf's id (<c>monitor</c>, <c>watchdog</c>, …).</summary>
+    public string Leaf { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the leaf's display name.</summary>
+    public string? DisplayName { get; set; }
+}
+
+/// <summary>
+/// Data for <c>service_connected</c> / <c>service_disconnected</c> — a leaf's runtime provisioning
+/// was flipped, which changes the set of capabilities this host reports rather than anything running.
+/// </summary>
+public class ServiceProvisioningEventData : ServiceEventData;
+
+/// <summary>
+/// Data for <c>service_config_changed</c> — a configuration override was applied to a leaf.
+/// </summary>
+public class ServiceConfigChangedEventData : ServiceEventData
+{
+    /// <summary>
+    /// Gets or sets the configuration keys the change touched. ⚠ <b>Keys only, never values</b> — a
+    /// leaf's configuration holds tokens and passwords.
+    /// </summary>
+    public string[]? Keys { get; set; }
+
+    /// <summary>Gets or sets how the change ended (<c>applied</c>, <c>rejected</c>, …).</summary>
+    public string? Outcome { get; set; }
+}
+
+/// <summary>
+/// Data for <c>service_restarted</c> — a leaf's unit was restarted on its own, rather than as the
+/// tail of a configuration apply.
+/// </summary>
+public class ServiceRestartedEventData : ServiceEventData
+{
+    /// <summary>Gets or sets the systemd unit that was restarted.</summary>
+    public string Unit { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets whether systemd performed it.</summary>
+    /// <remarks>
+    /// A refused restart is recorded as much as a performed one — it is exactly the case nobody was
+    /// watching a screen for.
+    /// </remarks>
+    public bool Ok { get; set; }
+}
+
+/// <summary>
+/// Data for <c>file_written</c> — an instance's file was edited through the Control Panel's file
+/// browser.
+/// </summary>
+/// <remarks>
+/// ⚠ <b>Never carries the content</b>, only what identifies the write. An instance's configuration
+/// files hold rcon passwords, tokens and webhook URLs.
+/// </remarks>
+public class FileWrittenEventData : EventDataBase
+{
+    /// <summary>Gets or sets the path written, relative to the instance.</summary>
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets how many bytes were written.</summary>
+    public long SizeBytes { get; set; }
+
+    /// <summary>Gets or sets the content hash as <c>sha256:&lt;hex&gt;</c> — identity, never content.</summary>
+    public string? Sha256 { get; set; }
+}
+
+/// <summary>
+/// Data for <c>backup_downloaded</c> — an instance's backup archive was authorised to leave the host.
+/// </summary>
+/// <remarks>
+/// Recorded when the bytes were released, not when somebody clicked: the fact worth keeping is that a
+/// copy of a world left this machine.
+/// </remarks>
+public class BackupDownloadedEventData : EventDataBase
+{
+    /// <summary>Gets or sets the backup that was served.</summary>
+    public string BackupId { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the archive's size in bytes.</summary>
+    public long SizeBytes { get; set; }
+
+    /// <summary>Gets or sets the archive hash as <c>sha256:&lt;hex&gt;</c>.</summary>
+    public string? Sha256 { get; set; }
+}

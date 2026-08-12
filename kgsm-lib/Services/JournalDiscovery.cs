@@ -29,9 +29,11 @@ namespace TheKrystalShip.KGSM.Services;
 /// silence as a failure to read it.
 /// </para>
 /// <para>
-/// ⚠ A journal is found only where the writer's own default puts it. A producer configured to write
-/// somewhere else is invisible here, and a consumer with such a host supplies its own
-/// <see cref="IJournalDiscovery"/> rather than relying on this one.
+/// ⚠ The scan finds a journal only where the writer's own default puts it. A producer configured to
+/// write somewhere else is invisible to it — so a consumer that knows of such a journal names it
+/// explicitly instead, which is how the engine's configurable directory is handled and how a consumer
+/// that keeps its OWN journal at a configured path makes it readable. A named journal is taken on the
+/// caller's word: nothing else on the host can know it is there.
 /// </para>
 /// </remarks>
 public sealed class JournalDiscovery : IJournalDiscovery
@@ -44,6 +46,7 @@ public sealed class JournalDiscovery : IJournalDiscovery
 
     private readonly string _engineJournalDirectory;
     private readonly string _stateRoot;
+    private readonly IReadOnlyList<JournalSource> _named;
     private readonly ILogger<JournalDiscovery> _logger;
 
     /// <summary>
@@ -54,16 +57,23 @@ public sealed class JournalDiscovery : IJournalDiscovery
     /// The directory holding each producer's state directory. Null uses <see cref="DefaultStateRoot"/>.
     /// </param>
     /// <param name="logger">The logger to use.</param>
+    /// <param name="named">
+    /// Journals the caller knows about that the scan would not find — a producer writing somewhere
+    /// other than its own state directory. The obvious case is a consumer that keeps its own journal
+    /// at a configured path: it would otherwise write a record it then could not read back.
+    /// </param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="logger"/> is null.</exception>
     /// <exception cref="ArgumentException">Thrown when the engine journal directory is blank.</exception>
     public JournalDiscovery(
-        string engineJournalDirectory, string? stateRoot, ILogger<JournalDiscovery> logger)
+        string engineJournalDirectory, string? stateRoot, ILogger<JournalDiscovery> logger,
+        IReadOnlyList<JournalSource>? named = null)
     {
         ArgumentNullException.ThrowIfNull(logger, nameof(logger));
         ArgumentException.ThrowIfNullOrWhiteSpace(engineJournalDirectory, nameof(engineJournalDirectory));
 
         _engineJournalDirectory = engineJournalDirectory;
         _stateRoot = string.IsNullOrWhiteSpace(stateRoot) ? DefaultStateRoot : stateRoot;
+        _named = named ?? [];
         _logger = logger;
     }
 
@@ -78,6 +88,14 @@ public sealed class JournalDiscovery : IJournalDiscovery
         };
 
         var seen = new HashSet<string>(StringComparer.Ordinal) { JournalProducer.Kgsm };
+
+        // Named before scanned, for the same reason the engine is: a caller that says where a producer
+        // writes knows better than a directory that happens to share the name.
+        foreach (JournalSource declared in _named)
+        {
+            if (JournalProducer.IsValid(declared.Producer) && seen.Add(declared.Producer))
+                sources.Add(declared);
+        }
 
         foreach (JournalSource found in ScanStateRoot())
         {

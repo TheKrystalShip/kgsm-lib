@@ -200,6 +200,56 @@ public static class KgsmEventCatalog
             BlueprintEvent<BlueprintCreatedData>("blueprint_created", [Tier, OverridesSystem, Runtime]),
             BlueprintEvent<BlueprintUpdatedData>("blueprint_updated", [Tier, OverridesSystem, Runtime]),
             BlueprintEvent<BlueprintRemovedData>("blueprint_removed", [Tier, Field("RevertedToSystem", FieldShape.Text)]),
+
+            // -- accounts ----------------------------------------------------------------------
+            // Signing in and authority changing. The Control Panel performs these itself — no engine
+            // command runs — so it authors them, and they are classified here because a payload field
+            // nobody has classified renders nowhere and these carry the values most worth care.
+            Account<AuthSessionEventData>("auth_login", EventOutcome.Success, SessionFields),
+            Account<AuthSessionEventData>("auth_logout", EventOutcome.Neutral, SessionFields),
+
+            // A peer node asserting an already-authenticated identity, which this host then mints its
+            // own session for. Same shape as a login because that is what it is; PeerNode is what says
+            // the proof was somebody else's.
+            Account<AuthSessionEventData>("auth_cluster_session", EventOutcome.Success, SessionFields),
+
+            Account<AuthSessionRevokedData>("auth_session_revoked", EventOutcome.Neutral,
+                [UserId, Username, Field("Scope", FieldShape.Text), Sid, Field("Count", FieldShape.Number)]),
+
+            // An account's authority is only ever changed here — the store is the sole authority on
+            // this host — so these six are the whole record of anybody's permissions moving.
+            Account<UserAccountEventData>("user_provisioned", EventOutcome.Neutral, AccountChangeFields),
+            Account<UserAccountEventData>("user_approved", EventOutcome.Success, AccountChangeFields),
+            Account<UserAccountEventData>("user_disabled", EventOutcome.Neutral, AccountChangeFields),
+            Account<UserAccountEventData>("user_tier_changed", EventOutcome.Neutral, AccountChangeFields),
+            Account<UserAccountEventData>("user_deleted", EventOutcome.Neutral, AccountChangeFields),
+
+            // ⚠ Records that a credential was set and by whom. Never the credential.
+            Account<UserAccountEventData>("user_password_changed", EventOutcome.Neutral, AccountChangeFields),
+
+            Account<IdentityLinkEventData>("identity_linked", EventOutcome.Neutral, IdentityFields),
+            Account<IdentityLinkEventData>("identity_unlinked", EventOutcome.Neutral, IdentityFields),
+
+            // -- leaf services -----------------------------------------------------------------
+            Service<ServiceProvisioningEventData>("service_connected", EventOutcome.Success, [Leaf, DisplayName]),
+            Service<ServiceProvisioningEventData>("service_disconnected", EventOutcome.Neutral, [Leaf, DisplayName]),
+
+            // Keys only. A leaf's configuration holds tokens and passwords, so the value a change set
+            // is not part of the fact that it changed.
+            Service<ServiceConfigChangedEventData>("service_config_changed", EventOutcome.Neutral,
+                [Leaf, DisplayName, Field("Keys", FieldShape.Text), Field("Outcome", FieldShape.Text)]),
+
+            Service<ServiceRestartedEventData>("service_restarted", EventOutcome.Neutral,
+                [Leaf, DisplayName, Field("Unit", FieldShape.Text), Ok]),
+
+            // -- panel actions on an instance --------------------------------------------------
+            // Instance-subject because that is what they are about, even though the Control Panel and
+            // not the engine performed them. ⚠ Both carry an identity of the bytes and never the bytes:
+            // an instance config file holds rcon passwords, and a world is somebody's data.
+            Instance<FileWrittenEventData>("file_written", EventWeight.Fact, EventOutcome.Neutral,
+                [Path, SizeBytes, Sha256]),
+            Instance<BackupDownloadedEventData>("backup_downloaded", EventWeight.Fact, EventOutcome.Neutral,
+                [Field("BackupId", FieldShape.Text), SizeBytes, Sha256]),
         };
 
         var byType = new Dictionary<string, EventDescriptor>(all.Count, StringComparer.Ordinal);
@@ -241,6 +291,18 @@ public static class KgsmEventCatalog
         where TData : BlueprintEventDataBase =>
         new(type, EventSubject.Blueprint, EventWeight.Fact, EventOutcome.Neutral, fields,
             typeof(TData), Known: true);
+
+    /// <summary>An account-subject descriptor — something that happened to somebody's access.</summary>
+    private static EventDescriptor Account<TData>(
+        string type, EventOutcome outcome, IReadOnlyList<EventField> fields)
+        where TData : AccountEventDataBase =>
+        new(type, EventSubject.Account, EventWeight.Fact, outcome, fields, typeof(TData), Known: true);
+
+    /// <summary>A leaf-service descriptor.</summary>
+    private static EventDescriptor Service<TData>(
+        string type, EventOutcome outcome, IReadOnlyList<EventField> fields)
+        where TData : ServiceEventData =>
+        new(type, EventSubject.Service, EventWeight.Fact, outcome, fields, typeof(TData), Known: true);
 
     private static EventField Field(
         string name, FieldShape shape, FieldSensitivity sensitivity = FieldSensitivity.Public) =>
@@ -296,6 +358,73 @@ public static class KgsmEventCatalog
     /// </summary>
     private static readonly EventField Command =
         Field("Command", FieldShape.Text, FieldSensitivity.Privileged);
+
+    // ---- the Control Panel's own fields --------------------------------------------------------
+
+    /// <summary>
+    /// The account's stable id. Public and <see cref="FieldShape.Opaque"/>: it is a generated key that
+    /// says nothing about anybody on its own, and nothing should render it for meaning.
+    /// </summary>
+    private static readonly EventField UserId = Field("UserId", FieldShape.Opaque);
+
+    /// <summary>
+    /// What the account was called when this happened. Public — it is already the name every audit row
+    /// carries as its actor, and a trail that hid it would name nobody.
+    /// </summary>
+    private static readonly EventField Username = Field("Username", FieldShape.Identity);
+
+    /// <summary>
+    /// The external handle an account signs in with, as <c>provider:name</c>.
+    /// <see cref="FieldSensitivity.Personal"/>: unlike the username, it links this host's account to a
+    /// person's identity somewhere else, and it is the account's own holder who chose to attach it —
+    /// not something the panel gets to publish to everyone who can read the log.
+    /// </summary>
+    private static readonly EventField Identity =
+        Field("Identity", FieldShape.Identity, FieldSensitivity.Personal);
+
+    /// <summary>Which provider vouched. Public — naming the door is not naming who came through it.</summary>
+    private static readonly EventField Provider = Field("Provider", FieldShape.Text);
+
+    /// <summary>
+    /// The session id, so a login and its logout pair up. Public and opaque, on the same reasoning as
+    /// <see cref="SessionKey"/> — it correlates two rows and grants nothing.
+    /// </summary>
+    private static readonly EventField Sid = Field("Sid", FieldShape.Opaque);
+
+    /// <summary>
+    /// The calling device. <see cref="FieldSensitivity.Personal"/> for the same reason
+    /// <see cref="PlayerAddr"/> is: a user-agent string describes somebody's machine, and it is on the
+    /// row to answer "was that me?" for the account's holder, not to tell a reader what everyone else
+    /// browses with.
+    /// </summary>
+    private static readonly EventField UserAgent =
+        Field("UserAgent", FieldShape.Text, FieldSensitivity.Personal);
+
+    private static readonly EventField Leaf = Field("Leaf", FieldShape.Text);
+    private static readonly EventField DisplayName = Field("DisplayName", FieldShape.Text);
+    private static readonly EventField Ok = Field("Ok", FieldShape.Text);
+    private static readonly EventField Path = Field("Path", FieldShape.Text);
+    private static readonly EventField SizeBytes = Field("SizeBytes", FieldShape.Number);
+
+    /// <summary>The content hash. Identifies the bytes; is not the bytes.</summary>
+    private static readonly EventField Sha256 = Field("Sha256", FieldShape.Opaque);
+
+    /// <summary>The fields every <c>auth_*</c> session event carries.</summary>
+    private static readonly EventField[] SessionFields =
+        [UserId, Username, Identity, Provider, Tier, Sid, UserAgent, Field("PeerNode", FieldShape.Text)];
+
+    /// <summary>The fields every <c>user_*</c> account-change event carries.</summary>
+    private static readonly EventField[] AccountChangeFields =
+    [
+        UserId, Username,
+        Field("FromTier", FieldShape.Text), Field("ToTier", FieldShape.Text),
+        Field("FromStatus", FieldShape.Text), Field("ToStatus", FieldShape.Text),
+        Field("ByHolder", FieldShape.Text),
+    ];
+
+    /// <summary>The fields both <c>identity_*</c> events carry.</summary>
+    private static readonly EventField[] IdentityFields =
+        [UserId, Username, Provider, Field("Handle", FieldShape.Identity, FieldSensitivity.Personal)];
 }
 
 /// <summary>
@@ -357,6 +486,19 @@ public enum EventSubject
     /// about without being an event that server produced.
     /// </summary>
     Host,
+
+    /// <summary>
+    /// One KGSM account — who signed in, whose authority changed, which identity was attached. The
+    /// subject is the account rather than the person, because an account is what authority resolves
+    /// against and it outlives any name somebody is currently shown under.
+    /// </summary>
+    Account,
+
+    /// <summary>
+    /// One leaf service on this host — connected, disconnected, reconfigured, restarted. Never read as
+    /// being about a game server: a leaf can be reconfigured while every instance keeps running.
+    /// </summary>
+    Service,
 }
 
 /// <summary>
