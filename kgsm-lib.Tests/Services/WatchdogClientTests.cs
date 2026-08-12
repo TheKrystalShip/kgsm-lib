@@ -238,7 +238,7 @@ public class WatchdogClientTests
         // to all-defaults with no error, which would read as every run having ended at DateTime
         // .MinValue with nothing current — silently wrong rather than broken.
         const string json =
-            """[{"index":0,"current":true,"endedAt":null,"lastOutputAt":"2026-08-11T22:02:13.9847186Z","sizeBytes":300},{"index":1,"current":false,"endedAt":"2026-08-11T21:53:14.7946633Z","lastOutputAt":"2026-08-11T21:53:14.7946633Z","sizeBytes":512}]""";
+            """[{"index":0,"current":true,"endedAt":null,"lastOutputAt":"2026-08-11T22:02:13.9847186Z","sizeBytes":300,"outcome":"running","exitCode":null},{"index":1,"current":false,"endedAt":"2026-08-11T21:53:14.7946633Z","lastOutputAt":"2026-08-11T21:53:14.7946633Z","sizeBytes":512,"outcome":"crashed","exitCode":139}]""";
 
         var runs = JsonSerializer.Deserialize(json, KgsmJsonContext.Default.WatchdogConsoleRunArray);
 
@@ -258,6 +258,28 @@ public class WatchdogClientTests
         Assert.False(runs[1].Current);
         Assert.Equal(expected, runs[1].EndedAt);
         Assert.Equal(runs[1].LastOutputAt, runs[1].EndedAt);
+
+        // How each run ended, which is what tells the run holding a crash from the clean boot behind
+        // it. The run in progress has not ended and so has no exit code.
+        Assert.Equal("running", runs[0].Outcome);
+        Assert.Null(runs[0].ExitCode);
+        Assert.Equal("crashed", runs[1].Outcome);
+        Assert.Equal(139, runs[1].ExitCode);
+    }
+
+    [Fact]
+    public void ConsoleRun_WithNoOutcomeOnTheWire_ReadsAsUnknown()
+    {
+        // A daemon older than the run ledger sends no outcome field. The default has to be "unknown"
+        // — an absence of knowledge — because binding it to empty would let a consumer test it for
+        // "not crashed" and conclude the run ended cleanly.
+        const string json =
+            """[{"index":0,"current":false,"endedAt":"2026-08-11T21:53:14.7946633Z","lastOutputAt":"2026-08-11T21:53:14.7946633Z","sizeBytes":512}]""";
+
+        var runs = JsonSerializer.Deserialize(json, KgsmJsonContext.Default.WatchdogConsoleRunArray);
+
+        Assert.Equal("unknown", runs![0].Outcome);
+        Assert.Null(runs[0].ExitCode);
     }
 
     [Fact]

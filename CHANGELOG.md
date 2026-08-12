@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`WatchdogConsoleRun.Outcome` + `ExitCode`** — how the supervisor classified each run's ending
+  (`crashed` / `gave-up` / `exited` / `stopped` / `running` / `unknown`), and the exit code where one
+  could be read. Matching a crash on `EndedAt` alone can only ask which run stopped printing nearest
+  it; this says which run the supervisor itself watched fail, and tells a crash apart from a
+  deliberate stop — a distinction no amount of timestamp comparison recovers. A daemon that predates
+  the run ledger sends no field, which binds to `"unknown"`: an absence of knowledge, never a clean
+  ending.
+
 - **`IWatchdogClient.GetConsoleRunsAsync` + `GetConsoleRunTailAsync`** — a console's runs, and one
   run's output. The supervisor rotates an instance's log on every fresh spawn, so a crash and the
   restart behind it are two runs: reading the live console after a crash-restart shows a clean boot

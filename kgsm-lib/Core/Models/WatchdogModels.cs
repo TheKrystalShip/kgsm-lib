@@ -260,4 +260,31 @@ public record class WatchdogConsoleRun
     /// <summary>The run's console size on disk, in bytes.</summary>
     [JsonPropertyName("sizeBytes")]
     public long SizeBytes { get; set; }
+
+    /// <summary>
+    /// How the run ended, as the supervisor classified it: <c>crashed</c>, <c>gave-up</c>,
+    /// <c>exited</c>, <c>stopped</c>, <c>running</c> for the run in progress, or <c>unknown</c>.
+    /// <para>
+    /// <b><c>unknown</c> is an absence of knowledge, not a clean ending.</b> It is what a run whose
+    /// end the supervisor never recorded reports — one that predates the ledger, or that ended while
+    /// the daemon was down. Presenting it as "nothing went wrong" invents the fact the field exists
+    /// to carry.
+    /// </para>
+    /// <para>
+    /// This is what a consumer diagnosing a crash matches on. Matching on <see cref="EndedAt"/>
+    /// alone can only ask which run stopped printing nearest the crash; this says which run the
+    /// supervisor itself saw crash, and tells a crash apart from a deliberate stop — a distinction
+    /// no amount of timestamp comparison recovers.
+    /// </para>
+    /// </summary>
+    [JsonPropertyName("outcome")]
+    public string Outcome { get; set; } = "unknown";
+
+    /// <summary>
+    /// The exit code the supervisor read from the run's leader. Null where it could not be read, and
+    /// for the run in progress, which has not exited. Games exit 0 on a fatal error often enough that
+    /// this is evidence, never a verdict.
+    /// </summary>
+    [JsonPropertyName("exitCode")]
+    public int? ExitCode { get; set; }
 }
