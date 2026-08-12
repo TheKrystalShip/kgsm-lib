@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsAotCompatible>true</IsAotCompatible>
+
+    <PackageId>TheKrystalShip.KGSM.Journal</PackageId>
+    <Authors>Heisenberg</Authors>
+    <Version>1.0.0</Version>
+    <PackageProjectUrl>https://github.com/TheKrystalShip/KGSM-Lib</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/TheKrystalShip/KGSM-Lib</RepositoryUrl>
+    <RepositoryType>GitHub</RepositoryType>
+    <Description>Appends events to a KGSM producer's own append-only event journal (the v1 envelope, write half).</Description>
+    <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
+    <NeutralLanguage>en</NeutralLanguage>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+
+    <!-- The namespaces are DELIBERATELY the ones these types already lived under in kgsm-lib. A type
+         does not care which assembly its namespace comes from, so every existing consumer compiles
+         unchanged — moving the writer out cost nobody a `using` edit. -->
+    <RootNamespace>TheKrystalShip.KGSM</RootNamespace>
+    <AssemblyName>TheKrystalShip.KGSM.Journal</AssemblyName>
+    <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml</DocumentationFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The whole dependency surface. A producer that records what it did needs a logger and the BCL;
+         anything more would be the engine-interop library arriving through the back door, which is the
+         entire reason this is a separate package. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>

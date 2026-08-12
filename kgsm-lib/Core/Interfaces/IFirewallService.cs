@@ -40,20 +40,32 @@ public interface IFirewallService : IDisposable
     /// </summary>
     /// <param name="instanceName">The instance whose rules to set (the firewall ownership tag).</param>
     /// <param name="ports">The range-preserving ports to open.</param>
+    /// <param name="actor">
+    /// Whose authority the request carries (<c>provider:name</c>), or null when the caller knows of
+    /// none. Carried so the authority can record who asked on the edge it performs — it repeats the
+    /// claim and cannot check it, which is why a caller that knows nobody must pass null rather than a
+    /// stand-in.
+    /// </param>
+    /// <param name="origin">The surface that drove it, or null. Never fabricated.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>The outcome (applied / no-op / unsupported / failed) and active backend.</returns>
     /// <exception cref="Exceptions.FirewallException">The authority is unreachable.</exception>
     Task<FirewallActionResult> EnsureOpenAsync(
-        string instanceName, IReadOnlyList<PortMapping> ports, CancellationToken cancellationToken = default);
+        string instanceName, IReadOnlyList<PortMapping> ports, string? actor = null,
+        string? origin = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Removes every firewall rule the authority owns for <paramref name="instanceName"/>.
     /// </summary>
     /// <param name="instanceName">The instance whose rules to remove.</param>
+    /// <param name="actor">Whose authority the request carries, or null.</param>
+    /// <param name="origin">The surface that drove it, or null.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>The outcome (removed / no-op / unsupported / failed) and active backend.</returns>
     /// <exception cref="Exceptions.FirewallException">The authority is unreachable.</exception>
-    Task<FirewallActionResult> RemoveAsync(string instanceName, CancellationToken cancellationToken = default);
+    Task<FirewallActionResult> RemoveAsync(
+        string instanceName, string? actor = null, string? origin = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Lists the firewall rules the authority owns, optionally for a single instance. The result's

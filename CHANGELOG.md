@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — the journal's write half is its own package
+
+`IEventJournalWriter`, `EventJournalWriter`, `EventJournalWriterOptions` and `JournalProducer` moved to
+**`TheKrystalShip.KGSM.Journal`**, whose whole dependency is `Logging.Abstractions`. This library depends
+on it and keeps every reader, so **no consumer changes anything** — the namespaces are deliberately the
+ones these types already lived under, and packing turns the project reference into a package dependency.
+
+The reason is kgsm-firewall: it records the firewall edges it applies, and it runs as **root**. Taking
+the whole engine-interop library to append one line would have put a process runner, an RCON client and a
+set of HTTP clients inside a privileged helper. A producer that only records what it did now takes the
+journal alone.
+
+`IFirewallService.EnsureOpenAsync`/`RemoveAsync` gain optional `actor`/`origin`, forwarded on the wire
+(Firewall.Contracts 1.2.0) so the authority can record who asked on the edge it performs. Provenance is
+the caller's to state and the authority's to repeat — it cannot check the claim, so a caller that knows
+nobody passes null rather than a stand-in.
+
 ### Added
 
 - **A consumer can name a journal the scan would not find.** `JournalDiscovery` takes a `named` list

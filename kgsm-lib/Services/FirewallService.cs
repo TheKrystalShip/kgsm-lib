@@ -48,7 +48,8 @@ public sealed class FirewallService : IFirewallService
 
     /// <inheritdoc/>
     public async Task<FirewallActionResult> EnsureOpenAsync(
-        string instanceName, IReadOnlyList<PortMapping> ports, CancellationToken cancellationToken = default)
+        string instanceName, IReadOnlyList<PortMapping> ports, string? actor = null,
+        string? origin = null, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
         ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
@@ -61,18 +62,20 @@ public sealed class FirewallService : IFirewallService
             dtos[i] = new PortDto(p.Start, p.End, p.Protocol);
         }
 
-        var request = new FirewallRequest(FirewallOps.EnsureOpen, instanceName, dtos);
+        var request = new FirewallRequest(FirewallOps.EnsureOpen, instanceName, dtos, actor, origin);
         FirewallResponse response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
         return ToActionResult(response);
     }
 
     /// <inheritdoc/>
-    public async Task<FirewallActionResult> RemoveAsync(string instanceName, CancellationToken cancellationToken = default)
+    public async Task<FirewallActionResult> RemoveAsync(
+        string instanceName, string? actor = null, string? origin = null,
+        CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
         ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
 
-        var request = new FirewallRequest(FirewallOps.Remove, instanceName);
+        var request = new FirewallRequest(FirewallOps.Remove, instanceName, null, actor, origin);
         FirewallResponse response = await SendAsync(request, cancellationToken).ConfigureAwait(false);
         return ToActionResult(response);
     }
