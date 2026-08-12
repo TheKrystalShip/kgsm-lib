@@ -919,3 +919,110 @@ public class BlueprintRemovedData : BlueprintEventDataBase
     /// </summary>
     public bool? RevertedToSystem { get; set; }
 }
+
+/// <summary>
+/// The shared shape of a threshold episode event — a measured value crossing a line this host watches,
+/// and later coming back.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The subject is a <b>host</b>, not an instance: the condition may be scoped to one server, but it is
+/// the host's monitoring that established it, and a payload keyed on <c>InstanceName</c> would claim
+/// otherwise for the many episodes that name no server at all.
+/// </para>
+/// <para>
+/// <b>Raw values only, no domain vocabulary.</b> There is no summary sentence, no severity and no
+/// formatted number here — a consumer renders those from the values, and freezing one consumer's
+/// wording into the record would make every other consumer live with it. The Control Panel's phrasing
+/// and a chat surface's are allowed to differ, and do.
+/// </para>
+/// </remarks>
+public abstract class HostThresholdEventDataBase : KgsmEventDataBase
+{
+    /// <summary>Gets or sets the episode's stable id, so an open and its close can be paired.</summary>
+    public string EpisodeId { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the rule that was evaluated.</summary>
+    public string RuleKey { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets what was measured (<c>cpu</c>, <c>memory</c>, <c>disk</c>, …).</summary>
+    public string Metric { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the scope the rule ran at — <c>server</c>, or a host-level scope.</summary>
+    public string Scope { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets what the measurement was taken on within that scope — a mount point, a device —
+    /// or <see langword="null"/> when the scope needs no further naming.
+    /// </summary>
+    public string? Ref { get; set; }
+
+    /// <summary>
+    /// Gets or sets the server this condition is about, or <see langword="null"/> for a host-wide one.
+    /// </summary>
+    public string? ServerId { get; set; }
+
+    /// <summary>Gets or sets the line the value crossed.</summary>
+    public double Threshold { get; set; }
+
+    /// <summary>Gets or sets the worst reading across the whole episode.</summary>
+    /// <remarks>
+    /// The honest justification for the episode having existed, as opposed to whatever the value
+    /// happened to be at either end of it.
+    /// </remarks>
+    public double PeakValue { get; set; }
+
+    /// <summary>Gets or sets the worst band the episode reached (<c>warn</c>, <c>danger</c>).</summary>
+    public string PeakBand { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets when the episode opened, in unix milliseconds.</summary>
+    /// <remarks>
+    /// Carried explicitly rather than left to the envelope's timestamp: the envelope says when the line
+    /// was written, and a reader placing the breach in the trail needs when the condition changed.
+    /// </remarks>
+    public long OpenedTs { get; set; }
+}
+
+/// <summary>
+/// Data for the <c>host_threshold_breached</c> event — a measured value crossed a line.
+/// </summary>
+public class HostThresholdBreachedData : HostThresholdEventDataBase
+{
+    /// <summary>Gets or sets the reading that opened the episode.</summary>
+    public double OpenValue { get; set; }
+
+    /// <summary>Gets or sets the band the value was in when it opened.</summary>
+    public string Band { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Data for the <c>host_threshold_cleared</c> event — a firing condition stopped firing.
+/// </summary>
+/// <remarks>
+/// A separate event rather than a mutation of the breach, because the journal is append-only and the two
+/// are separate immutable facts. ⚠ <b>Cleared does not always mean recovered</b> — see
+/// <see cref="CloseReason"/>.
+/// </remarks>
+public class HostThresholdClearedData : HostThresholdEventDataBase
+{
+    /// <summary>Gets or sets when the episode closed, in unix milliseconds.</summary>
+    public long ClosedTs { get; set; }
+
+    /// <summary>
+    /// Gets or sets the reading that closed it, or <see langword="null"/> when it ended without one
+    /// being taken.
+    /// </summary>
+    public double? CloseValue { get; set; }
+
+    /// <summary>
+    /// Gets or sets why the episode ended.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Load-bearing, and never to be flattened into "recovered". A value that came back under its line
+    /// and a rule that stopped being evaluated are different events, and an episode that ended because
+    /// its rule was retuned, disabled or removed did <b>not</b> recover — the value was never observed to
+    /// come down. A consumer that reports every close as a return to normal is reporting a measurement
+    /// nobody took.
+    /// </remarks>
+    public string? CloseReason { get; set; }
+}

@@ -276,4 +276,42 @@ public class KgsmEventCatalogTests
         Assert.NotEmpty(TypedEvents);
         Assert.Equal(TypedEvents.Count(), KgsmEventCatalog.All.Count);
     }
+
+    [Fact]
+    public void Threshold_events_are_host_scoped_facts()
+    {
+        // Host, not Instance: a threshold episode may name the server it is about, but it is the host's
+        // monitoring that established it, and most episodes name no server at all.
+        EventDescriptor breach = KgsmEventCatalog.Describe("host_threshold_breached");
+        EventDescriptor cleared = KgsmEventCatalog.Describe("host_threshold_cleared");
+
+        Assert.True(breach.Known);
+        Assert.True(cleared.Known);
+        Assert.Equal(EventSubject.Host, breach.Subject);
+        Assert.Equal(EventSubject.Host, cleared.Subject);
+
+        // Two immutable facts, not one row that changes — the journal is append-only, and the mutable
+        // view of the same condition is the alert feed, which answers a different question.
+        Assert.Equal(EventWeight.Fact, breach.Weight);
+        Assert.Equal(EventWeight.Fact, cleared.Weight);
+
+        // Neither reports a failure. A value crossing a line is a measurement; how loudly to say so is
+        // the reading surface's business, not the catalog's.
+        Assert.Equal(EventOutcome.Neutral, breach.Outcome);
+        Assert.Equal(EventOutcome.Neutral, cleared.Outcome);
+    }
+
+    [Fact]
+    public void A_cleared_episode_carries_why_it_ended()
+    {
+        // Load-bearing: an episode that ended because its rule was retuned, disabled or removed did not
+        // recover — the value was never observed to come down. A consumer that cannot see the reason
+        // cannot avoid reporting a measurement nobody took.
+        EventDescriptor cleared = KgsmEventCatalog.Describe("host_threshold_cleared");
+
+        Assert.Contains(cleared.Fields, f => f.Name == "CloseReason");
+        Assert.Contains(cleared.Fields, f => f.Name == "ClosedTs");
+        // The open moment travels on both, so a reader can place the breach without holding the pair.
+        Assert.Contains(cleared.Fields, f => f.Name == "OpenedTs");
+    }
 }

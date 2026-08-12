@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Host-scoped monitoring facts in the catalog.** `HostThresholdBreachedData` /
+  `HostThresholdClearedData` and their `host_threshold_breached` / `host_threshold_cleared` descriptors,
+  plus a new `EventSubject.Host`. A threshold episode may name the server it is about, but it is the
+  **host's** monitoring that established it and most episodes name no server at all — so it gets a
+  subject of its own rather than borrowing one it does not have.
+  - **A breach and a recovery are two events, not one row that changes.** The journal is append-only;
+    the mutable view of the same condition is the alert feed, which answers a different question.
+  - The payloads carry **raw values only** — no summary sentence, no severity, no formatted number. A
+    consumer renders those, and freezing one consumer's wording into the record would make every other
+    consumer live with it.
+  - ⚠ `CloseReason` is load-bearing and must never be flattened into "recovered": an episode that ended
+    because its rule was retuned, disabled or removed did **not** recover — the value was never observed
+    to come down. `OpenedTs` travels on both events so a reader can place the breach without holding the
+    pair.
+
 - **Event journal federation — the writer, the multi-journal reader, and the v1 envelope.** A
   component records what it did in its own journal instead of asking another component to write it
   down. Every addition is an overload or an optional field beside what exists, so nothing that reads

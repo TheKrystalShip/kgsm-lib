@@ -154,6 +154,30 @@ public static class KgsmEventCatalog
             Instance<InstanceUpnpClosedData>("instance_upnp_closed", EventWeight.Fact, EventOutcome.Neutral, [Ports]),
             Instance<InstanceUpnpReassertedData>("instance_upnp_reasserted", EventWeight.Fact, EventOutcome.Neutral, [Ports]),
 
+            // -- host monitoring ---------------------------------------------------------------
+            // A breach and a recovery are two immutable facts, not one row that changes: the journal is
+            // append-only, and the live view of the same condition is the alert feed, which answers a
+            // different question. Neither is a Failure — a value crossing a line is a measurement, and
+            // how loudly to say so is the reading surface's business.
+            Host<HostThresholdBreachedData>("host_threshold_breached", EventOutcome.Neutral,
+                [Field("EpisodeId", FieldShape.Opaque), Field("RuleKey", FieldShape.Text),
+                 Field("Metric", FieldShape.Text), Field("Scope", FieldShape.Text),
+                 Field("Ref", FieldShape.Text), Field("ServerId", FieldShape.Text),
+                 Field("Threshold", FieldShape.Number), Field("PeakValue", FieldShape.Number),
+                 Field("PeakBand", FieldShape.Text), Field("OpenedTs", FieldShape.Number),
+                 Field("OpenValue", FieldShape.Number), Field("Band", FieldShape.Text)]),
+
+            Host<HostThresholdClearedData>("host_threshold_cleared", EventOutcome.Neutral,
+                [Field("EpisodeId", FieldShape.Opaque), Field("RuleKey", FieldShape.Text),
+                 Field("Metric", FieldShape.Text), Field("Scope", FieldShape.Text),
+                 Field("Ref", FieldShape.Text), Field("ServerId", FieldShape.Text),
+                 Field("Threshold", FieldShape.Number), Field("PeakValue", FieldShape.Number),
+                 Field("PeakBand", FieldShape.Text), Field("OpenedTs", FieldShape.Number),
+                 Field("ClosedTs", FieldShape.Number), Field("CloseValue", FieldShape.Number),
+                 // ⚠ Not always a recovery. A rule retuned, disabled or removed closes an episode
+                 // without the value ever being observed to come down.
+                 Field("CloseReason", FieldShape.Text)]),
+
             // -- players -----------------------------------------------------------------------
             Instance<InstancePlayerJoinedData>("instance_player_joined", EventWeight.Fact, EventOutcome.Neutral,
                 [PlayerId, PlayerName, PlayerAddr, SessionKey]),
@@ -205,6 +229,14 @@ public static class KgsmEventCatalog
         new(type, EventSubject.Instance, weight, outcome, fields ?? [], typeof(TData), Known: true);
 
     /// <summary>The blueprint-subject counterpart, constrained to the sibling payload base.</summary>
+    /// <summary>A host-scoped descriptor — a fact this machine's own monitoring established.</summary>
+    private static EventDescriptor Host<TData>(
+        string type,
+        EventOutcome outcome,
+        IReadOnlyList<EventField> fields)
+        where TData : HostThresholdEventDataBase =>
+        new(type, EventSubject.Host, EventWeight.Fact, outcome, fields, typeof(TData), Known: true);
+
     private static EventDescriptor BlueprintEvent<TData>(string type, IReadOnlyList<EventField> fields)
         where TData : BlueprintEventDataBase =>
         new(type, EventSubject.Blueprint, EventWeight.Fact, EventOutcome.Neutral, fields,
@@ -319,6 +351,12 @@ public enum EventSubject
 
     /// <summary>One blueprint — a template, not an installed server. Never read as being about an instance.</summary>
     Blueprint,
+
+    /// <summary>
+    /// The host itself — a fact this machine's monitoring established, which may name a server it is
+    /// about without being an event that server produced.
+    /// </summary>
+    Host,
 }
 
 /// <summary>
