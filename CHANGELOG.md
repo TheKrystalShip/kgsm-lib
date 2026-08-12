@@ -37,8 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     "this id does not say" rather than a guess.
   - `JournalProducer` — the producer-id format rule (lowercase, digits, dashes, no underscore, which
     is what keeps a position id readable) and the one producer the library knows by name. Deliberately
-    not a registry of leaves: which journals a host has is discovered from installed descriptors, and
-    a list here would be a second answer able to disagree with the host.
+    not a registry of leaves: which journals a host has is discovered from the host, and a list here
+    would be a second answer able to disagree with it.
   - `EventWrapper.SchemaVersion` (`V`), `ProducerVersion`, and `EmittingVersion` — schema version and
     producer build kept separate, because one says how to read the line and the other says which build
     wrote it. `EmittingVersion` falls back to the v0 `KGSMVersion`, so a line written before these
@@ -66,25 +66,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     consumer can qualify one journal's coverage without implying anything about the others. A journal
     whose directory does not exist yet is picked up when it appears, so a leaf installed later is
     tailed without a restart.
-  - `IJournalDiscovery` / `JournalDiscovery` — which journals a host has, worked out from the leaves
-    installed on it rather than from a list. The engine's journal is unconditional (kgsm is the engine,
-    not a leaf); every other one comes from the descriptors in `/var/lib/kgsm/leaves/`, which each
-    leaf's deploy already installs. A leaf that declares no `journalDir` writes no journal, which is the
-    honest answer for one that records nothing of its own — so discovery tracks exactly which producers
-    exist rather than needing anything excluded.
-  - ⚠ **A leaf's journal directory is declared, never derived from its name.** Only the leaf knows where
-    it can write: measured on a live host, one leaf's unit and state directory differ
-    (`kgsm-assistant-service` vs `kgsm-assistant`) and two leaves have no `StateDirectory` at all, so any
-    naming convention is right for most and silently wrong for the rest. Wrong is expensive in both
-    directions — the writer cannot create a directory under root-owned `/var/lib` so the event is lost,
-    while a reader looks in the same empty place and calls the producer unreadable forever. The producer
-    *id* is still derived (`kgsm-` + the descriptor's unique id) because an id only has to be unique and
-    stable, which a path does not.
-  - Leaves are ordered by producer so the cross-journal tie-break is identical on every host and every
-    restart; directory enumeration order is not guaranteed, and an order that varied per process would
-    make two readers of one record disagree about which of two simultaneous events came first. A
-    descriptor that cannot be read, or whose id does not make a usable producer, is logged and skipped
-    rather than costing a consumer the journals it could otherwise have read.
+  - `IJournalDiscovery` / `JournalDiscovery` — which journals a host has, found by **looking for the
+    ones that exist**. Every producer writes to `<its state directory>/events`, so a directory at
+    `/var/lib/kgsm-watchdog/events` *is* the watchdog's journal and its producer id is `kgsm-watchdog` —
+    the same name the writer used to choose that path. The directory is ground truth rather than a second
+    answer able to disagree with the writer. The engine falls out of the same rule
+    (`/var/lib/kgsm/events` → `kgsm`) and is also added explicitly, since its journal location is
+    configurable.
+  - ⚠ **A journal is never located by deriving a path from a name.** Measured on a live host: one leaf's
+    unit and state directory differ (`kgsm-assistant-service` vs `kgsm-assistant`), and two leaves have no
+    `StateDirectory` at all — so any name-based convention is right for most and silently wrong for the
+    rest. Wrong is expensive both ways: the writer cannot create a directory under root-owned `/var/lib`
+    so the event is lost, while a reader looks in the same empty place and calls the producer unreadable
+    forever.
+  - A producer that has written no event has no journal directory and is simply absent from discovery —
+    the honest answer, since there is nothing to read and listing it would report a leaf's silence as a
+    failure to read it. The scan is narrowed to this ecosystem's own state directories, so an unrelated
+    service that keeps an `events/` directory is never mistaken for a producer. Producers are ordered by
+    name so the same-timestamp tie-break is identical on every host and restart; directory enumeration
+    order is not guaranteed, and an order that varied per process would make two readers of one record
+    disagree about which of two simultaneous events came first.
   - `AddKgsmJournalFederation(...)` — opt-in registration that replaces `AddKgsmServices`'
     `IEventJournalHistory` and `IEventSource` with the federated pair by last-registration, so every
     handler a consumer already registers keeps working: `EventService` resolves `IEventSource` and

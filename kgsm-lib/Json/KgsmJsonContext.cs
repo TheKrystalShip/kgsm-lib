@@ -62,8 +62,6 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(EventCursor))]
 // One cursor per producer, for a consumer reading more than one journal (FileFederatedEventCursorStore).
 [JsonSerializable(typeof(Dictionary<string, EventCursor>))]
-// The partial read of an installed leaf descriptor that journal discovery needs.
-[JsonSerializable(typeof(LeafJournalDescriptor))]
 [JsonSerializable(typeof(InstanceCreatedData))]
 [JsonSerializable(typeof(InstanceDirectoriesCreatedData))]
 [JsonSerializable(typeof(InstanceFilesCreatedData))]

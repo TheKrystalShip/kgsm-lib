@@ -230,8 +230,8 @@ public static class ServiceCollectionExtensions
     /// it, which is the whole point of that indirection.
     /// </para>
     /// <para>
-    /// Which journals exist is discovered from the leaves installed on the host, so this needs no list
-    /// of leaves and a leaf added later costs no rebuild. A consumer whose host is laid out
+    /// Which journals exist is discovered by finding them on disk, so this needs no list of leaves and a
+    /// leaf that starts writing one later costs no rebuild. A consumer whose host is laid out
     /// unconventionally registers its own <see cref="IJournalDiscovery"/> after this call.
     /// </para>
     /// <para>
@@ -243,13 +243,19 @@ public static class ServiceCollectionExtensions
     /// </para>
     /// </remarks>
     /// <param name="services">The IServiceCollection to add services to.</param>
-    /// <param name="cursorPath">Where the per-producer cursor map is kept.</param>
+    /// <param name="cursorPath">
+    /// Where the per-producer cursor map is kept. Null or blank keeps **no** positions, so every
+    /// journal starts from <paramref name="startPosition"/> on every run — what a consumer that
+    /// announces events onward rather than deriving durable state from them actually wants, since
+    /// resuming would re-announce a backlog.
+    /// </param>
     /// <param name="startPosition">Where a journal with no stored position begins.</param>
     /// <param name="engineJournalDirectory">
     /// Where kgsm's own journal lives. Null uses <see cref="KgsmOptions.DefaultEventJournalDirectory"/>.
     /// </param>
-    /// <param name="leavesDirectory">
-    /// Where installed leaf descriptors live. Null uses <see cref="JournalDiscovery.DefaultLeavesDirectory"/>.
+    /// <param name="stateRoot">
+    /// Where each producer's state directory lives, each holding its journal in an <c>events</c>
+    /// subdirectory. Null uses <see cref="JournalDiscovery.DefaultStateRoot"/>.
     /// </param>
     /// <param name="scanBudgetBytes">
     /// The scan budget allowed for each journal in a history query. Non-positive uses
@@ -262,24 +268,25 @@ public static class ServiceCollectionExtensions
     /// <exception cref="ArgumentException">Thrown when cursorPath is null, empty, or whitespace.</exception>
     public static IServiceCollection AddKgsmJournalFederation(
         this IServiceCollection services,
-        string cursorPath,
+        string? cursorPath = null,
         EventStartPosition startPosition = EventStartPosition.CursorOrOldest,
         string? engineJournalDirectory = null,
-        string? leavesDirectory = null,
+        string? stateRoot = null,
         long scanBudgetBytes = 0)
     {
         ArgumentNullException.ThrowIfNull(services, nameof(services));
-        ArgumentException.ThrowIfNullOrWhiteSpace(cursorPath, nameof(cursorPath));
 
         long budget = scanBudgetBytes > 0 ? scanBudgetBytes : KgsmOptions.DefaultEventHistoryScanBudgetBytes;
 
         services.AddSingleton<IJournalDiscovery>(sp => new JournalDiscovery(
             engineJournalDirectory ?? KgsmOptions.DefaultEventJournalDirectory,
-            leavesDirectory ?? JournalDiscovery.DefaultLeavesDirectory,
+            stateRoot,
             sp.GetRequiredService<ILogger<JournalDiscovery>>()));
 
-        services.AddSingleton<IFederatedEventCursorStore>(sp => new FileFederatedEventCursorStore(
-            cursorPath, sp.GetRequiredService<ILogger<FileFederatedEventCursorStore>>()));
+        services.AddSingleton<IFederatedEventCursorStore>(sp => string.IsNullOrWhiteSpace(cursorPath)
+            ? new NullFederatedEventCursorStore()
+            : new FileFederatedEventCursorStore(
+                cursorPath, sp.GetRequiredService<ILogger<FileFederatedEventCursorStore>>()));
 
         services.AddSingleton<IEventJournalHistory>(sp => new FederatedEventJournalHistory(
             sp.GetRequiredService<IJournalDiscovery>().Discover(),
