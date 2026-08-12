@@ -878,4 +878,26 @@ public sealed class EventJournalFederationTests : IDisposable
                 Clock = () => at,
             },
             new Mock<ILogger<EventJournalWriter>>().Object);
+
+    [Fact]
+    public async Task An_empty_journal_reads_as_recorded_nothing_not_as_unreadable()
+    {
+        // A producer creates its journal directory up front so readers can discover it before its first
+        // event. Reporting that as unreadable would undo exactly that: a leaf that has simply not
+        // breached anything yet would look like one nobody can read.
+        string present = DirectoryFor("kgsm-monitor");
+        Assert.Empty(Directory.GetFiles(present, "*.ndjson"));
+
+        EventHistoryPage page = await Federated(
+                new JournalSource("kgsm-monitor", present),
+                new JournalSource("kgsm-watchdog", Path.Combine(_root, "never-created")))
+            .QueryAsync(new EventHistoryQuery());
+
+        JournalCoverage empty = page.Journals!.Single(j => j.Producer == "kgsm-monitor");
+        JournalCoverage absent = page.Journals!.Single(j => j.Producer == "kgsm-watchdog");
+
+        Assert.True(empty.Readable);
+        Assert.Null(empty.CoverageFrom);   // readable, and answering for nothing
+        Assert.False(absent.Readable);     // genuinely not there
+    }
 }

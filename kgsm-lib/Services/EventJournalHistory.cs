@@ -117,10 +117,17 @@ public sealed class EventJournalHistory : IEventJournalHistory
         IReadOnlyList<string> segments = ListSegments();
         if (segments.Count == 0)
         {
-            // No directory, no segments, or a directory that could not be listed. A host that
-            // has never emitted an event is indistinguishable from one whose journal cannot be
-            // read, and neither can answer for history — so both report the same way.
-            _logger.LogDebug("No event journal segments at {Directory}", _directory);
+            // A directory that is there and holds nothing is a producer that has recorded nothing yet —
+            // readable, with no coverage. That is a different answer from a journal this reader cannot
+            // see at all, and the two stopped being interchangeable once a producer creates its journal
+            // directory up front so readers can discover it before its first event.
+            if (Directory.Exists(_directory))
+            {
+                _logger.LogDebug("Event journal at {Directory} holds no events yet", _directory);
+                return EventHistoryPage.Empty(coverageFrom: null);
+            }
+
+            _logger.LogDebug("No event journal at {Directory}", _directory);
             return EventHistoryPage.Unreadable;
         }
 

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **An empty journal reads as "recorded nothing", not as unreadable.** A producer creates its journal
+  directory up front so readers can discover it before its first event; reporting that as unreadable
+  would undo exactly that, making a leaf that has simply not fired anything yet look like one nobody can
+  read. A directory that is absent still reports unreadable — the two are different answers.
 - **Host-scoped monitoring facts in the catalog.** `HostThresholdBreachedData` /
   `HostThresholdClearedData` and their `host_threshold_breached` / `host_threshold_cleared` descriptors,
   plus a new `EventSubject.Host`. A threshold episode may name the server it is about, but it is the
