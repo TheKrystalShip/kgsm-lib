@@ -55,4 +55,50 @@ public interface IEventJournalWriter
         string? actor = null,
         string? origin = null,
         CancellationToken token = default);
+
+    /// <summary>
+    /// Appends one event, writing its payload directly.
+    /// </summary>
+    /// <remarks>
+    /// The overload a producer actually wants. A component holds typed values, not a
+    /// <see cref="JsonElement"/>, and the two ways of bridging that gap are both worse: composing JSON
+    /// by string concatenation puts an escaping bug one unusual instance name away, and serializing a
+    /// payload model needs a registered type per event in a library that must stay reflection-free.
+    /// Writing the properties straight out is neither.
+    /// <para>
+    /// <paramref name="writeData"/> is called with the writer positioned inside the payload object, so
+    /// it writes properties only — no <c>WriteStartObject</c>/<c>WriteEndObject</c> of its own.
+    /// </para>
+    /// </remarks>
+    /// <param name="eventType">The event type, underscore-separated.</param>
+    /// <param name="writeData">Writes the payload's properties.</param>
+    /// <param name="actor">Who triggered it (<c>provider:name</c>), or null when unknown.</param>
+    /// <param name="origin">The surface that drove it, or null. Never fabricated.</param>
+    /// <param name="token">Cancellation token.</param>
+    /// <returns>True when the line was appended; false when it could not be.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="writeData"/> is null.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="eventType"/> is blank.</exception>
+    ValueTask<bool> AppendAsync(
+        string eventType,
+        Action<Utf8JsonWriter> writeData,
+        string? actor = null,
+        string? origin = null,
+        CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(writeData, nameof(writeData));
+
+        var buffer = new System.Buffers.ArrayBufferWriter<byte>(256);
+
+        using (var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions { Indented = false }))
+        {
+            writer.WriteStartObject();
+            writeData(writer);
+            writer.WriteEndObject();
+        }
+
+        using JsonDocument document = JsonDocument.Parse(buffer.WrittenMemory);
+
+        // Cloned because the document is disposed on return and a JsonElement does not own its buffer.
+        return AppendAsync(eventType, document.RootElement.Clone(), actor, origin, token);
+    }
 }

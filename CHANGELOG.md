@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   down. Every addition is an overload or an optional field beside what exists, so nothing that reads
   the engine's journal today changes behaviour or id values (authority:
   `../event-journal-federation-plan.md` §2, Phase 1).
+  - `IEventJournalWriter.AppendAsync(eventType, Action<Utf8JsonWriter>, …)` — the overload a producer
+    actually wants, since a component holds typed values rather than a `JsonElement`. The two other ways
+    of bridging that are both worse: composing JSON by string concatenation puts an escaping bug one
+    unusual instance name away, and serializing a payload model needs a registered type per event in a
+    library that must stay reflection-free. A default interface implementation, so nothing else has to
+    implement it.
   - `IEventJournalWriter` / `EventJournalWriter` — appends one whole v1 line per event via a single
     `O_APPEND` write (atomic below the 4096-byte `PIPE_BUF` limit, logged past it). The envelope is
     composed with `Utf8JsonWriter` rather than serialized from a model, which fixes field order,
