@@ -46,7 +46,7 @@ public interface IEventService : IDisposable, IAsyncDisposable
     /// </summary>
     /// <remarks>
     /// The position is what a handler needs to name the event the same way a history read
-    /// does — see <see cref="TheKrystalShip.KGSM.Events.AuditId.ForPosition"/>. A typed handler
+    /// does — see <see cref="TheKrystalShip.KGSM.Events.AuditId.ForPosition(string, long)"/>. A typed handler
     /// never sees it, so a consumer that needs the id inside one registers a raw handler to
     /// capture it first.
     /// </remarks>

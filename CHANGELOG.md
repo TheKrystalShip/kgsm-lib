@@ -9,6 +9,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Event journal federation — the writer, the multi-journal reader, and the v1 envelope.** A
+  component records what it did in its own journal instead of asking another component to write it
+  down. Every addition is an overload or an optional field beside what exists, so nothing that reads
+  the engine's journal today changes behaviour or id values (authority:
+  `../event-journal-federation-plan.md` §2, Phase 1).
+  - `IEventJournalWriter` / `EventJournalWriter` — appends one whole v1 line per event via a single
+    `O_APPEND` write (atomic below the 4096-byte `PIPE_BUF` limit, logged past it). The envelope is
+    composed with `Utf8JsonWriter` rather than serialized from a model, which fixes field order,
+    omits nulls instead of writing them, and adds no registered type. Configured with
+    `EventJournalWriterOptions` (producer, directory defaulting to `/var/lib/<producer>/events`,
+    version, hostname). Takes no producer parameter per call: a producer id that could be supplied
+    per event would be a claim about authorship rather than a fact about the writer.
+  - `FederatedEventJournalHistory` — merges every producer's journal into one page, timestamp
+    descending with the event id as tie-break. Aggregation lives here rather than in a consumer, so
+    each surface aggregates natively and the one serving it over HTTP is exposing the merge rather
+    than being it. A journal absent from the source list is not read; one that is listed but
+    unreadable is reported per-producer instead of silently contributing nothing.
+  - `JournalCoverage` on `EventHistoryPage.Journals` — per-producer coverage, readability and
+    truncation. The collapsed `CoverageFrom` is the **newest** readable floor: past that point some
+    producer's retention has already dropped what it held, and reporting the oldest would present a
+    partial window as full coverage.
+  - `AuditId.ForPosition(producer, segment, offset)` + `TryParseProducerPosition` — producer-first
+    (`evt_watchdog_2026-08-07_000000001234`) so plain string comparison still orders by
+    `(producer, segment, offset)`, the cross-journal tie-break within one timestamp. Parsing fails
+    closed on an unprefixed or unconventionally-named id: a caller asking who wrote an event gets
+    "this id does not say" rather than a guess.
+  - `JournalProducer` — the producer-id format rule (lowercase, digits, dashes, no underscore, which
+    is what keeps a position id readable) and the one producer the library knows by name. Deliberately
+    not a registry of leaves: which journals a host has is discovered from installed descriptors, and
+    a list here would be a second answer able to disagree with the host.
+  - `EventWrapper.SchemaVersion` (`V`), `ProducerVersion`, and `EmittingVersion` — schema version and
+    producer build kept separate, because one says how to read the line and the other says which build
+    wrote it. `EmittingVersion` falls back to the v0 `KGSMVersion`, so a line written before these
+    fields existed reads without a migration for as long as retention holds it.
+  - `EventWrapper.OpId` / `RunId` / `During` and their `EventHistoryEntry` counterparts — **reserved
+    for correlation and populated by nothing.** Declared now so correlation costs no second envelope
+    change. ⚠ A producer may stamp an `OpId` it was **given** or **minted**, never one it
+    **inferred**; an observed coincidence belongs in `During`. `OpId` asserts causality and `During`
+    asserts co-incidence, and the separation is part of the contract rather than of the later work.
+  - `EventHistoryEntry.Producer` — stamped by the reader from the journal a line was read from, never
+    read out of the payload. A field inside the data is a claim a reader cannot check; where it came
+    from is one it established itself.
+  - `EventPosition.Producer` — null when the transport did not say, rather than defaulting to `kgsm`:
+    a transport that reports no producer has not told us it was the engine, and `default(EventPosition)`
+    skips property initializers so any non-null default would be a lie in the default value.
+  - `IFederatedEventCursorStore` / `FileFederatedEventCursorStore` — one cursor per producer in one
+    file, so a consumer reading N journals advances each independently and a leaf that was down catches
+    up without replaying or skipping any other's.
+
 - **`WatchdogConsoleRun.Outcome` + `ExitCode`** — how the supervisor classified each run's ending
   (`crashed` / `gave-up` / `exited` / `stopped` / `running` / `unknown`), and the exit code where one
   could be read. Matching a crash on `EndedAt` alone can only ask which run stopped printing nearest

@@ -113,8 +113,72 @@ public class EventWrapper
     /// <summary>
     /// Gets or sets the KGSM version that emitted the event. <see langword="null"/> if absent.
     /// </summary>
+    /// <remarks>
+    /// The v0 spelling of <see cref="ProducerVersion"/>, which every producer writes. Read
+    /// <see cref="EmittingVersion"/> rather than either field directly.
+    /// </remarks>
     [JsonPropertyName("KGSMVersion")]
     public string? KgsmVersion { get; set; }
+
+    /// <summary>
+    /// Gets or sets the envelope schema version. <see langword="null"/> means v0 — an envelope
+    /// written before the field existed, which is still on disk for as long as retention holds it.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately separate from <see cref="ProducerVersion"/>. One says how to read the line, the
+    /// other says which build wrote it; a fleet of independently-deployed producers needs both, and
+    /// a single field serving as both cannot answer either question reliably.
+    /// </remarks>
+    [JsonPropertyName("V")]
+    public int? SchemaVersion { get; set; }
+
+    /// <summary>
+    /// Gets or sets the version of the component that emitted the event. <see langword="null"/> if
+    /// absent.
+    /// </summary>
+    public string? ProducerVersion { get; set; }
+
+    /// <summary>
+    /// The emitting component's version, whichever spelling the envelope used —
+    /// <see cref="ProducerVersion"/> when present, else the v0 <see cref="KgsmVersion"/>.
+    /// </summary>
+    [JsonIgnore]
+    public string? EmittingVersion => ProducerVersion ?? KgsmVersion;
+
+    /// <summary>
+    /// Gets or sets the operation this event is <em>part of</em> — the correlation token handed to
+    /// the emitter, or minted by it. <see langword="null"/> when nothing correlated it.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ An emitter may stamp a token it was <b>given</b> or one it <b>minted</b>, never one it
+    /// <b>inferred</b>. This field asserts that the emitter was executing that operation, which is
+    /// a causal claim; an observed coincidence goes in <see cref="During"/> instead. Nothing
+    /// populates this yet.
+    /// </remarks>
+    public string? OpId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the process lifetime this event belongs to — the run id the supervisor mints at
+    /// spawn. <see langword="null"/> outside a supervised run.
+    /// </summary>
+    /// <remarks>
+    /// Orthogonal to <see cref="OpId"/> and not a substitute for it: a crash-restart has a new run
+    /// and no operation (nobody asked for it), while one update spans two runs. Nothing populates
+    /// this yet.
+    /// </remarks>
+    public string? RunId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the operations that were in flight when this event was established —
+    /// co-incidence, measured, never causality. <see langword="null"/> when none were, or when the
+    /// emitter does not track them.
+    /// </summary>
+    /// <remarks>
+    /// The honest home for a relation an emitter <em>observed</em> rather than participated in: a
+    /// threshold breach during an update knows it happened between two recorded events, and does
+    /// not know the update caused it. Nothing populates this yet.
+    /// </remarks>
+    public string[]? During { get; set; }
 }
 
 /// <summary>

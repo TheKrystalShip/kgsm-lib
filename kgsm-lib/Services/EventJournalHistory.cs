@@ -46,6 +46,8 @@ public sealed class EventJournalHistory : IEventJournalHistory
 
     private readonly string _directory;
     private readonly long _budgetBytes;
+    private readonly string? _producer;
+    private readonly bool _prefixIds;
     private readonly ILogger<EventJournalHistory> _logger;
 
     /// <summary>
@@ -65,8 +67,47 @@ public sealed class EventJournalHistory : IEventJournalHistory
 
         _directory = options.EventJournalDirectory;
         _budgetBytes = options.EventHistoryScanBudgetBytes;
+        _producer = null;
+        _prefixIds = false;
         _logger = logger;
     }
+
+    /// <summary>
+    /// Initializes a reader over one named producer's journal, for a caller merging several.
+    /// </summary>
+    /// <remarks>
+    /// The ids this reader produces carry the producer
+    /// (<see cref="AuditId.ForPosition(string, string, long)"/>), which is what keeps them unique
+    /// once merged — a byte offset only identifies an event within one journal, and two producers
+    /// collide on it constantly. That makes the ids from this constructor different values from the
+    /// ones the options constructor produces for the same event, so a reader picks one and stays
+    /// with it.
+    /// </remarks>
+    /// <param name="producer">The producer id whose journal <paramref name="directory"/> holds.</param>
+    /// <param name="directory">The journal directory.</param>
+    /// <param name="budgetBytes">The scan budget for one query.</param>
+    /// <param name="logger">The logger to use.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="logger"/> is null.</exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="producer"/> is not a valid producer id, or
+    /// <paramref name="directory"/> is blank.
+    /// </exception>
+    public EventJournalHistory(
+        string producer, string directory, long budgetBytes, ILogger<EventJournalHistory> logger)
+    {
+        ArgumentNullException.ThrowIfNull(logger, nameof(logger));
+        JournalProducer.Validate(producer, nameof(producer));
+        ArgumentException.ThrowIfNullOrWhiteSpace(directory, nameof(directory));
+
+        _directory = directory;
+        _budgetBytes = budgetBytes > 0 ? budgetBytes : KgsmOptions.DefaultEventHistoryScanBudgetBytes;
+        _producer = producer;
+        _prefixIds = true;
+        _logger = logger;
+    }
+
+    /// <summary>The producer whose journal this reads, or null when it was not told.</summary>
+    public string? Producer => _producer;
 
     /// <inheritdoc/>
     public async Task<EventHistoryPage> QueryAsync(EventHistoryQuery query, CancellationToken cancellationToken = default)
@@ -277,7 +318,10 @@ public sealed class EventJournalHistory : IEventJournalHistory
                     continue;
                 }
 
-                string id = AuditId.ForPosition(stem, lineStart);
+                string id = _prefixIds && _producer is { } p
+                    ? AuditId.ForPosition(p, stem, lineStart)
+                    : AuditId.ForPosition(stem, lineStart);
+
                 if (!Matches(wrapper, ts, id, query))
                     continue;
 
@@ -288,7 +332,10 @@ public sealed class EventJournalHistory : IEventJournalHistory
                     wrapper.Actor, wrapper.Origin, wrapper.Hostname,
                     wrapper.Data.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
                         ? null
-                        : wrapper.Data));
+                        : wrapper.Data,
+                    // Stamped from the journal this reader was pointed at, never from the line.
+                    _producer,
+                    wrapper.OpId, wrapper.RunId, wrapper.During));
 
                 if (ring.Count > wanted)
                     ring.Dequeue();

@@ -60,6 +60,8 @@ namespace TheKrystalShip.KGSM;
 // --- Event envelope + every event data payload (the Type-keyed dispatch in EventService) ---
 [JsonSerializable(typeof(EventWrapper))]
 [JsonSerializable(typeof(EventCursor))]
+// One cursor per producer, for a consumer reading more than one journal (FileFederatedEventCursorStore).
+[JsonSerializable(typeof(Dictionary<string, EventCursor>))]
 [JsonSerializable(typeof(InstanceCreatedData))]
 [JsonSerializable(typeof(InstanceDirectoriesCreatedData))]
 [JsonSerializable(typeof(InstanceFilesCreatedData))]

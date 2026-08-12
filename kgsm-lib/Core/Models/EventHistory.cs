@@ -88,13 +88,22 @@ public sealed record EventHistoryQuery
 /// False when the journal directory is absent or cannot be read — the honest "no history
 /// available" signal, distinct from a readable journal that matched nothing.
 /// </param>
+/// <param name="Journals">
+/// Per-producer detail when the page was merged from more than one journal, else null. The
+/// top-level <paramref name="CoverageFrom"/>, <paramref name="Truncated"/> and
+/// <paramref name="JournalReadable"/> stay the collapsed, conservative answers for the page as a
+/// whole; this says which producer each of them came from. A window that outruns one producer's
+/// retention while the others cover it is a partial answer, and naming the short one is the
+/// difference between reporting that and implying coverage the page does not have.
+/// </param>
 public sealed record EventHistoryPage(
     IReadOnlyList<EventHistoryEntry> Events,
     long? NextCursorTsMs,
     string? NextCursorId,
     DateTimeOffset? CoverageFrom,
     bool Truncated,
-    bool JournalReadable)
+    bool JournalReadable,
+    IReadOnlyList<JournalCoverage>? Journals = null)
 {
     /// <summary>A readable journal that matched nothing.</summary>
     public static EventHistoryPage Empty(DateTimeOffset? coverageFrom) =>
@@ -103,6 +112,25 @@ public sealed record EventHistoryPage(
     /// <summary>An absent or unreadable journal.</summary>
     public static readonly EventHistoryPage Unreadable = new([], null, null, null, false, false);
 }
+
+/// <summary>
+/// What one producer's journal contributed to a merged page.
+/// </summary>
+/// <param name="Producer">The producer id (see <see cref="Events.JournalProducer"/>).</param>
+/// <param name="CoverageFrom">
+/// The oldest moment this journal can answer for, or null when it holds no events.
+/// </param>
+/// <param name="Readable">
+/// False when this journal was absent or could not be read. A merged page reports itself readable
+/// when <em>any</em> journal was, so this is where a single absent producer is visible — the
+/// distinction between "that leaf recorded nothing" and "that leaf could not be read".
+/// </param>
+/// <param name="Truncated">True when the scan of this journal stopped at its byte budget.</param>
+public sealed record JournalCoverage(
+    string Producer,
+    DateTimeOffset? CoverageFrom,
+    bool Readable,
+    bool Truncated);
 
 /// <summary>
 /// One engine event, exactly as the engine wrote it.
@@ -115,7 +143,7 @@ public sealed record EventHistoryPage(
 /// <param name="Id">
 /// The event's position in the journal, as <c>evt_&lt;segment&gt;_&lt;offset&gt;</c>. Unique by
 /// construction and ordered like the file itself, so it serves as both identity and cursor.
-/// See <see cref="TheKrystalShip.KGSM.Events.AuditId.ForPosition"/>.
+/// See <see cref="TheKrystalShip.KGSM.Events.AuditId.ForPosition(string, long)"/>.
 /// </param>
 /// <param name="Ts">When the engine emitted the event.</param>
 /// <param name="Type">The raw engine event type, e.g. <c>instance_started</c>.</param>
@@ -125,6 +153,16 @@ public sealed record EventHistoryPage(
 /// <param name="Origin">The surface it came through, or null. Independent of <paramref name="Actor"/>.</param>
 /// <param name="Hostname">The host that emitted it, or null.</param>
 /// <param name="Data">The event-specific payload, relayed verbatim and uninterpreted.</param>
+/// <param name="Producer">
+/// Which producer's journal this event was read from — stamped by the reader from the journal
+/// itself, never read out of the payload, so it cannot be claimed by the line. Null only for a
+/// reader that was not told which producer it reads.
+/// </param>
+/// <param name="OpId">The operation this event is part of, or null. See
+/// <see cref="Events.EventWrapper.OpId"/> for the give-or-mint-never-infer rule.</param>
+/// <param name="RunId">The process lifetime this event belongs to, or null.</param>
+/// <param name="During">The operations in flight when it was established — co-incidence, not
+/// causality — or null.</param>
 public sealed record EventHistoryEntry(
     string Id,
     DateTimeOffset Ts,
@@ -134,4 +172,8 @@ public sealed record EventHistoryEntry(
     string? Actor,
     string? Origin,
     string? Hostname,
-    JsonElement? Data);
+    JsonElement? Data,
+    string? Producer = null,
+    string? OpId = null,
+    string? RunId = null,
+    IReadOnlyList<string>? During = null);
