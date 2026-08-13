@@ -253,12 +253,18 @@ category rather than here. Its one unit-testable dependency, `LogParser`, is cov
 
 ⚠ **Because of that flag, `dotnet pack` does not reliably build first** — it packs whatever is
 already in `bin/Release/`, so straight after an edit it will happily produce a package containing
-the *previous* build, and consumers restore code you did not write. Build, then copy:
+the *previous* build, and consumers restore code you did not write. Build first, then publish:
 
 ```bash
 dotnet build kgsm-lib/kgsm-lib.csproj -c Release        # this is what makes the .nupkg
-cp kgsm-lib/bin/Release/TheKrystalShip.KGSM.Lib.<v>.nupkg /home/heisen/local-nuget/
+../scripts/publish-packages.sh kgsm-lib                 # → the org's GitHub Packages feed
 ```
+
+**A published version can never be replaced** — pushing one again is a `409`, and the publish
+script reports it as already published rather than failing. So a consumer sees a change only after
+`<Version>` is bumped and the new version is pushed; there is no way to hotfix a version in place.
+While iterating, bump to a prerelease (`4.26.0-dev.1`, `-dev.2`, …) and push each one: a push is
+fetchable within seconds, so the loop costs a version number rather than time.
 
 Verify before trusting it — a stale package fails as a baffling "my change isn't there":
 `unzip -p <nupkg> lib/net10.0/TheKrystalShip.KGSM.dll | strings -el | grep '<a new string literal>'`
