@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — the events a long run needs to report its outcome and its middle
+
+Five more types, from an audit of every operation the engine brackets:
+
+- **`instance_update_failed`** (`Fact`/`Failure`). An update that ends without the version moving had
+  exactly two ways to look, and they were the same two lines: it succeeded with nothing to do, or it
+  failed. Since a consumer settles an engine-driven run on its bracket, a refused update reported as
+  a completed one. This is what tells them apart.
+- **`instance_backup_started`/`_finished`** and **`instance_restore_started`/`_finished`** (`Phase`).
+  The two backup verbs are minutes of archiving on a large world and a scheduler drives them
+  unattended, so they now bracket their runs like the lifecycle verbs — a surface can show the
+  instance as busy while it happens instead of learning at the end.
+
 ### Added — `instance_restart_stopped`, the middle of a restart
 
 A restart runs its stop and its start through kgsm's own logic rather than the stop and start

@@ -327,6 +327,19 @@ public class InstanceUpdateFinishedData : EventDataBase
 }
 
 /// <summary>
+/// Event data for an update run that ended without the version moving, for a reason — the download or
+/// the deploy failed, the pre-update backup could not be taken, or the engine refused to overwrite a
+/// running instance. It is what tells that outcome apart from the other way an update leaves the
+/// version alone, which is finding nothing to do: both emit
+/// <see cref="InstanceUpdateFinishedData"/> and no <see cref="InstanceVersionUpdatedData"/>, so
+/// without this a refused update and a successful no-op are the same two lines, and a consumer that
+/// settles the run on its bracket reports the refusal as a completed update.
+/// </summary>
+public class InstanceUpdateFailedData : EventDataBase
+{
+}
+
+/// <summary>
 /// Event data for when an instance is updated.
 /// </summary>
 public class InstanceUpdatedData : EventDataBase
@@ -475,6 +488,42 @@ public class InstanceFailedData : EventDataBase
     /// as a string.
     /// </summary>
     public string Restarts { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Event data for the start of a backup run — the archiving has begun. Archiving a large world is
+/// minutes of work, and a scheduler drives it unattended, so the run needs to be visible while it
+/// happens rather than only once <see cref="InstanceBackupCreatedData"/> lands at the end. The
+/// matching <see cref="InstanceBackupFinishedData"/> ends it on every outcome.
+/// </summary>
+public class InstanceBackupStartedData : EventDataBase
+{
+}
+
+/// <summary>
+/// Event data for the end of a backup run, whatever its outcome — it states that the run ENDED, not
+/// that an archive exists (see <see cref="InstanceBackupCreatedData"/>).
+/// </summary>
+public class InstanceBackupFinishedData : EventDataBase
+{
+}
+
+/// <summary>
+/// Event data for the start of a restore run. Longer than a backup and rather more consequential: it
+/// takes a safety backup of the current state, verifies the archive and then overwrites the
+/// instance's data with it. The matching <see cref="InstanceRestoreFinishedData"/> ends it on every
+/// outcome; <see cref="InstanceBackupRestoredData"/> is the separate fact that the data was replaced.
+/// </summary>
+public class InstanceRestoreStartedData : EventDataBase
+{
+}
+
+/// <summary>
+/// Event data for the end of a restore run, whatever its outcome — it states that the run ENDED, not
+/// that anything was restored (see <see cref="InstanceBackupRestoredData"/>).
+/// </summary>
+public class InstanceRestoreFinishedData : EventDataBase
+{
 }
 
 /// <summary>

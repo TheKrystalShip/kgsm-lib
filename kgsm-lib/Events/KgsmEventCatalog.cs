@@ -134,12 +134,26 @@ public static class KgsmEventCatalog
             // The update run ended; whether the version moved is instance_version_updated's to say.
             Instance<InstanceUpdatedData>("instance_updated", EventWeight.Phase),
 
+            // The run ended WITHOUT the version moving, for a reason. Without it, a failed update and
+            // a successful one that found nothing to do are the same two bracket lines — and since the
+            // bracket alone is what a consumer settles a run on, a refused update reads as a completed
+            // one. A Fact, like every other failure: a step that did not happen is exactly what
+            // somebody reading back needs to find.
+            Instance<InstanceUpdateFailedData>("instance_update_failed", EventWeight.Fact, EventOutcome.Failure),
+
             Instance<InstanceUpdateAvailableData>("instance_update_available", EventWeight.Fact, EventOutcome.Neutral,
                 [Field("CurrentVersion", FieldShape.Version), Field("LatestVersion", FieldShape.Version)]),
             Instance<InstanceVersionUpdatedData>("instance_version_updated", EventWeight.Fact, EventOutcome.Success,
                 [Field("OldVersion", FieldShape.Version), Field("NewVersion", FieldShape.Version)]),
 
             // -- backups -----------------------------------------------------------------------
+            // Both verbs are minutes of archiving on a large world, and a scheduler drives them
+            // unattended — so each brackets its run the way the lifecycle verbs do, and a surface can
+            // show the instance as busy for the whole of it rather than learning at the end.
+            Instance<InstanceBackupStartedData>("instance_backup_started", EventWeight.Phase),
+            Instance<InstanceBackupFinishedData>("instance_backup_finished", EventWeight.Phase),
+            Instance<InstanceRestoreStartedData>("instance_restore_started", EventWeight.Phase),
+            Instance<InstanceRestoreFinishedData>("instance_restore_finished", EventWeight.Phase),
             Instance<InstanceBackupCreatedData>("instance_backup_created", EventWeight.Fact, EventOutcome.Success, [Source, Version]),
             Instance<InstanceBackupRestoredData>("instance_backup_restored", EventWeight.Fact, EventOutcome.Success, [Source, Version]),
             Instance<InstanceBackupDeletedData>("instance_backup_deleted", EventWeight.Fact, EventOutcome.Neutral, [Source]),
