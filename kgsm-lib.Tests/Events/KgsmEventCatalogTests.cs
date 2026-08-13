@@ -219,6 +219,10 @@ public class KgsmEventCatalogTests
     [InlineData("instance_stop_started", EventWeight.Phase)]
     [InlineData("instance_stop_finished", EventWeight.Phase)]
     [InlineData("instance_stopped", EventWeight.Fact)]
+    // The middle of a restart is a step inside one operation, not a shutdown somebody asked for —
+    // which is the whole reason it is not instance_stopped. Flipping it to Fact would put a "server
+    // stopped" row and a "went offline" notification in the middle of every restart.
+    [InlineData("instance_restart_stopped", EventWeight.Phase)]
     // A router forward and a host firewall rule are facts about different machines, not steps.
     [InlineData("instance_upnp_reasserted", EventWeight.Fact)]
     public void ContestedWeightsAreWhatTheyWereDecidedToBe(string type, EventWeight expected)

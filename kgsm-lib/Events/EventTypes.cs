@@ -267,9 +267,22 @@ public class InstanceDeployedData : EventDataBase
 /// <see cref="InstanceRestartFinishedData"/> ends the run whatever its outcome;
 /// <see cref="InstanceRestartedData"/> is the separate fact that the instance came back. A restart
 /// runs the stop and the start internally, so neither the stop bracket nor the start/stop events fire
-/// inside it — this pair is the only thing that spans the run.
+/// inside it — this pair spans the run, and <see cref="InstanceRestartStoppedData"/> marks its middle.
 /// </summary>
 public class InstanceRestartStartedData : EventDataBase
+{
+}
+
+/// <summary>
+/// Event data for the middle of a restart: the old run is down and the new one has not been spawned
+/// yet. A step inside one operation rather than a standalone shutdown, which is why it is not
+/// <see cref="InstanceStoppedData"/> — that one is the fact that somebody stopped a server, and a
+/// restart is not that. What it carries is the several seconds to a minute during which the process
+/// genuinely does not exist: without it the only word about the new run is
+/// <see cref="InstanceRestartedData"/> at the very end, and until then a consumer can only keep
+/// reporting the state from before the restart.
+/// </summary>
+public class InstanceRestartStoppedData : EventDataBase
 {
 }
 

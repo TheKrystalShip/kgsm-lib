@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — `instance_restart_stopped`, the middle of a restart
+
+A restart runs its stop and its start through kgsm's own logic rather than the stop and start
+commands, so nothing was emitted between `instance_restart_started` and `instance_restarted` at the
+very end. For the whole shutdown — seconds to a minute, and the drain of a game that saves its world
+— the process did not exist and every consumer still read the instance as running.
+
+`InstanceRestartStoppedData` (`instance_restart_stopped`) is that middle: the old run is down, the
+new one has not been spawned yet. Classified **`EventWeight.Phase`**, deliberately: it is a step
+inside one operation, not a shutdown somebody asked for. Making it `instance_stopped` would put a
+`server.stop` audit row and a "went offline" notification in the middle of every restart, on every
+surface, which is the opposite of what a restart means.
+
 ### Changed — `AddKgsmJournalFederation` documents what happens when it is called too early
 
 The ordering requirement was stated; the consequence of getting it wrong was not. Called **before**

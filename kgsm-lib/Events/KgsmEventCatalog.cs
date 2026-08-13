@@ -122,6 +122,7 @@ public static class KgsmEventCatalog
             Instance<InstanceStopFinishedData>("instance_stop_finished", EventWeight.Phase),
             Instance<InstanceRestartedData>("instance_restarted", EventWeight.Fact),
             Instance<InstanceRestartStartedData>("instance_restart_started", EventWeight.Phase),
+            Instance<InstanceRestartStoppedData>("instance_restart_stopped", EventWeight.Phase),
             Instance<InstanceRestartFinishedData>("instance_restart_finished", EventWeight.Phase),
             Instance<InstanceCrashedData>("instance_crashed", EventWeight.Fact, EventOutcome.Failure, [ExitCode, Restarts]),
             Instance<InstanceFailedData>("instance_failed", EventWeight.Fact, EventOutcome.Failure, [ExitCode, Restarts]),
