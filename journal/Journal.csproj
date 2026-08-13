@@ -13,7 +13,7 @@
     <RepositoryUrl>https://github.com/TheKrystalShip/KGSM-Lib</RepositoryUrl>
     <RepositoryType>GitHub</RepositoryType>
     <Description>Appends events to a KGSM producer's own append-only event journal (the v1 envelope, write half).</Description>
-    <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
+    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
     <NeutralLanguage>en</NeutralLanguage>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 

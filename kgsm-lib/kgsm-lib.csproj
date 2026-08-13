@@ -20,7 +20,7 @@
     <RepositoryUrl>https://github.com/TheKrystalShip/KGSM-Lib</RepositoryUrl>
     <RepositoryType>GitHub</RepositoryType>
     <Description>Classlibrary for KGSM Interop</Description>
-    <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
+    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
     <NeutralLanguage>en</NeutralLanguage>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <RootNamespace>TheKrystalShip.KGSM</RootNamespace>
