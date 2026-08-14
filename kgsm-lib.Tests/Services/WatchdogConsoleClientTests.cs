@@ -111,6 +111,136 @@ public class WatchdogConsoleClientTests
         Assert.Equal("/console/a%20b%2Fc", handler.LastRequestUri!.AbsolutePath);
     }
 
+    // --- GetConsoleWindowAsync (the cursor that makes reading further back exact) ---
+
+    private static HttpResponseMessage WindowResponse(string body, long start, long end)
+    {
+        var response = TextResponse(HttpStatusCode.OK, body);
+        response.Headers.Add("X-Console-Start", start.ToString());
+        response.Headers.Add("X-Console-End", end.ToString());
+        return response;
+    }
+
+    [Fact]
+    public async Task GetConsoleWindow_CarriesTheByteRangeBack()
+    {
+        var handler = new StubHandler((_, _) => Task.FromResult(WindowResponse("a\nb\n", 40, 44)));
+        using var client = ClientWith(handler);
+
+        var window = await client.GetConsoleWindowAsync("factorio-test", 2, run: 0, endOffset: -1);
+
+        Assert.Equal(new[] { "a", "b" }, window.Lines);
+        Assert.Equal(40, window.Start);
+        Assert.Equal(44, window.End);
+        Assert.True(window.HasEarlier);
+    }
+
+    [Fact]
+    public async Task GetConsoleWindow_AtTheStartOfTheRun_HasNothingEarlier()
+    {
+        var handler = new StubHandler((_, _) => Task.FromResult(WindowResponse("first\n", 0, 6)));
+        using var client = ClientWith(handler);
+
+        var window = await client.GetConsoleWindowAsync("factorio-test", 200, run: 0, endOffset: -1);
+
+        Assert.False(window.HasEarlier);
+    }
+
+    [Fact]
+    public async Task GetConsoleWindow_SendsTheCursorOnlyWhenAskedToPageBack()
+    {
+        var handler = new StubHandler((_, _) => Task.FromResult(WindowResponse(string.Empty, 0, 0)));
+        using var client = ClientWith(handler);
+
+        await client.GetConsoleWindowAsync("x", 200, run: 0, endOffset: -1);
+        Assert.DoesNotContain("end=", handler.LastRequestUri!.Query);
+
+        await client.GetConsoleWindowAsync("x", 200, run: 0, endOffset: 1234);
+        Assert.Contains("end=1234", handler.LastRequestUri!.Query);
+    }
+
+    [Fact]
+    public async Task GetConsoleWindow_WithoutTheHeaders_ReadsAsTheStartOfTheRun()
+    {
+        // A daemon too old to report the range. Offering no way further back is the honest
+        // degrade; a fabricated cursor would re-serve the same lines forever.
+        var handler = new StubHandler((_, _) => Task.FromResult(TextResponse(HttpStatusCode.OK, "a\nb\n")));
+        using var client = ClientWith(handler);
+
+        var window = await client.GetConsoleWindowAsync("x", 2, run: 0, endOffset: -1);
+
+        Assert.Equal(new[] { "a", "b" }, window.Lines);
+        Assert.False(window.HasEarlier);
+    }
+
+    [Fact]
+    public async Task GetConsoleWindow_NotFound_IsAnEmptyWindow_NeverThrows()
+    {
+        var handler = new StubHandler((_, _) =>
+            Task.FromResult(TextResponse(HttpStatusCode.NotFound, string.Empty)));
+        using var client = ClientWith(handler);
+
+        var window = await client.GetConsoleWindowAsync("ghost", 200, run: 0, endOffset: -1);
+
+        Assert.Empty(window.Lines);
+        Assert.False(window.HasEarlier);
+    }
+
+    // --- OpenConsoleDownloadAsync (the whole run, as a stream) ---
+
+    [Fact]
+    public async Task OpenConsoleDownload_HandsBackTheStreamAndItsLength()
+    {
+        var payload = Encoding.UTF8.GetBytes("line-1\nline-2\n");
+        var handler = new StubHandler((_, _) =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(payload),
+            };
+            response.Content.Headers.ContentLength = payload.Length;
+            return Task.FromResult(response);
+        });
+        using var client = ClientWith(handler);
+
+        using var download = await client.OpenConsoleDownloadAsync("factorio-test", run: 0);
+
+        Assert.NotNull(download);
+        Assert.Equal(payload.Length, download!.Length);
+        using var reader = new StreamReader(download.Content);
+        Assert.Equal("line-1\nline-2\n", await reader.ReadToEndAsync());
+        Assert.Equal("/console/factorio-test/download", handler.LastRequestUri!.AbsolutePath);
+    }
+
+    [Fact]
+    public async Task OpenConsoleDownload_NoConsole_IsNull_NotAnEmptyStream()
+    {
+        // "There is no console here" and "the console is empty" are different facts, and a caller
+        // reporting them the same way tells somebody their log is empty when it was never readable.
+        var handler = new StubHandler((_, _) =>
+            Task.FromResult(TextResponse(HttpStatusCode.NotFound, string.Empty)));
+        using var client = ClientWith(handler);
+
+        Assert.Null(await client.OpenConsoleDownloadAsync("ghost", run: 0));
+    }
+
+    [Fact]
+    public async Task OpenConsoleDownload_OfAnInstanceThatNeverPrinted_IsAnEmptyDownload()
+    {
+        var handler = new StubHandler((_, _) =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([]) };
+            response.Content.Headers.ContentLength = 0;
+            return Task.FromResult(response);
+        });
+        using var client = ClientWith(handler);
+
+        using var download = await client.OpenConsoleDownloadAsync("quiet", run: 0);
+
+        Assert.NotNull(download);
+        Assert.Equal(0, download!.Length);
+    }
+
     // --- FollowConsoleAsync ---
 
     [Fact]

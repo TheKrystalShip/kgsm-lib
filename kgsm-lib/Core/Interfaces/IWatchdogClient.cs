@@ -213,6 +213,58 @@ public interface IWatchdogClient : IDisposable
         string instanceName, int lines, int run, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Reads a window of ONE run's console and reports the byte range it came from, so a caller can
+    /// keep reading further back through a run of any length.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Page on the cursor, never on a line count.</b> Pass the
+    /// <see cref="WatchdogConsoleWindow.Start"/> you were given as the next call's
+    /// <paramref name="endOffset"/> and you get the lines immediately before it. Asking instead for
+    /// "the 500 lines before the last 200" is wrong the moment the game prints anything between the
+    /// two requests, and it prints constantly — the pages overlap or skip and nothing says so.
+    /// <see cref="WatchdogConsoleWindow.HasEarlier"/> is false once the run's beginning is reached.
+    /// </para>
+    /// <para>
+    /// An unknown / non-native / no-console instance, a run index that does not exist, and a log that
+    /// has not been written yet all read as an <b>empty</b> window — the same honest "nothing to read"
+    /// the rest of this surface returns. A daemon too old to report the range answers the lines with
+    /// no cursor, which reads as a window that begins at 0 and therefore has nothing earlier: the
+    /// caller sees no "load earlier" rather than a wrong one.
+    /// </para>
+    /// </remarks>
+    /// <param name="instanceName">The instance whose console to read.</param>
+    /// <param name="lines">How many lines this window should hold (the daemon clamps 0..5000).</param>
+    /// <param name="run">Newest-first run index; 0 is the most recent.</param>
+    /// <param name="endOffset">Byte offset to read back from; negative means the end of the log.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>The window and its byte range, or an empty window.</returns>
+    Task<WatchdogConsoleWindow> GetConsoleWindowAsync(
+        string instanceName, int lines, int run, long endOffset, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Opens the WHOLE of one run's console log as a stream — the file somebody attaches to a bug
+    /// report, rather than a window of it.
+    /// </summary>
+    /// <remarks>
+    /// The caller owns the returned object and must dispose it; the response stays open until then.
+    /// It is a stream and not a list because a log has no bound: copy it to where it is going and
+    /// nothing between the daemon and that destination ever holds all of it. Read exactly
+    /// <see cref="WatchdogConsoleDownload.Length"/> bytes — the game may append past that mid-copy,
+    /// and the daemon committed to the length it measured when it opened the file.
+    /// </remarks>
+    /// <param name="instanceName">The instance whose console to read.</param>
+    /// <param name="run">Newest-first run index; 0 is the most recent.</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    /// <returns>
+    /// The open log, or <c>null</c> when there is nothing to serve — an unknown / non-native
+    /// instance, or a daemon too old to serve the route. A known instance that has never printed is
+    /// an open download of length 0, which is a different fact and stays distinguishable.
+    /// </returns>
+    Task<WatchdogConsoleDownload?> OpenConsoleDownloadAsync(
+        string instanceName, int run, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Fetches live player presence for every instance: whether the supervisor can observe each
     /// one's players, and who it currently sees connected.
     /// </summary>

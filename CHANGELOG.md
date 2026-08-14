@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — a console can be read past its tail
+
+`GetConsoleWindowAsync` reads a window of one run's console and reports the byte range it came from.
+Pass the `Start` it returns as the next call's `endOffset` and you get the lines immediately before
+it, so a caller can page back to the beginning of a run of any size. **The cursor is a byte offset
+because a line count from the end cannot do this**: the game prints between the two requests, so
+"the 500 before the last 200" names a different line each time and consecutive pages silently
+overlap or skip. `HasEarlier` is false once the run's start is reached. A daemon too old to report
+the range answers the lines with no cursor, which reads as a window with nothing before it.
+
+`OpenConsoleDownloadAsync` opens the whole of one run's log as a stream with its length — the file
+somebody attaches to a bug report. A stream rather than a list because a log has no bound: nothing
+between the daemon and where the bytes are going holds all of it. Null means there is no console to
+serve, which stays distinguishable from a known instance that has never printed (an open download of
+length 0).
+
+`GetConsoleTailAsync` / `GetConsoleRunTailAsync` are unchanged and now read a window internally.
+
 ### Changed — package license metadata is GPL-3.0-or-later
 
 `PackageLicenseExpression` now matches the repo's own `LICENSE` on every published package. Already

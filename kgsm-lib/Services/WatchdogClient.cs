@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
@@ -275,24 +276,38 @@ public sealed class WatchdogClient : IWatchdogClient
     public async Task<IReadOnlyList<string>> GetConsoleRunTailAsync(
         string instanceName, int lines, int run, CancellationToken cancellationToken = default)
     {
+        WatchdogConsoleWindow window = await GetConsoleWindowAsync(instanceName, lines, run, endOffset: -1, cancellationToken)
+            .ConfigureAwait(false);
+        return window.Lines;
+    }
+
+    /// <inheritdoc/>
+    public async Task<WatchdogConsoleWindow> GetConsoleWindowAsync(
+        string instanceName, int lines, int run, long endOffset, CancellationToken cancellationToken = default)
+    {
         ThrowIfDisposed();
         ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
 
-        using var response = await _http
-            .GetAsync($"/console/{Uri.EscapeDataString(instanceName)}?tail={lines}&run={run}", cancellationToken)
-            .ConfigureAwait(false);
+        var url = $"/console/{Uri.EscapeDataString(instanceName)}?tail={lines}&run={run}";
+        if (endOffset >= 0)
+            url += $"&end={endOffset}";
+
+        using var response = await _http.GetAsync(url, cancellationToken).ConfigureAwait(false);
 
         // An unknown / non-native / no-console instance has no console, and a run index that does
         // not exist has nothing behind it — an honest empty read in both cases, not an error
         // (mirrors GetStatusAsync degrading a 404 to null).
         if (response.StatusCode == HttpStatusCode.NotFound)
-            return [];
+            return WatchdogConsoleWindow.Empty;
 
         response.EnsureSuccessStatusCode();
 
         var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        long start = ReadOffsetHeader(response, ConsoleStartHeader);
+        long end = ReadOffsetHeader(response, ConsoleEndHeader);
+
         if (string.IsNullOrEmpty(body))
-            return [];
+            return new WatchdogConsoleWindow([], start, end);
 
         // The daemon \n-joins the lines with a trailing \n; split and drop that trailing
         // empty element so "no lines" → [] and N lines → exactly N entries.
@@ -302,11 +317,72 @@ public sealed class WatchdogClient : IWatchdogClient
             count--;
 
         if (count == 0)
-            return [];
+            return new WatchdogConsoleWindow([], start, end);
 
         var result = new string[count];
         Array.Copy(split, result, count);
-        return result;
+        return new WatchdogConsoleWindow(result, start, end);
+    }
+
+    /// <inheritdoc/>
+    public async Task<WatchdogConsoleDownload?> OpenConsoleDownloadAsync(
+        string instanceName, int run, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+
+        // Headers-only completion: the body is a file of unbounded size and is handed to the caller
+        // as a stream, so nothing here reads it into memory. It rides the streaming client for the
+        // same reason the follow does — HttpClient.Timeout bounds the whole request including the
+        // body read, so a finite timeout would kill a large but perfectly healthy download partway.
+        var response = await _streamHttp
+            .GetAsync($"/console/{Uri.EscapeDataString(instanceName)}/download?run={run}",
+                HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            // Unknown / non-native instance, or a daemon too old to serve the route. Null rather
+            // than an empty stream: "there is no console here" is not "the console is empty".
+            response.Dispose();
+            return null;
+        }
+
+        try
+        {
+            response.EnsureSuccessStatusCode();
+            var content = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            return new WatchdogConsoleDownload(content, response.Content.Headers.ContentLength ?? 0, response);
+        }
+        catch
+        {
+            response.Dispose();   // nothing was handed over, so nothing else will close it
+            throw;
+        }
+    }
+
+    /// <summary>Where in the run's log the served window begins — the cursor to page back with.</summary>
+    private const string ConsoleStartHeader = "X-Console-Start";
+
+    /// <summary>Where it ends (exclusive).</summary>
+    private const string ConsoleEndHeader = "X-Console-End";
+
+    /// <summary>
+    /// A byte offset out of a response header, or 0 when the daemon didn't send one (a build that
+    /// predates the cursor). 0 reads as "the run begins here", so the caller offers no way back
+    /// rather than a way back that would return the same lines again.
+    /// </summary>
+    private static long ReadOffsetHeader(HttpResponseMessage response, string name)
+    {
+        if (!response.Headers.TryGetValues(name, out var values))
+            return 0;
+
+        foreach (var value in values)
+            return long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long parsed) && parsed >= 0
+                ? parsed
+                : 0;
+
+        return 0;
     }
 
     /// <inheritdoc/>

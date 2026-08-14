@@ -288,3 +288,58 @@ public record class WatchdogConsoleRun
     [JsonPropertyName("exitCode")]
     public int? ExitCode { get; set; }
 }
+
+/// <summary>
+/// One window of an instance's console: the lines, and the byte range of the run's log they came
+/// from. Returned by <see cref="Interfaces.IWatchdogClient.GetConsoleWindowAsync"/>.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b><see cref="Start"/> is the cursor for reading further back.</b> Ask for the window ending at
+/// the <see cref="Start"/> you were given and you get the lines immediately before these — exactly,
+/// while the game keeps appending to the far end of the same file. A line count from the end cannot
+/// do that: it names a different line on every request, so consecutive pages silently overlap or
+/// skip. <see cref="Start"/> of 0 means the run begins here and there is nothing earlier to read.
+/// </para>
+/// <para>
+/// Not JSON — the daemon serves console output as raw text and reports the range in response
+/// headers, so this type is assembled by the client and needs no <c>KgsmJsonContext</c> entry.
+/// </para>
+/// </remarks>
+/// <param name="Lines">The window's lines, oldest-first.</param>
+/// <param name="Start">Byte offset of the first line — the cursor to page back with.</param>
+/// <param name="End">Byte offset just past the last line.</param>
+public readonly record struct WatchdogConsoleWindow(IReadOnlyList<string> Lines, long Start, long End)
+{
+    /// <summary>Nothing to read: no console, no such run, or a log that does not exist yet.</summary>
+    public static WatchdogConsoleWindow Empty { get; } = new([], 0, 0);
+
+    /// <summary>Whether anything precedes this window in the run's log.</summary>
+    public bool HasEarlier => Start > 0;
+}
+
+/// <summary>
+/// An open read over the WHOLE of one run's console log, plus the length being served. The caller
+/// owns it and must dispose it — the underlying response is held open until then.
+/// </summary>
+/// <remarks>
+/// A whole log is a stream and not a list on purpose: it is unbounded in a way a window is not, and
+/// the point of this call is to hand it to something that writes it somewhere (a file, an HTTP
+/// response) without any layer between the daemon and that destination holding all of it. Read
+/// exactly <see cref="Length"/> bytes; the game may append past that while the copy is in flight.
+/// </remarks>
+public sealed class WatchdogConsoleDownload(Stream content, long length, IDisposable owner) : IDisposable
+{
+    /// <summary>The log's bytes, from the start of the run.</summary>
+    public Stream Content { get; } = content;
+
+    /// <summary>How many bytes the daemon committed to, measured when it opened the file.</summary>
+    public long Length { get; } = length;
+
+    /// <summary>Releases the stream and the response holding it open.</summary>
+    public void Dispose()
+    {
+        Content.Dispose();
+        owner.Dispose();
+    }
+}
