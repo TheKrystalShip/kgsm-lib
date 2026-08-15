@@ -53,6 +53,8 @@ public sealed class JournalDiscovery : IJournalDiscovery
     private readonly string _stateRoot;
     private readonly IReadOnlyList<JournalSource> _named;
     private readonly ILogger<JournalDiscovery> _logger;
+    private readonly Lock _gate = new();
+    private IReadOnlyList<JournalSource>? _discovered;
 
     /// <summary>
     /// Initializes discovery over an engine journal and a state root.
@@ -83,7 +85,25 @@ public sealed class JournalDiscovery : IJournalDiscovery
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// <b>Scanned once; every caller gets that one answer.</b> A process builds its history reader and
+    /// its live tail from this, and the two have to be reading the same set of producers — a second
+    /// scan is a second chance to disagree, and a journal appearing between them would leave one half
+    /// of a consumer permanently blind to a producer the other half reports on. The set is a property
+    /// of the host, so answering it once per process is also what the callers already assumed.
+    /// </remarks>
     public IReadOnlyList<JournalSource> Discover()
+    {
+        if (_discovered is { } already)
+            return already;
+
+        lock (_gate)
+        {
+            return _discovered ??= Scan();
+        }
+    }
+
+    private IReadOnlyList<JournalSource> Scan()
     {
         // The engine first, and unconditionally: it is the one producer that is not a leaf, its journal
         // directory is configurable, and a host with an engine always has somewhere it writes.

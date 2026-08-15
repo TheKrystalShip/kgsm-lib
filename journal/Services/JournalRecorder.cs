@@ -170,9 +170,12 @@ public abstract class JournalRecorder(IEventJournalWriter writer, ILogger logger
     /// </summary>
     /// <remarks>
     /// Dash on a command line, underscore on the wire. Applied here so a call site naming an event the
-    /// engine's way cannot produce a type no consumer recognises.
+    /// engine's way cannot produce a type no consumer recognises. Exposed to a derived recorder so one
+    /// that mentions the type in its own logging says the same thing the journal does.
     /// </remarks>
-    private static string NormalizeType(string eventType)
+    /// <param name="eventType">The event type as the call site named it.</param>
+    /// <returns>The type as the wire spells it.</returns>
+    protected static string NormalizeType(string eventType)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(eventType, nameof(eventType));
         return eventType.Replace('-', '_');

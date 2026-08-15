@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
@@ -86,12 +87,13 @@ public static class ServiceCollectionExtensions
             : new FileEventCursorStore(options, sp.GetRequiredService<ILogger<FileEventCursorStore>>()));
 
         services.AddSingleton<IEventJournalReader, EventJournalReader>();
-        services.AddSingleton<IEventSource>(sp => sp.GetRequiredService<IEventJournalReader>());
 
         // Reading back over the journal, as opposed to tailing it. It shares nothing with the
         // reader above but the directory: it holds no position, starts nothing, and each query
         // stands alone — so a consumer can take history without taking a live subscription.
-        services.AddSingleton<IEventJournalHistory, EventJournalHistory>();
+        services.AddSingleton<EventJournalHistory>();
+
+        AddJournalResolution(services);
 
         return services;
     }
@@ -302,21 +304,57 @@ public static class ServiceCollectionExtensions
             : new FileFederatedEventCursorStore(
                 cursorPath, sp.GetRequiredService<ILogger<FileFederatedEventCursorStore>>()));
 
-        services.AddSingleton<IEventJournalHistory>(sp => new FederatedEventJournalHistory(
+        services.AddSingleton(sp => new FederatedEventJournalHistory(
             sp.GetRequiredService<IJournalDiscovery>().Discover(),
             budget,
             sp.GetRequiredService<ILoggerFactory>(),
             sp.GetRequiredService<ILogger<FederatedEventJournalHistory>>()));
 
-        services.AddSingleton<FederatedEventSource>(sp => new FederatedEventSource(
+        services.AddSingleton(sp => new FederatedEventSource(
             sp.GetRequiredService<IJournalDiscovery>().Discover(),
             sp.GetRequiredService<IFederatedEventCursorStore>(),
             startPosition,
             sp.GetRequiredService<ILoggerFactory>(),
             sp.GetRequiredService<ILogger<FederatedEventSource>>()));
 
-        services.AddSingleton<IEventSource>(sp => sp.GetRequiredService<FederatedEventSource>());
+        AddJournalResolution(services);
 
         return services;
+    }
+
+    /// <summary>
+    /// Registers how <see cref="IEventSource"/> and <see cref="IEventJournalHistory"/> are decided.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Which reader a consumer gets is resolved, not raced.</b> Both
+    /// <see cref="AddKgsmServices(IServiceCollection, KgsmOptions)"/> and
+    /// <see cref="AddKgsmJournalFederation"/> register this same rule, and it is registered with
+    /// <c>TryAdd</c>, so calling them in either order produces the same container. The rule itself is
+    /// the whole point: <b>federated if a federated reader was registered, single-journal
+    /// otherwise</b> — a question answered when the container is built, from what is actually in it,
+    /// rather than by whichever call happened to come last.
+    /// </para>
+    /// <para>
+    /// ⚠ The alternative this replaces is worth naming, because it has no symptom. Two valid
+    /// <c>AddSingleton</c> registrations of one interface differ only in call order, and a consumer
+    /// that federated too early kept reading its single journal **successfully** — reporting a healthy
+    /// journal and a quiet host, while the events it wanted sat in four other files. There is no
+    /// exception to catch and nothing degrades: one journal is being read correctly.
+    /// </para>
+    /// <para>
+    /// A consumer with a genuine reason to supply its own still can — an explicit registration after
+    /// these calls wins by last-registration, exactly as it does for <see cref="IEventCursorStore"/>.
+    /// </para>
+    /// </remarks>
+    private static void AddJournalResolution(IServiceCollection services)
+    {
+        services.TryAddSingleton<IEventSource>(sp =>
+            sp.GetService<FederatedEventSource>()
+            ?? (IEventSource)sp.GetRequiredService<IEventJournalReader>());
+
+        services.TryAddSingleton<IEventJournalHistory>(sp =>
+            sp.GetService<FederatedEventJournalHistory>()
+            ?? (IEventJournalHistory)sp.GetRequiredService<EventJournalHistory>());
     }
 }

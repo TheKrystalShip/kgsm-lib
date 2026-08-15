@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — federation no longer depends on the order it was registered in (`Lib` 4.30.0)
+
+`AddKgsmServices` and `AddKgsmJournalFederation` register the **same resolution rule** for
+`IEventSource` and `IEventJournalHistory` — federated if a federated reader is in the container,
+single-journal otherwise — so either call order produces the same result.
+
+⚠ **The bug this removes had no symptom.** Two valid `AddSingleton` registrations of one interface
+differ only in call order, so a consumer that federated too early kept reading its single journal
+**successfully**: healthy journal, quiet host, nothing to catch, and the events it wanted sitting in
+four other files. It cost kgsm-bot its announcements once already. Three of the four consumers carried
+a comment warning about it; the two that no longer need one have had it removed.
+
+A consumer with a genuine reason to supply its own source still can — an explicit registration
+afterwards wins by last-registration, the same way it does for `IEventCursorStore`.
+
+`JournalDiscovery.Discover()` now **scans once** and hands every caller that one answer. It was
+called twice per registration, once for the history reader and once for the live tail: two scans are
+two chances to disagree, and a journal appearing between them would leave one half of a consumer
+permanently blind to a producer the other half reports on.
+
+### Changed — `JournalRecorder.NormalizeType` is `protected` (`Journal` 1.3.0, `Lib` 4.29.0)
+
+A recorder that names the event type in its own logging can spell it the way the journal does.
+kgsm-watchdog's call sites name events the engine's command-line way (`instance-crashed`), so a
+debug line logging the raw string and a journal line carrying the normalised one disagreed about
+what had just been recorded.
+
 ### Added — one variable moves every journal on a machine (`Journal` 1.2.0, `Lib` 4.28.0)
 
 `KGSM_JOURNAL_STATE_ROOT`, read by `AddKgsmJournal` (or passed as `stateRoot`), relocates the whole

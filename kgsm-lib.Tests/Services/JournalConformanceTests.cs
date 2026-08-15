@@ -262,6 +262,79 @@ public sealed class JournalConformanceTests : IDisposable
         Assert.True(Directory.Exists(directory));
     }
 
+    // ── Resolution: which reader a consumer gets, in either call order ──────────────────
+
+    [Theory]
+    [InlineData(true)]   // AddKgsmServices first, then federation — the order that always worked
+    [InlineData(false)]  // federation first — the order that silently did nothing
+    public void Federation_WinsWhicheverOrderItWasRegisteredIn(bool servicesFirst)
+    {
+        // ⚠ The regression this exists for has no symptom. Two valid AddSingleton registrations of one
+        // interface differ only in call order, so a consumer that federated too early kept reading its
+        // single journal SUCCESSFULLY — healthy journal, quiet host, nothing to catch. Asserting that
+        // resolution succeeded proves nothing; the assertion has to name the type.
+        using ServiceProvider provider = BuildProvider(servicesFirst);
+
+        Assert.IsType<FederatedEventSource>(provider.GetRequiredService<IEventSource>());
+        Assert.IsType<FederatedEventJournalHistory>(provider.GetRequiredService<IEventJournalHistory>());
+    }
+
+    [Fact]
+    public void WithoutFederation_TheSingleJournalReaderIsResolved()
+    {
+        // The other half of the rule: a consumer that never federates is unaffected by the resolution
+        // seam existing at all.
+        var services = new ServiceCollection();
+        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        services.AddKgsmServices(KgsmOptionsForTests());
+
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        Assert.IsType<EventJournalReader>(provider.GetRequiredService<IEventSource>());
+        Assert.IsType<EventJournalHistory>(provider.GetRequiredService<IEventJournalHistory>());
+    }
+
+    [Fact]
+    public void AConsumerCanStillSupplyItsOwnSource()
+    {
+        // Order-independence must not become "the library decides and you cannot". An explicit
+        // registration after the fact still wins, the same way it does for IEventCursorStore.
+        var own = new Mock<IEventSource>().Object;
+
+        var services = new ServiceCollection();
+        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        services.AddKgsmServices(KgsmOptionsForTests());
+        services.AddKgsmJournalFederation(engineJournalDirectory: _root, stateRoot: _root);
+        services.AddSingleton(own);
+
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        Assert.Same(own, provider.GetRequiredService<IEventSource>());
+    }
+
+    [Fact]
+    public void Discovery_ScansOnceHoweverManyReadersAskIt()
+    {
+        // The history reader and the live tail are built from this, and they have to see the same set
+        // of producers: a journal appearing between two scans would leave one half of a consumer
+        // permanently blind to a producer the other half reports on.
+        Directory.CreateDirectory(Path.Combine(_root, "kgsm-watchdog", "events"));
+
+        var discovery = new JournalDiscovery(
+            Path.Combine(_root, "kgsm", "events"), _root, NullLogger<JournalDiscovery>.Instance);
+
+        IReadOnlyList<JournalSource> first = discovery.Discover();
+
+        // A producer that starts writing after the first scan is deliberately NOT picked up: the set is
+        // fixed for the life of the process, so both readers keep agreeing.
+        Directory.CreateDirectory(Path.Combine(_root, "kgsm-monitor", "events"));
+
+        Assert.Same(first, discovery.Discover());
+        Assert.DoesNotContain(discovery.Discover(), s => s.Producer == "kgsm-monitor");
+    }
+
     // ── The write path ──────────────────────────────────────────────────────────────────
 
     [Fact]
@@ -345,6 +418,34 @@ public sealed class JournalConformanceTests : IDisposable
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>A container with both registrations, made in the order under test.</summary>
+    private ServiceProvider BuildProvider(bool servicesFirst)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+
+        if (servicesFirst)
+        {
+            services.AddKgsmServices(KgsmOptionsForTests());
+            services.AddKgsmJournalFederation(engineJournalDirectory: _root, stateRoot: _root);
+        }
+        else
+        {
+            services.AddKgsmJournalFederation(engineJournalDirectory: _root, stateRoot: _root);
+            services.AddKgsmServices(KgsmOptionsForTests());
+        }
+
+        return services.BuildServiceProvider();
+    }
+
+    /// <summary>Options pointed at this test's own root, so nothing reads the machine's journals.</summary>
+    private KgsmOptions KgsmOptionsForTests() => new()
+    {
+        KgsmPath = Path.Combine(_root, "kgsm.sh"),
+        EventJournalDirectory = Path.Combine(_root, "kgsm", "events"),
+    };
 
     private EventJournalWriterOptions Options(string producer, string directory) => new()
     {
