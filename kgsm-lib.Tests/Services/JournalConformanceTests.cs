@@ -193,9 +193,46 @@ public sealed class JournalConformanceTests : IDisposable
         new ServiceCollection().AddKgsmJournal(
             "kgsm-monitor",
             typeof(JournalConformanceTests).Assembly,
-            o => o.Directory = directory);
+            configure: o => o.Directory = directory);
 
         Assert.True(Directory.Exists(directory));
+    }
+
+    [Fact]
+    public void Registration_RelocatesEveryJournalUnderOneStateRoot()
+    {
+        // Deriving the path from the producer id means a component run by hand writes exactly where
+        // the deployed one does — into this host's real audit record. There has to be one way to move
+        // the whole layout aside, and it moves the root without bending the rule: same producer name,
+        // same events subdirectory, somewhere else.
+        new ServiceCollection().AddKgsmJournal(
+            "kgsm-monitor", typeof(JournalConformanceTests).Assembly, stateRoot: _root);
+
+        Assert.True(Directory.Exists(Path.Combine(_root, "kgsm-monitor", "events")));
+    }
+
+    [Fact]
+    public void Registration_ReadsTheStateRootFromTheEnvironment()
+    {
+        string previous = Environment.GetEnvironmentVariable(
+            JournalServiceCollectionExtensions.StateRootVariable) ?? string.Empty;
+
+        try
+        {
+            Environment.SetEnvironmentVariable(
+                JournalServiceCollectionExtensions.StateRootVariable, _root);
+
+            new ServiceCollection().AddKgsmJournal(
+                "kgsm-bot", typeof(JournalConformanceTests).Assembly);
+
+            Assert.True(Directory.Exists(Path.Combine(_root, "kgsm-bot", "events")));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(
+                JournalServiceCollectionExtensions.StateRootVariable,
+                previous.Length == 0 ? null : previous);
+        }
     }
 
     [Fact]
@@ -205,7 +242,7 @@ public sealed class JournalConformanceTests : IDisposable
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddKgsmJournal(
             "kgsm-bot", typeof(JournalConformanceTests).Assembly,
-            o => o.Directory = Path.Combine(_root, "kgsm-bot", "events"));
+            configure: o => o.Directory = Path.Combine(_root, "kgsm-bot", "events"));
 
         using ServiceProvider provider = services.BuildServiceProvider();
         var writer = provider.GetRequiredService<IEventJournalWriter>();

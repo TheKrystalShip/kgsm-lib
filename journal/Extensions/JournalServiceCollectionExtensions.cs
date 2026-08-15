@@ -19,6 +19,27 @@ namespace TheKrystalShip.KGSM.Extensions;
 public static class JournalServiceCollectionExtensions
 {
     /// <summary>
+    /// The variable that relocates every producer's journal on this machine.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Deriving the journal path from the producer id is what keeps a writer and every reader agreed
+    /// on it — and it also means a component run by hand writes exactly where the deployed one does.
+    /// A developer running a leaf from a checkout, or a test suite exercising one, would append to the
+    /// host's real audit record. <b>Fabricated history is worse than none</b>, so there has to be one
+    /// way to move the whole layout aside.
+    /// </para>
+    /// <para>
+    /// One variable rather than a per-leaf setting, because it is one concern: a process either writes
+    /// to this host's journals or to a throwaway root, and that is never a question about a particular
+    /// leaf. It relocates the <em>root</em> and never the rule — a producer keeps its own name and its
+    /// own <c>events</c> subdirectory under it, so a relocated journal is still readable by pointing a
+    /// reader's state root at the same place.
+    /// </para>
+    /// </remarks>
+    public const string StateRootVariable = "KGSM_JOURNAL_STATE_ROOT";
+
+    /// <summary>
     /// Registers <see cref="IEventJournalWriter"/> for <paramref name="producer"/>.
     /// </summary>
     /// <remarks>
@@ -50,6 +71,10 @@ public static class JournalServiceCollectionExtensions
     /// The assembly whose version identifies this build. Passed explicitly rather than inferred from
     /// the call stack, which inlining and AOT both make unreliable.
     /// </param>
+    /// <param name="stateRoot">
+    /// Where state directories live. Null reads <see cref="StateRootVariable"/>, and falls back to
+    /// <see cref="JournalLayout.DefaultStateRoot"/> when that is unset.
+    /// </param>
     /// <param name="configure">Adjusts the options before the writer is built. Optional.</param>
     /// <returns>The service collection, so calls can be chained.</returns>
     /// <exception cref="ArgumentNullException">
@@ -60,16 +85,21 @@ public static class JournalServiceCollectionExtensions
         this IServiceCollection services,
         string producer,
         Assembly versionSource,
+        string? stateRoot = null,
         Action<EventJournalWriterOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(services, nameof(services));
         ArgumentNullException.ThrowIfNull(versionSource, nameof(versionSource));
         JournalProducer.Validate(producer, nameof(producer));
 
+        string root = stateRoot
+            ?? Environment.GetEnvironmentVariable(StateRootVariable)
+            ?? JournalLayout.DefaultStateRoot;
+
         var options = new EventJournalWriterOptions
         {
             Producer = producer,
-            Directory = JournalLayout.DirectoryFor(producer),
+            Directory = JournalLayout.DirectoryFor(producer, root),
             ProducerVersion = ProducerVersion.Of(versionSource),
         };
 

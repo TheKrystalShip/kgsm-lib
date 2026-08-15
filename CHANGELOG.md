@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — one variable moves every journal on a machine (`Journal` 1.2.0, `Lib` 4.28.0)
+
+`KGSM_JOURNAL_STATE_ROOT`, read by `AddKgsmJournal` (or passed as `stateRoot`), relocates the whole
+layout — same producer name, same `events` subdirectory, a different root.
+
+Deriving the journal path from the producer id is what keeps a writer and every reader agreed on it,
+and it has a consequence worth naming: **a component run by hand writes exactly where the deployed
+one does.** A leaf started from a checkout, or a test exercising one, appends to the host's real
+audit record — and fabricated history is worse than none. Each producer had to solve this for itself
+or not at all: `kgsm-api` has `Api__JournalStateRoot`, and until now nothing else had anything.
+
+One variable rather than a per-leaf setting, because a process either writes to this host's journals
+or to a throwaway root, and that is never a question about a particular leaf.
+
 ### Added — being a producer is one set of decisions, made once (`Journal` 1.1.0, `Lib` 4.27.0)
 
 A component that writes its own journal decides four things: what to call itself, which directory to
