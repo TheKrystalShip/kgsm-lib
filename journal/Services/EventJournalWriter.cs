@@ -4,7 +4,6 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
-using TheKrystalShip.KGSM.Events;
 
 namespace TheKrystalShip.KGSM.Services;
 
@@ -67,6 +66,41 @@ public sealed class EventJournalWriter : IEventJournalWriter
         // from here on; held separately so that stays true whatever happens to the options object.
         _directory = options.Directory!;
         _logger = logger;
+
+        // A journal a reader will not attribute to this producer is the one misconfiguration that
+        // reports itself as normal operation — the writes succeed and the record is invisible. Said
+        // once, at construction, because there is no later moment at which anything notices.
+        if (options.DescribeDirectoryMismatch() is { } mismatch)
+            _logger.LogWarning("Event journal misconfigured: {Problem}", mismatch);
+
+        EnsureDirectory();
+    }
+
+    /// <summary>
+    /// Creates the journal directory, so this producer is discoverable before it has anything to say.
+    /// </summary>
+    /// <remarks>
+    /// A reader finds a producer by finding its directory, and a consumer scans once when it starts.
+    /// Left to the first event, a deployed producer that has not yet had cause to record anything is
+    /// indistinguishable from one that writes no journal at all — and stays that way until it emits
+    /// <em>and</em> every consumer restarts.
+    /// <para>
+    /// Failure is not fatal here: the append path creates the directory too, and a permission problem
+    /// reported now would be reported again with the event it actually cost.
+    /// </para>
+    /// </remarks>
+    private void EnsureDirectory()
+    {
+        try
+        {
+            Directory.CreateDirectory(_directory);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogWarning(ex,
+                "Could not create the journal directory at {Path}; this producer stays undiscoverable "
+                + "until it can be written", _directory);
+        }
     }
 
     /// <inheritdoc/>

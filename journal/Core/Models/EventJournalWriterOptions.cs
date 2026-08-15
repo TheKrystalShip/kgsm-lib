@@ -6,7 +6,7 @@ namespace TheKrystalShip.KGSM.Core.Models;
 /// What a component needs to write its own event journal.
 /// </summary>
 /// <remarks>
-/// Separate from <see cref="KgsmOptions"/> on purpose. Those options describe a consumer's
+/// Separate from a consumer's <c>KgsmOptions</c> on purpose. Those options describe a consumer's
 /// relationship with the engine — where kgsm is, which journal it reads, where it keeps its cursor.
 /// These describe a component's own identity as a <em>producer</em>, which is a different role: a
 /// process can hold one, both, or neither.
@@ -20,19 +20,15 @@ public sealed class EventJournalWriterOptions
     /// </summary>
     /// <param name="producer">The producer id.</param>
     /// <returns>The conventional journal directory for that producer.</returns>
-    public static string DefaultDirectoryFor(string producer)
-    {
-        JournalProducer.Validate(producer, nameof(producer));
-        return $"/var/lib/{producer}/events";
-    }
+    public static string DefaultDirectoryFor(string producer) => JournalLayout.DirectoryFor(producer);
 
     /// <summary>
     /// Gets or sets who this component is when it writes. Required.
     /// </summary>
     /// <remarks>
     /// Fixed for the lifetime of the writer, and never taken from a caller of
-    /// <see cref="Interfaces.IEventJournalWriter.AppendAsync"/>: a producer id that could be supplied
-    /// per event would be a claim about authorship rather than a fact about the writer.
+    /// <c>IEventJournalWriter.AppendAsync</c>: a producer id that could be supplied per event would be
+    /// a claim about authorship rather than a fact about the writer.
     /// </remarks>
     public string Producer { get; set; } = string.Empty;
 
@@ -73,5 +69,53 @@ public sealed class EventJournalWriterOptions
 
         if (string.IsNullOrWhiteSpace(Directory))
             Directory = DefaultDirectoryFor(Producer);
+    }
+
+    /// <summary>
+    /// What is wrong with writing to <see cref="Directory"/> as <see cref="Producer"/>, or null when
+    /// nothing is.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A reader never takes a producer's word for who it is — it derives that from the directory a
+    /// line came from. So these options are wrong, however well-formed they look, if a reader finding
+    /// this journal would attribute it to somebody else or would not find it at all. This asks
+    /// <see cref="JournalLayout.ProducerOf"/> exactly what a reader concludes and compares it against
+    /// what this producer believes, rather than restating the rule a second time.
+    /// </para>
+    /// <para>
+    /// ⚠ Both failures are silent at runtime. A journal a reader cannot attribute is not reported as
+    /// unreadable — it is not found, and a producer with no journal has honestly recorded nothing. The
+    /// events are written, the writes succeed, and the record is invisible.
+    /// </para>
+    /// <para>
+    /// A relocated state root is <b>not</b> a mismatch: only the two path segments that carry meaning
+    /// are examined, so a test writing under a temporary root, or a host that keeps state elsewhere,
+    /// stays conventional.
+    /// </para>
+    /// </remarks>
+    /// <returns>A description of the mismatch, or null when a reader would attribute this correctly.</returns>
+    public string? DescribeDirectoryMismatch()
+    {
+        if (!JournalProducer.IsValid(Producer) || string.IsNullOrWhiteSpace(Directory))
+            return null;
+
+        string? derived = JournalLayout.ProducerOf(Directory);
+
+        if (derived is null)
+        {
+            return $"Journal directory '{Directory}' is not a location any reader scans, so events "
+                + $"written there are attributed to no producer and '{Producer}' reads as a component "
+                + $"that has recorded nothing. Expected a path ending "
+                + $"'<state-root>/{Producer}/{JournalLayout.Subdirectory}'.";
+        }
+
+        if (!string.Equals(derived, Producer, StringComparison.Ordinal))
+        {
+            return $"Journal directory '{Directory}' is read as producer '{derived}', not '{Producer}': "
+                + $"every event written there is attributed to '{derived}'.";
+        }
+
+        return null;
     }
 }

@@ -39,10 +39,15 @@ namespace TheKrystalShip.KGSM.Services;
 public sealed class JournalDiscovery : IJournalDiscovery
 {
     /// <summary>Where the ecosystem's per-service state directories live.</summary>
-    public const string DefaultStateRoot = "/var/lib";
+    /// <remarks>
+    /// The writer's own constant. Where a journal lives is one fact shared by the component that
+    /// creates it and the scan that finds it, so it has one definition — a second copy here would be
+    /// free to drift from the paths actually being written.
+    /// </remarks>
+    public const string DefaultStateRoot = JournalLayout.DefaultStateRoot;
 
     /// <summary>The subdirectory of a state directory that holds a producer's journal segments.</summary>
-    public const string JournalSubdirectory = "events";
+    public const string JournalSubdirectory = JournalLayout.Subdirectory;
 
     private readonly string _engineJournalDirectory;
     private readonly string _stateRoot;

@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — being a producer is one set of decisions, made once (`Journal` 1.1.0, `Lib` 4.27.0)
+
+A component that writes its own journal decides four things: what to call itself, which directory to
+append to, which version to stamp, and when that directory comes into existence. Each has a single
+right answer a producer can derive, and the writer package now derives all four.
+
+- **`JournalLayout`** composes a producer's journal directory and, in `ProducerOf`, inverts it —
+  answering what a reader concludes from finding a journal at a given path. Writer and reader had
+  been two implementations of one rule, which is a rule only for as long as they agree.
+- **`EventJournalWriterOptions.DescribeDirectoryMismatch`** asks that question of a producer's own
+  configuration, and `EventJournalWriter` reports the answer at construction. **A journal written
+  where no reader scans has no failure to notice**: the writes succeed, and a producer whose
+  directory is not found has honestly recorded nothing, so a misplaced journal and an idle leaf are
+  the same observation. This is the moment anything can tell them apart.
+- **`ProducerVersion`** resolves one build identity — the informational version, falling back to the
+  assembly version, `null` when there is neither. `Resolve` exposes the precedence on its own so the
+  rule is testable without an assembly to vary. **Never a fabricated fallback**: an omitted field
+  claims nothing about a build, where `0.0.0` names one that was never made.
+- **`JournalProducer.SystemActorFor`** derives the `system:<name>` actor an autonomous component
+  attributes its own actions to. An actor held beside the producer id is a second spelling of one
+  fact, free to disagree with it.
+- **`JournalRecorder`** is the write path a producer records through: type normalisation, the actor
+  and origin defaults, real JSON nulls rather than empty strings, and failure semantics that log what
+  was lost and never throw — because the action a line describes has already happened, so refusing it
+  over the record would trade a missing line for broken behaviour. A derived class writes its own
+  event types and payload shapes, which are its vocabulary and belong to it.
+- **`AddKgsmJournal(producer, versionSource)`** registers the writer and **creates the journal
+  directory during startup**. A consumer discovers producers when it starts, so a producer whose
+  directory appears on its first event is invisible until it emits *and* every consumer restarts.
+
+`JournalDiscovery`'s state-root and subdirectory constants now come from `JournalLayout`, so where a
+journal lives is one definition rather than a copy on each side of the split.
+
+The package takes `Microsoft.Extensions.DependencyInjection.Abstractions` for the registration —
+⚠ **Abstractions, and it stays that way.** The DI implementation would bring a container this package
+never builds and Hosting a process model, into a root-running firewall authority whose attack surface
+is why the writer lives outside the engine-interop library at all.
+
+Additive throughout: no existing signature changed and nothing behaves differently until a producer
+is migrated onto it. Authority: `event-conformance-plan.md`.
+
 ### Added — a console can be read past its tail
 
 `GetConsoleWindowAsync` reads a window of one run's console and reports the byte range it came from.

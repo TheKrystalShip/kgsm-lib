@@ -25,12 +25,50 @@ public static class JournalProducer
     /// </summary>
     public const string Kgsm = "kgsm";
 
+    /// <summary>The prefix every component in this ecosystem carries.</summary>
+    public const string EcosystemPrefix = Kgsm + "-";
+
+    /// <summary>The actor provider an autonomous component attributes its own actions to.</summary>
+    public const string SystemActorProvider = "system";
+
+    /// <summary>
+    /// The actor <paramref name="producer"/> stamps on an action it took by itself.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>provider:name</c> is the convention every consumer parses, and it is not decoration: a bare
+    /// name reads as an OS user, so an autonomous emitter that wrote one would present itself as a
+    /// person on the local host. The provider is <see cref="SystemActorProvider"/> and the name is
+    /// the producer with its ecosystem prefix dropped, since the prefix says only that it belongs to
+    /// this ecosystem — which the reader already knows from the journal it read.
+    /// </para>
+    /// <para>
+    /// Derived rather than declared per component, so a producer's identity has one source. An actor
+    /// held as a constant beside the producer id is a second spelling of the same fact, free to
+    /// disagree with it.
+    /// </para>
+    /// </remarks>
+    /// <param name="producer">The producer id.</param>
+    /// <returns>The <c>system:&lt;name&gt;</c> actor for that producer.</returns>
+    /// <exception cref="ArgumentException">Thrown when the producer id is unusable.</exception>
+    public static string SystemActorFor(string producer)
+    {
+        Validate(producer, nameof(producer));
+
+        string name = producer.Length > EcosystemPrefix.Length
+            && producer.StartsWith(EcosystemPrefix, StringComparison.Ordinal)
+                ? producer[EcosystemPrefix.Length..]
+                : producer;
+
+        return $"{SystemActorProvider}:{name}";
+    }
+
     /// <summary>
     /// Whether <paramref name="producer"/> is a usable producer id.
     /// </summary>
     /// <remarks>
-    /// Lowercase letters, digits and dashes, and no underscore. The underscore is excluded because
-    /// it separates the fields of a position id (<see cref="AuditId.ForPosition(string, string, long)"/>),
+    /// Lowercase letters, digits and dashes, and no underscore. The underscore is excluded because it
+    /// separates the fields of a position id (<c>evt_&lt;producer&gt;_&lt;segment&gt;_&lt;offset&gt;</c>),
     /// and a producer containing one would make an id ambiguous to read back.
     /// </remarks>
     /// <param name="producer">The candidate id.</param>
