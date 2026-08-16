@@ -335,6 +335,51 @@ public sealed class JournalConformanceTests : IDisposable
         Assert.DoesNotContain(discovery.Discover(), s => s.Producer == "kgsm-monitor");
     }
 
+    // ── Reachability: a journal no other account can enter ──────────────────────────────
+
+    [Theory]
+    [InlineData(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
+        | UnixFileMode.GroupRead | UnixFileMode.GroupExecute)]                                  // 0750
+    [InlineData(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
+        | UnixFileMode.GroupRead | UnixFileMode.GroupExecute
+        | UnixFileMode.OtherRead | UnixFileMode.OtherExecute)]                                  // 0755
+    public void Reachability_IsSilentWhenTheGroupCanEnter(UnixFileMode mode)
+    {
+        // The ecosystem's answer to cross-account reads is a shared group, so a state directory that
+        // grants the group execute is correct and must produce no noise — these are the two modes
+        // every unit on this host actually declares.
+        string dir = Segments("kgsm-api");
+        File.SetUnixFileMode(Path.GetDirectoryName(dir)!, mode);
+
+        Assert.Null(JournalAccess.DescribeUnreachable(dir));
+    }
+
+    [Fact]
+    public void Reachability_ReportsAStateDirectoryTheGroupCannotEnter()
+    {
+        // ⚠ The failure this exists for is silence: a reader that cannot traverse in gets no permission
+        // error, it gets Directory.Exists == false — which discovery reads as a producer that has
+        // recorded nothing. Nothing on the host distinguishes the two.
+        string dir = Segments("kgsm-api");
+        File.SetUnixFileMode(
+            Path.GetDirectoryName(dir)!,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);          // 0700
+
+        string? problem = JournalAccess.DescribeUnreachable(dir);
+
+        Assert.NotNull(problem);
+        Assert.Contains("recorded nothing", problem);
+    }
+
+    [Fact]
+    public void Reachability_SaysNothingAboutADirectoryItCannotSee()
+    {
+        // A mode this process cannot read is not evidence of a bad one, and warning about a correctly
+        // configured host is its own kind of wrong.
+        Assert.Null(JournalAccess.DescribeUnreachable(Path.Combine(_root, "absent", "events")));
+        Assert.Null(JournalAccess.DescribeUnreachable(null));
+    }
+
     // ── Retention ───────────────────────────────────────────────────────────────────────
 
     [Fact]

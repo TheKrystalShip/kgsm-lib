@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — a journal no other account can reach says so (`Journal` 1.5.0, `Lib` 4.32.0)
+
+`JournalAccess.DescribeUnreachable` checks whether a producer's **state directory** grants its group
+access, and the writer reports it at construction. A directory cannot be entered without execute on
+every directory above it, so a state directory closed to the group makes the journal inside it
+unreachable however permissive the journal's own mode is.
+
+⚠ **The result is silence, not an error.** A reader that cannot traverse in does not get a permission
+failure it can report — `Directory.Exists` answers false, so discovery concludes the producer has no
+journal, which is indistinguishable from a leaf that has recorded nothing. Nothing on the host tells
+them apart, which is why the check runs where it does: the producer is the only party in a position
+to notice.
+
+Only the **group** bit is examined, deliberately. The ecosystem's answer to cross-account reads is
+the shared `kgsm` group its units already name, not world access — a state directory holds more than
+the journal (an API's session store, an assistant's conversation history), so "make it world-readable"
+is not the remedy and is not suggested. `0750` and `0755`, the two modes every unit on this host
+declares, are both silent.
+
 ### Added — a producer prunes the journal it owns (`Journal` 1.4.0, `Lib` 4.31.0)
 
 `JournalRetention.Prune` removes segments past `EventJournalWriterOptions.RetentionDays`, defaulting

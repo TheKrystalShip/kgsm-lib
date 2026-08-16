@@ -77,6 +77,12 @@ public sealed class EventJournalWriter : IEventJournalWriter
 
         EnsureDirectory();
 
+        // Reported after the directory exists, because the mode is a property of the directory rather
+        // than of the configuration — a producer can be configured perfectly and still be writing
+        // somewhere no other account can enter.
+        if (JournalAccess.DescribeUnreachable(_directory) is { } unreachable)
+            _logger.LogWarning("Event journal may be unreadable: {Problem}", unreachable);
+
         // Startup is one of the two moments this producer prunes, and the only one a short-lived
         // process ever reaches: a socket-activated authority may exist for the length of one request,
         // so a timer would never fire and a "prune every N hours" loop has nothing to run in.
