@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed — a leaf that exits could report a fault and never clear it (`Journal` 1.8.0)
+### Fixed — a leaf that exits could report a fault and never clear it (`Journal` 1.8.0, `Lib` 4.35.0)
 
 ⚠ **Measured on the speech leaf.** It reported a model it could not load, exited when idle, woke with
 the model fixed, and wrote **no recovery** — because the fresh process had never seen the fault. A
