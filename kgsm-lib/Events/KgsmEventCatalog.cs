@@ -1,3 +1,5 @@
+using TheKrystalShip.KGSM.Lifecycle;
+
 namespace TheKrystalShip.KGSM.Events;
 
 /// <summary>
@@ -257,6 +259,26 @@ public static class KgsmEventCatalog
             Service<ServiceRestartedEventData>("service_restarted", EventOutcome.Neutral,
                 [Leaf, DisplayName, Field("Unit", FieldShape.Text), Ok]),
 
+            // -- what a leaf says about ITSELF --------------------------------------------------
+            // Same subject as the four above and the opposite direction: those record what kgsm-api
+            // did to a leaf on somebody's instruction, these are the leaf's own report. ⚠ None of
+            // them names a leaf, because the journal a line was read from already does — see
+            // LeafLifecycleEventData.
+            LeafEvent<LeafReadyEventData>(LeafLifecycleEvents.Ready, EventOutcome.Success,
+                [StartupMs, Detail]),
+
+            LeafEvent<LeafDegradedEventData>(LeafLifecycleEvents.Degraded, EventOutcome.Failure,
+                [Component, Detail]),
+
+            LeafEvent<LeafRecoveredEventData>(LeafLifecycleEvents.Recovered, EventOutcome.Success,
+                [Component, DegradedForSec]),
+
+            // Neutral, not Failure: a leaf saying it is going away on purpose is the fact that
+            // separates a deploy from an outage, and reporting it as a failure would lose exactly the
+            // distinction it exists to make.
+            LeafEvent<LeafStoppingEventData>(LeafLifecycleEvents.Stopping, EventOutcome.Neutral,
+                [Reason, UptimeSec]),
+
             // -- panel actions on an instance --------------------------------------------------
             // Instance-subject because that is what they are about, even though the Control Panel and
             // not the engine performed them. ⚠ Both carry an identity of the bytes and never the bytes:
@@ -319,6 +341,19 @@ public static class KgsmEventCatalog
         where TData : ServiceEventData =>
         new(type, EventSubject.Service, EventWeight.Fact, outcome, fields, typeof(TData), Known: true);
 
+    /// <summary>
+    /// A descriptor for a leaf's report about itself.
+    /// </summary>
+    /// <remarks>
+    /// The same subject as <see cref="Service{TData}"/> — it is still an event about a leaf service —
+    /// with the payload constraint that keeps the two apart. A self-reported event must not carry a
+    /// leaf id, and <see cref="ServiceEventData"/> requires one.
+    /// </remarks>
+    private static EventDescriptor LeafEvent<TData>(
+        string type, EventOutcome outcome, IReadOnlyList<EventField> fields)
+        where TData : LeafLifecycleEventData =>
+        new(type, EventSubject.Service, EventWeight.Fact, outcome, fields, typeof(TData), Known: true);
+
     private static EventField Field(
         string name, FieldShape shape, FieldSensitivity sensitivity = FieldSensitivity.Public) =>
         new(name, sensitivity, shape);
@@ -334,6 +369,19 @@ public static class KgsmEventCatalog
     private static readonly EventField Tier = Field("Tier", FieldShape.Text);
     private static readonly EventField Runtime = Field("Runtime", FieldShape.Text);
     private static readonly EventField OverridesSystem = Field("OverridesSystem", FieldShape.Text);
+
+    /// <summary>
+    /// The fields a leaf's own lifecycle events carry, named from the emitter's constants rather than
+    /// from a string here. Three descriptions of one field — what the leaf writes, what the payload
+    /// class binds to, and what this classifies — are only ever the same field if they are the same
+    /// string.
+    /// </summary>
+    private static readonly EventField StartupMs = Field(LeafLifecycleFields.StartupMs, FieldShape.Number);
+    private static readonly EventField Detail = Field(LeafLifecycleFields.Detail, FieldShape.Text);
+    private static readonly EventField Component = Field(LeafLifecycleFields.Component, FieldShape.Text);
+    private static readonly EventField DegradedForSec = Field(LeafLifecycleFields.DegradedForSec, FieldShape.Number);
+    private static readonly EventField Reason = Field(LeafLifecycleFields.Reason, FieldShape.Text);
+    private static readonly EventField UptimeSec = Field(LeafLifecycleFields.UptimeSec, FieldShape.Number);
 
     /// <summary>
     /// The name and id a game shows other players in its own scoreboard. Public because that is what

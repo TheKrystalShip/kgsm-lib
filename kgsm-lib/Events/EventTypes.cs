@@ -1287,6 +1287,103 @@ public class ServiceRestartedEventData : ServiceEventData
 }
 
 /// <summary>
+/// Base for an event a leaf writes about <b>its own</b> state.
+/// </summary>
+/// <remarks>
+/// <para>
+/// ⚠ <b>Separate from <see cref="ServiceEventData"/>, and carrying no leaf id.</b> Those events are
+/// kgsm-api recording what was done <em>to</em> a leaf, so they must name which one; these are a leaf
+/// reporting on itself, and which leaf that is comes from the journal the line was read out of. A
+/// <c>Leaf</c> property here would be a second answer able to disagree with the first — the reader
+/// already establishes the producer and can check it, where a field inside the payload is a claim it
+/// cannot.
+/// </para>
+/// <para>
+/// There is no version property either, for the same reason: the envelope's <c>ProducerVersion</c>
+/// already carries the build on every line.
+/// </para>
+/// </remarks>
+public abstract class LeafLifecycleEventData : KgsmEventDataBase;
+
+/// <summary>
+/// Data for <c>leaf_ready</c> — a leaf reports it can do its job.
+/// </summary>
+public class LeafReadyEventData : LeafLifecycleEventData
+{
+    /// <summary>
+    /// Gets or sets how long the leaf took to become able, in milliseconds from process start.
+    /// </summary>
+    /// <remarks><see langword="null"/> when the process start could not be read — never estimated.</remarks>
+    [JsonPropertyName(Lifecycle.LeafLifecycleFields.StartupMs)]
+    public long? StartupMs { get; set; }
+
+    /// <summary>Gets or sets what the leaf came up as, when it has something to say about it.</summary>
+    [JsonPropertyName(Lifecycle.LeafLifecycleFields.Detail)]
+    public string? Detail { get; set; }
+}
+
+/// <summary>
+/// Data for <c>leaf_degraded</c> — a leaf is up, and one part of its job is not working.
+/// </summary>
+public class LeafDegradedEventData : LeafLifecycleEventData
+{
+    /// <summary>
+    /// Gets or sets which part of the leaf's job stopped working.
+    /// </summary>
+    /// <remarks>
+    /// The field that makes the event actionable, and the reason degradation is not a boolean: a leaf
+    /// can be broken in two ways at once and recover from one of them.
+    /// </remarks>
+    [JsonPropertyName(Lifecycle.LeafLifecycleFields.Component)]
+    public string Component { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets what is wrong, in a sentence somebody can act on.</summary>
+    [JsonPropertyName(Lifecycle.LeafLifecycleFields.Detail)]
+    public string? Detail { get; set; }
+}
+
+/// <summary>
+/// Data for <c>leaf_recovered</c> — a part that was not working is working again.
+/// </summary>
+public class LeafRecoveredEventData : LeafLifecycleEventData
+{
+    /// <summary>Gets or sets the component named when it was reported degraded.</summary>
+    [JsonPropertyName(Lifecycle.LeafLifecycleFields.Component)]
+    public string Component { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets how long that component was broken, in seconds.</summary>
+    [JsonPropertyName(Lifecycle.LeafLifecycleFields.DegradedForSec)]
+    public long? DegradedForSec { get; set; }
+}
+
+/// <summary>
+/// Data for <c>leaf_stopping</c> — a leaf is going away deliberately.
+/// </summary>
+/// <remarks>
+/// ⚠ There is no <c>leaf_stopped</c> counterpart. The last thing a process can write is that it is
+/// stopping; a <c>leaf_ready</c> with no <c>leaf_stopping</c> before it is how an unclean exit is
+/// established, and the journal is already the record that says so.
+/// </remarks>
+public class LeafStoppingEventData : LeafLifecycleEventData
+{
+    /// <summary>
+    /// Gets or sets why the leaf is stopping (<c>signal</c>, <c>idle</c>, <c>reload</c>).
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Load-bearing. <c>idle</c> is a socket-activated leaf's resting state rather than a fault, and
+    /// <c>reload</c> is a leaf replacing itself in place without restarting what it supervises. A
+    /// consumer that reports a leaf going away has to read this before it does.
+    /// </remarks>
+    [JsonPropertyName(Lifecycle.LeafLifecycleFields.Reason)]
+    public string Reason { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets how long the leaf ran, in seconds.</summary>
+    /// <remarks><see langword="null"/> when the process start could not be read — never estimated.</remarks>
+    [JsonPropertyName(Lifecycle.LeafLifecycleFields.UptimeSec)]
+    public long? UptimeSec { get; set; }
+}
+
+/// <summary>
 /// Data for <c>file_written</c> — an instance's file was edited through the Control Panel's file
 /// browser.
 /// </summary>

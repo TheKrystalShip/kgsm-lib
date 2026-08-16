@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — a leaf reports its own state changes (`Journal` 1.7.0, `Lib` 4.34.0)
+
+`TheKrystalShip.KGSM.Lifecycle` gives every leaf one way to say four things about itself:
+`leaf_ready`, `leaf_degraded`, `leaf_recovered`, `leaf_stopping`. Nothing emits them yet.
+
+**`LeafLifecycle` reports transitions, not states.** A leaf calls `MarkDegraded` from its polling loop
+every tick and gets one line, because the change is decided from what this object has already reported
+rather than from what the caller believes. A component already degraded is a no-op ⚠ *even when the
+detail differs* — a backend returning a different error string on each retry would otherwise turn one
+outage into a stream. `MarkRecovered` for something that never broke writes nothing at all.
+
+**The leaf writes no field names.** The payload is composed inside the emitter, so these four events
+have exactly one writer however many leaves emit them, and the names live in `LeafLifecycleFields`
+which the reader's payload classes bind to by `JsonPropertyName`. The equivalent drift is live
+elsewhere in this ecosystem — a producer spelling payload names in its own repo against a reader class
+in another, bound by nothing but case-insensitive matching — and it is what these events would have
+multiplied by seven emitting repositories.
+
+`Degraded` is a **component**, not a boolean: a leaf can be broken in two ways at once and recover from
+one, and "the assistant's LLM backend is unreachable" is actionable where "the assistant is degraded"
+is not. ⚠ Keep the component set bounded — one built from a guild or a mount grows without limit.
+
+Two things the design deliberately refuses:
+
+- ⚠ **There is no `leaf_stopped`.** The last thing a process can write is that it is stopping; whether
+  it then stopped is not something it is around to say. A `leaf_ready` with no `leaf_stopping` before
+  it *is* an unclean exit, and the journal is already the record that says so.
+- ⚠ **No payload names a leaf, and none carries a version.** The producer comes from the journal a line
+  was read out of, which a reader can check, and `ProducerVersion` is already on every line. A copy in
+  the payload would be a second answer able to disagree — which is why these do not derive from
+  `ServiceEventData`, whose `Leaf` id is required and correct for kgsm-api's `service_*` events about
+  *other* leaves.
+
+`LeafStopReason.Idle` and `.Reload` are load-bearing on the consumer side: a socket-activated leaf
+idling out is its resting state, and the watchdog's hot-swap keeps every supervised game running.
+Neither is an outage, and both look like one without the reason.
+
 ### Added — one check reads every journal on a host and compares them (`Journal` 1.6.0, `Lib` 4.33.0)
 
 `TheKrystalShip.KGSM.Conformance` reads what producers actually wrote and reports where it does not

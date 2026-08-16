@@ -167,6 +167,33 @@ Three things to know before changing it:
 `EventJournalWriter.TimestampFormat` and `SchemaVersion` are the constants the writer produces and the
 check verifies. One definition each — a second copy is a second thing to bump.
 
+### 4·a·ii. A leaf reporting on itself: `LeafLifecycle`
+
+`TheKrystalShip.KGSM.Lifecycle` (in the `journal/` package, so a leaf that cannot take kgsm-lib still
+gets it) is how a leaf says `leaf_ready`, `leaf_degraded`, `leaf_recovered`, `leaf_stopping`.
+
+**It reports transitions, not states.** A leaf calls these from a polling loop without tracking what it
+has already said; the emitter decides what changed. So most of its value is in what it declines to
+write, and that is the part to preserve when changing it.
+
+- ⚠ **`MarkReady` takes the leaf's own readiness signal, never the host's.** `ApplicationStarted` fires
+  once every hosted service has started — before a supervisor has joined its slice, before a gateway
+  has connected, before a sampler has a frame. Wiring it to the host lifecycle would report every leaf
+  ready before it was, which is why there is no shared hosted-service adapter and no
+  `Microsoft.Extensions.Hosting` dependency.
+- ⚠ **A component already degraded is a no-op even when the detail differs.** Deliberate: a backend
+  returning a different error string on each retry would otherwise turn one outage into a stream.
+- ⚠ **Keep the component set bounded.** A component id built from a guild, a mount or an instance makes
+  the dedup dictionary grow without limit. Name the class of thing; put the offenders in `Detail`.
+- **The leaf writes no field names.** The payload is composed inside the emitter, so these events have
+  one writer however many leaves emit them. Names live in `LeafLifecycleFields`; the payload classes
+  bind to those constants by `JsonPropertyName`, and `LeafLifecycleContractTests` checks the binding
+  against what an emitter actually wrote rather than against a list.
+- ⚠ **No payload names a leaf or carries a version.** The producer comes from the journal the line was
+  read out of, and `ProducerVersion` is on every envelope. That is why these do not derive from
+  `ServiceEventData` — its `Leaf` id is required, and correct, for kgsm-api's `service_*` events about
+  *other* leaves, which are the opposite direction from these.
+
 ### 4·b. What an event *is*: `KgsmEventCatalog`
 
 **`KgsmEventCatalog` is the one registry of what the engine emits.** For each event it holds the
