@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documented — a self-re-execing leaf must supply its own start (`Journal` 1.7.1)
+
+⚠ `LeafLifecycle` reads the process start from the OS by default, and an `execve` keeps the process id
+— so a leaf that replaces its own image goes on being told when the *original* process began. Measured
+on the watchdog's first hot-swap: a `StartupMs` of four hours. Not fabricated, and still the wrong
+clock. The `startedAt` parameter is how such a leaf passes a moment captured at the top of its entry
+point, which is also correct for a cold start.
+
 ### Added — a leaf reports its own state changes (`Journal` 1.7.0, `Lib` 4.34.0)
 
 `TheKrystalShip.KGSM.Lifecycle` gives every leaf one way to say four things about itself:

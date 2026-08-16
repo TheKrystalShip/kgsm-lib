@@ -62,6 +62,13 @@ public sealed class LeafLifecycle : JournalRecorder
     /// When the process started, read once. Null reads it from the OS. A source that answers null is
     /// the case where the OS would not say, and every duration is then omitted rather than estimated —
     /// so it is expressible rather than only reachable by the read failing.
+    /// <para>
+    /// ⚠ <b>A leaf that replaces its own image must pass one.</b> An <c>execve</c> keeps the process
+    /// id, so the OS goes on reporting the original start: a hot-swap of a daemon that had been up
+    /// four hours reported a four-hour startup time. That is measured, not fabricated, and it is still
+    /// the wrong clock. Capture a moment at the top of the entry point and pass it — correct for a
+    /// cold start too, where it differs from the process start only by runtime init.
+    /// </para>
     /// </param>
     /// <exception cref="ArgumentNullException">Thrown when the writer or logger is null.</exception>
     public LeafLifecycle(
