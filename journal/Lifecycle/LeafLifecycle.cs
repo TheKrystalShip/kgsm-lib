@@ -70,16 +70,37 @@ public sealed class LeafLifecycle : JournalRecorder
     /// cold start too, where it differs from the process start only by runtime init.
     /// </para>
     /// </param>
+    /// <param name="degraded">
+    /// What this producer already reported broken and has not reported fixed, so a transition can be
+    /// measured against something this process did not itself observe.
+    /// <para>
+    /// ⚠ <b>A leaf that exits between observations needs this.</b> Measured on the speech leaf: it
+    /// reported a model it could not load, exited when idle, woke with the model fixed, and wrote no
+    /// recovery — because the fresh process had never seen the fault. Seed it with
+    /// <see cref="LeafState.DegradedComponentsFor"/> and both directions work across a restart. A
+    /// resident leaf needs nothing here: its <c>leaf_ready</c> is the clean slate.
+    /// </para>
+    /// </param>
     /// <exception cref="ArgumentNullException">Thrown when the writer or logger is null.</exception>
     public LeafLifecycle(
         IEventJournalWriter writer,
         ILogger<LeafLifecycle> logger,
         Func<DateTimeOffset>? clock = null,
-        Func<DateTimeOffset?>? startedAt = null)
+        Func<DateTimeOffset?>? startedAt = null,
+        IEnumerable<string>? degraded = null)
         : base(writer, logger)
     {
         _clock = clock ?? (static () => DateTimeOffset.UtcNow);
         _startedAt = (startedAt ?? ProcessStart)();
+
+        // Seeded with the moment this process began rather than when the fault was first seen: how
+        // long a component was broken is only knowable by whoever watched it break, and a duration
+        // measured from a restart would understate every one that outlived a process.
+        foreach (string component in degraded ?? [])
+        {
+            if (!string.IsNullOrWhiteSpace(component))
+                _degradedSince[component] = _startedAt ?? _clock();
+        }
     }
 
     /// <summary>Whether this leaf has reported itself ready.</summary>

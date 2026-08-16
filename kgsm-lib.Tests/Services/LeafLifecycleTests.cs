@@ -211,6 +211,58 @@ public sealed class LeafLifecycleTests : IDisposable
             Lines().Select(TypeOf).ToArray());
     }
 
+    // ── state carried across a restart ───────────────────────────────────────────────────────────
+
+    [Fact]
+    public void A_leaf_that_wakes_healthy_after_reporting_a_fault_clears_it()
+    {
+        // ⚠ The defect this seed exists for, measured on the speech leaf: it reported a model it could
+        // not load, exited when idle, woke with the model fixed, and wrote no recovery — because the
+        // fresh process had never seen the fault. A journal that reports a fault and can never clear
+        // it is worse than one that reports neither.
+        LeafLifecycle woken = Build(degraded: ["hearing"]);
+
+        Assert.Equal(["hearing"], woken.DegradedComponents);
+        Assert.True(woken.MarkRecovered("hearing"));
+
+        Assert.Equal(LeafLifecycleEvents.Recovered, TypeOf(Assert.Single(Lines())));
+    }
+
+    [Fact]
+    public void A_leaf_that_wakes_still_broken_says_nothing()
+    {
+        // The other half, and why the seed is not simply "report the state every wake": a condition
+        // that has not changed is not a transition, however many processes observe it.
+        LeafLifecycle woken = Build(degraded: ["backend"]);
+
+        Assert.False(woken.MarkDegraded("backend", "still cannot apply"));
+        Assert.Empty(Lines());
+    }
+
+    [Fact]
+    public void A_seeded_fault_is_reported_recovered_only_once()
+    {
+        LeafLifecycle woken = Build(degraded: ["backend"]);
+
+        Assert.True(woken.MarkRecovered("backend"));
+        Assert.False(woken.MarkRecovered("backend"));
+
+        Assert.Single(Lines());
+    }
+
+    [Fact]
+    public void A_seeded_duration_is_measured_from_this_process_and_not_invented()
+    {
+        // How long a component was broken is only knowable by whoever watched it break. Measuring from
+        // the restart understates it, which is honest; inventing an earlier moment would not be.
+        LeafLifecycle woken = Build(StartedAgo(TimeSpan.FromMinutes(2)), degraded: ["backend"]);
+
+        woken.MarkRecovered("backend");
+
+        Assert.Equal(120, EventOf(Lines()[0], LeafLifecycleEvents.Recovered)
+            .GetProperty(LeafLifecycleFields.DegradedForSec).GetInt64());
+    }
+
     // ── stopping ─────────────────────────────────────────────────────────────────────────────────
 
     [Fact]
@@ -307,7 +359,8 @@ public sealed class LeafLifecycleTests : IDisposable
     /// When the process started. Defaults to the frozen clock's own moment; pass
     /// <see cref="StartUnknown"/> for the case where the OS would not say.
     /// </param>
-    private LeafLifecycle Build(Func<DateTimeOffset?>? startedAt = null)
+    private LeafLifecycle Build(
+        Func<DateTimeOffset?>? startedAt = null, IEnumerable<string>? degraded = null)
     {
         var options = new EventJournalWriterOptions
         {
@@ -325,7 +378,8 @@ public sealed class LeafLifecycleTests : IDisposable
             writer,
             NullLogger<LeafLifecycle>.Instance,
             () => _now,
-            startedAt ?? (() => _now));
+            startedAt ?? (() => _now),
+            degraded);
     }
 
     /// <summary>A process start the OS would not report.</summary>

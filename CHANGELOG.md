@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — a leaf that exits could report a fault and never clear it (`Journal` 1.8.0)
+
+⚠ **Measured on the speech leaf.** It reported a model it could not load, exited when idle, woke with
+the model fixed, and wrote **no recovery** — because the fresh process had never seen the fault. A
+journal that reports a fault and can never clear it is worse than one that reports neither.
+
+A process reports transitions from what it remembers, and a process that exits remembers nothing. The
+journal is already the record, so `LeafState.DegradedComponents` reads it back and `LeafLifecycle`
+takes it as a seed. Both directions then hold across a restart: a leaf that wakes healthy after
+reporting a fault clears it, and one that wakes still broken says nothing — which is also what keeps a
+socket-activated leaf from re-reporting the same condition on every wake.
+
+- **`leaf_ready` wipes the slate**, which is the line separating the two kinds of leaf. A resident one
+  writes it on every start, so everything before it described a run that has ended; a leaf that exits
+  when idle writes none, which is exactly why its faults carry.
+- **Only the newest segment is read.** A fault predating the segment boundary is not carried over —
+  the alternative is opening older files on every start of a leaf that may start dozens of times a
+  day, to recover a fault nothing has re-observed since midnight.
+- **An unreadable journal seeds nothing.** A state that cannot be read is not evidence of a fault, and
+  half a replay is worse than none: it would carry faults forward past the recovery that cleared them.
+- **The seeded duration is measured from this process**, not from an invented earlier moment. How long
+  a component was broken is only knowable by whoever watched it break; measuring from the restart
+  understates it, which is honest.
+
 ### Documented — a self-re-execing leaf must supply its own start (`Journal` 1.7.1)
 
 ⚠ `LeafLifecycle` reads the process start from the OS by default, and an `execve` keeps the process id
