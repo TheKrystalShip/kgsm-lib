@@ -139,6 +139,34 @@ An event with no timestamp is **dropped and logged**, never given a substitute �
 placed in a time-ordered history, and inventing a moment for it puts something that never
 happened into the audit trail.
 
+### 4·a·i. Checking that every producer writes the same envelope
+
+`TheKrystalShip.KGSM.Conformance` (in the `journal/` package, beside the writer that has to satisfy
+it) reads what producers actually wrote and reports where it does not match the contract. Thirteen
+rules, catalogued in `ConformanceRule`. It is **mechanism only** — no rule looks at an event type or a
+payload field, because what a producer records and when is its own business.
+
+`JournalConformance.CheckHost` takes journals as `(producer, directory)` pairs and checks them
+individually plus the one thing only comparison reveals: that every journal on a host names the same
+host. **It names no leaf.** `HostJournalConformanceTests` hands it the same `JournalDiscovery` scan
+every consumer uses, so a producer added later is covered the moment its journal exists.
+
+Three things to know before changing it:
+
+- **An old line is allowed to look old.** A line records what the build that wrote it produced, so a
+  journal's history holds shapes a current build would no longer write. A host check samples the
+  *newest* line per journal; the sample size is the caller's, which is why it is a parameter.
+- ⚠ **An empty scan fails.** A clean report over nothing is indistinguishable from a clean report over
+  a host. A machine that is not a KGSM host sets `KGSM_CONFORMANCE_SKIP_HOST`; anything else fails,
+  and `HostReport.Describe()` always states what it read.
+- **A rule needs a test on both sides.** `Every_rule_the_checker_can_report_is_one_this_suite_exercises`
+  fails when a rule is added without one, and the "does not fire" half is what keeps the check usable:
+  a bare `heisen` actor and an explicit `"Origin":null` are correct, and a rule that reported them
+  would be switched off within a day.
+
+`EventJournalWriter.TimestampFormat` and `SchemaVersion` are the constants the writer produces and the
+check verifies. One definition each — a second copy is a second thing to bump.
+
 ### 4·b. What an event *is*: `KgsmEventCatalog`
 
 **`KgsmEventCatalog` is the one registry of what the engine emits.** For each event it holds the

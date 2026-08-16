@@ -43,6 +43,17 @@ public sealed class EventJournalWriter : IEventJournalWriter
     /// <summary>The envelope schema version this writer produces.</summary>
     public const int SchemaVersion = 1;
 
+    /// <summary>
+    /// How a <c>Timestamp</c> is spelled: millisecond-precision UTC, <c>Z</c>-suffixed.
+    /// </summary>
+    /// <remarks>
+    /// Public and shared because a format is only a format if the thing that writes it and the thing
+    /// that checks it hold the same string. The <c>Z</c> is quoted so the one constant both formats
+    /// and round-trips through <c>TryParseExact</c> — unquoted it is a literal to the formatter and a
+    /// surprise to the parser.
+    /// </remarks>
+    public const string TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fff'Z'";
+
     private readonly EventJournalWriterOptions _options;
     private readonly string _directory;
     private readonly ILogger<EventJournalWriter> _logger;
@@ -255,7 +266,7 @@ public sealed class EventJournalWriter : IEventJournalWriter
 
             writer.WriteString(
                 "Timestamp",
-                now.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", CultureInfo.InvariantCulture));
+                now.UtcDateTime.ToString(TimestampFormat, CultureInfo.InvariantCulture));
 
             // Absent means null to every reader, so an unknown actor or origin is left out rather
             // than written as an explicit null — and never filled in with a plausible substitute.

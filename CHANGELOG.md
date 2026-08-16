@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — one check reads every journal on a host and compares them (`Journal` 1.6.0, `Lib` 4.33.0)
+
+`TheKrystalShip.KGSM.Conformance` reads what producers actually wrote and reports where it does not
+match the envelope contract: thirteen rules over schema version, event-type spelling, payload shape,
+timestamp precision, absent-spelling, actor, producer-version shape, unknown fields, journal
+attribution, segment naming, readability, and the one that only exists across producers — that every
+journal on a host names the same host.
+
+**Producer-agnostic by construction.** Nothing in it knows which components exist; it is handed
+journals and checks whatever it is handed. `HostJournalConformanceTests` hands it the same scan every
+consumer uses, so a producer added later is covered the moment its journal exists, without anybody
+remembering to cover it.
+
+**Mechanism, never policy.** No rule looks at an event type or a payload field. What a producer
+records, and when, stays its own business.
+
+Two properties the check is careful about, because both are ways of measuring nothing and calling it
+a pass:
+
+- **An old line is allowed to look old.** A line records what the build that wrote it produced, so a
+  journal's history legitimately holds shapes a current build would no longer write. A host check
+  samples the newest lines — what the deployed builds are writing now — and the sample size is the
+  caller's.
+- ⚠ **An empty scan fails.** A clean report over nothing looks exactly like a clean report over a
+  host. A machine that is not a KGSM host sets `KGSM_CONFORMANCE_SKIP_HOST`; anything else fails
+  rather than passing silently, and every report carries what it read (`kgsm-monitor(1)`) whether or
+  not it found anything wrong.
+
+`EventJournalWriter.TimestampFormat` is now a shared constant the writer formats with and the check
+parses against, so the two cannot drift.
+
 ### Added — a journal no other account can reach says so (`Journal` 1.5.0, `Lib` 4.32.0)
 
 `JournalAccess.DescribeUnreachable` checks whether a producer's **state directory** grants its group
