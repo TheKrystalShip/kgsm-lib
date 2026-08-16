@@ -1384,6 +1384,138 @@ public class LeafStoppingEventData : LeafLifecycleEventData
 }
 
 /// <summary>
+/// The base for what the assistant reports about its own conduct.
+/// </summary>
+/// <remarks>
+/// <see cref="KgsmEventDataBase"/> rather than <see cref="ServiceEventData"/>, for the same reason
+/// <see cref="LeafLifecycleEventData"/> is: <b>no payload names the producer</b>. The journal
+/// directory a line was read from already answers that, and a field inside the payload would be a
+/// claim a reader cannot check — able, therefore, to disagree.
+/// </remarks>
+public abstract class AssistantEventData : KgsmEventDataBase;
+
+/// <summary>
+/// Data for <c>assistant_claim_corrected</c> — a reply described work the turn never did.
+/// </summary>
+/// <remarks>
+/// ⚠ <b>Never carries the prompt or the reply.</b> The journal is readable by anything on the host
+/// that can open the directory; a transcript belongs to the person who spoke it. What is here is
+/// enough to count these and to find the conversation, and nothing more.
+/// </remarks>
+public class AssistantClaimCorrectedEventData : AssistantEventData
+{
+    /// <summary>Gets or sets which check found it (<c>unbacked_action</c>, <c>unsearched_web</c>).</summary>
+    [JsonPropertyName(AssistantEventFields.Check)]
+    public string Check { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets what was done about it (<c>re_prompted</c>, <c>corrected</c>).</summary>
+    [JsonPropertyName(AssistantEventFields.Resolution)]
+    public string Resolution { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets which net caught it (<c>review</c>, <c>outer</c>).</summary>
+    [JsonPropertyName(AssistantEventFields.Net)]
+    public string Net { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the conversation it happened in.</summary>
+    /// <remarks>
+    /// Carried for correlation only. The key embeds the account it belongs to, which is why the
+    /// catalog classifies it as identifying a person rather than as a bare token.
+    /// </remarks>
+    [JsonPropertyName(AssistantEventFields.ConversationId)]
+    public string? ConversationId { get; set; }
+}
+
+/// <summary>
+/// Data for <c>assistant_action_declined</c> — somebody reached past their tier.
+/// </summary>
+public class AssistantActionDeclinedEventData : AssistantEventData
+{
+    /// <summary>Gets or sets the tool that was refused.</summary>
+    [JsonPropertyName(AssistantEventFields.Tool)]
+    public string Tool { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets why (<c>authority</c>, <c>actions_disabled</c>).</summary>
+    [JsonPropertyName(AssistantEventFields.DeclineReason)]
+    public string DeclineReason { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the tier the caller actually holds.</summary>
+    [JsonPropertyName("Tier")]
+    public string? Tier { get; set; }
+
+    /// <summary>Gets or sets the instance the action would have touched, when it named one.</summary>
+    [JsonPropertyName(AssistantEventFields.Instance)]
+    public string? Instance { get; set; }
+}
+
+/// <summary>
+/// Data for <c>assistant_action_proposed</c> — a mutation is staged and waiting on a person.
+/// </summary>
+/// <remarks>
+/// ⚠ Carries no handle. The handle <b>is</b> the capability that redeems the action, and a journal is
+/// not where a capability goes.
+/// </remarks>
+public class AssistantActionProposedEventData : AssistantEventData
+{
+    /// <summary>Gets or sets what kind of action was staged.</summary>
+    /// <remarks>
+    /// ⚠ The name, never the ordinal. Retired members leave gaps in that enum, so an ordinal written
+    /// today reads as a different action after the next one is removed.
+    /// </remarks>
+    [JsonPropertyName(AssistantEventFields.Kind)]
+    public string Kind { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the tool that staged it.</summary>
+    [JsonPropertyName(AssistantEventFields.Tool)]
+    public string? Tool { get; set; }
+
+    /// <summary>Gets or sets the instance it would act on, when it names one.</summary>
+    [JsonPropertyName(AssistantEventFields.Instance)]
+    public string? Instance { get; set; }
+
+    /// <summary>Gets or sets how long it stays redeemable, in seconds.</summary>
+    [JsonPropertyName(AssistantEventFields.ExpiresInSec)]
+    public long? ExpiresInSec { get; set; }
+}
+
+/// <summary>
+/// Data for <c>assistant_blueprint_authoring_started</c> — an authoring run began.
+/// </summary>
+/// <remarks>
+/// The opening bracket around an ordinary install and uninstall the engine records in full. The probe
+/// name is the correlation key: it is what the engine's own rows name, and knowing it is what lets a
+/// consumer fold twenty-odd of them into one run instead of reading them as a server somebody made.
+/// </remarks>
+public class AssistantBlueprintAuthoringStartedEventData : BlueprintEventDataBase
+{
+    /// <summary>Gets or sets the disposable instance the run installs to test its draft.</summary>
+    [JsonPropertyName(AssistantEventFields.Probe)]
+    public string Probe { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Data for <c>assistant_blueprint_authored</c> — an authoring run concluded.
+/// </summary>
+/// <remarks>
+/// The one record of how it ended. On success the engine also emits <c>blueprint_created</c>, which
+/// reports a <em>file</em> appearing; this reports a <em>run</em> concluding, and on failure it is the
+/// only event either way.
+/// </remarks>
+public class AssistantBlueprintAuthoredEventData : BlueprintEventDataBase
+{
+    /// <summary>Gets or sets the disposable instance the run tested with.</summary>
+    [JsonPropertyName(AssistantEventFields.Probe)]
+    public string Probe { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets how it ended (<c>verified</c>, <c>draft_ready</c>, <c>failed</c>).</summary>
+    [JsonPropertyName(AssistantEventFields.AuthoringOutcome)]
+    public string AuthoringOutcome { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets how long the run took, in seconds.</summary>
+    [JsonPropertyName(AssistantEventFields.DurationSec)]
+    public long? DurationSec { get; set; }
+}
+
+/// <summary>
 /// Data for <c>file_written</c> — an instance's file was edited through the Control Panel's file
 /// browser.
 /// </summary>

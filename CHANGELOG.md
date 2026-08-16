@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — the assistant's own event contract (`Lib` 4.36.0)
+
+The read half of what the assistant leaf reports about its own conduct: five event types, their
+payload classes, their catalog descriptors and their `KgsmJsonContext` registrations.
+
+**Deliberately not a log of what the assistant did.** Every mutation it performs runs through this
+library with provenance attached, so the engine's journal already records it, attributed to the person
+who asked — 98 such events on the reference host. A copy here would be a second answer able to
+disagree. What these record is the opposite: **the turn that did not act**, which leaves the engine's
+record empty because from its side nothing occurred.
+
+- `assistant_claim_corrected` — a reply described an action the turn never took, or a lookup it never
+  made. The only measurement of the deployed model's fabrication rate on real prompts; the benchmark
+  scores the same checks against a fixed corpus, which is a different question.
+- `assistant_action_declined` — somebody reached past their tier. ⚠ Authorization only: the
+  blast-radius refusals are loop guards firing on ordinary model over-eagerness.
+- `assistant_action_proposed` — a mutation is staged and waiting on a person. ⚠ Carries no handle; the
+  handle is the capability that redeems the action.
+- `assistant_blueprint_authoring_started` / `assistant_blueprint_authored` — brackets around a run
+  whose probe install and uninstall the engine records in full, plus the outcome, which on a failed run
+  is the only event either way.
+
+⚠ **`AssistantEventContractTests` covers what the catalog's own drift tests cannot.** Those compare a
+descriptor's fields against the payload's *C# property names* — the right question for classification
+and the wrong one for binding. A property whose `[JsonPropertyName]` drifts from the shared constant
+keeps its C# name, stays classified, and silently reads back as its default. The new test binds a
+document written from the catalog's names and compares against a **fresh instance** rather than
+`default(T)`, because a string initialised to `string.Empty` is not null when it fails to bind.
+
+
 ### Fixed — a leaf that exits could report a fault and never clear it (`Journal` 1.8.0, `Lib` 4.35.0)
 
 ⚠ **Measured on the speech leaf.** It reported a model it could not load, exited when idle, woke with

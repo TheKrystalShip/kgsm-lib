@@ -279,6 +279,33 @@ public static class KgsmEventCatalog
             LeafEvent<LeafStoppingEventData>(LeafLifecycleEvents.Stopping, EventOutcome.Neutral,
                 [Reason, UptimeSec]),
 
+            // -- what the assistant says about its own conduct ----------------------------------
+            // Service-subject: none of them is an event about a game server, because on every one of
+            // them nothing happened to a server. Filing a refusal or an unapproved proposal under the
+            // instance it names would say the opposite of what it records.
+            AssistantEvent<AssistantClaimCorrectedEventData>(
+                AssistantEvents.ClaimCorrected, EventOutcome.Failure,
+                [Check, Resolution, Net, ConversationId]),
+
+            AssistantEvent<AssistantActionDeclinedEventData>(
+                AssistantEvents.ActionDeclined, EventOutcome.Failure,
+                [Tool, DeclineReason, Tier, ActionInstance]),
+
+            // Neutral: a proposal is the assistant doing exactly what it is meant to — stopping to ask.
+            AssistantEvent<AssistantActionProposedEventData>(
+                AssistantEvents.ActionProposed, EventOutcome.Neutral,
+                [Kind, Tool, ActionInstance, ExpiresInSec]),
+
+            // Blueprint-subject, and the only pair here that brackets rather than reports: the engine
+            // records the probe install and uninstall in full, and these say the rows belong together.
+            new(AssistantEvents.BlueprintAuthoringStarted, EventSubject.Blueprint, EventWeight.Phase,
+                EventOutcome.Neutral, [Probe],
+                typeof(AssistantBlueprintAuthoringStartedEventData), Known: true),
+
+            new(AssistantEvents.BlueprintAuthored, EventSubject.Blueprint, EventWeight.Fact,
+                EventOutcome.Neutral, [Probe, AuthoringOutcome, DurationSec],
+                typeof(AssistantBlueprintAuthoredEventData), Known: true),
+
             // -- panel actions on an instance --------------------------------------------------
             // Instance-subject because that is what they are about, even though the Control Panel and
             // not the engine performed them. ⚠ Both carry an identity of the bytes and never the bytes:
@@ -354,6 +381,18 @@ public static class KgsmEventCatalog
         where TData : LeafLifecycleEventData =>
         new(type, EventSubject.Service, EventWeight.Fact, outcome, fields, typeof(TData), Known: true);
 
+    /// <summary>
+    /// A descriptor for the assistant's report about its own conduct.
+    /// </summary>
+    /// <remarks>
+    /// Service-subject, and constrained to a payload that cannot name a leaf, for the same reason
+    /// <see cref="LeafEvent{TData}"/> is: the journal directory already says who produced it.
+    /// </remarks>
+    private static EventDescriptor AssistantEvent<TData>(
+        string type, EventOutcome outcome, IReadOnlyList<EventField> fields)
+        where TData : AssistantEventData =>
+        new(type, EventSubject.Service, EventWeight.Fact, outcome, fields, typeof(TData), Known: true);
+
     private static EventField Field(
         string name, FieldShape shape, FieldSensitivity sensitivity = FieldSensitivity.Public) =>
         new(name, sensitivity, shape);
@@ -382,6 +421,32 @@ public static class KgsmEventCatalog
     private static readonly EventField DegradedForSec = Field(LeafLifecycleFields.DegradedForSec, FieldShape.Number);
     private static readonly EventField Reason = Field(LeafLifecycleFields.Reason, FieldShape.Text);
     private static readonly EventField UptimeSec = Field(LeafLifecycleFields.UptimeSec, FieldShape.Number);
+
+    /// <summary>
+    /// The fields the assistant's own events carry, named from the contract's constants for the same
+    /// reason the lifecycle ones are — three descriptions of one field are only the same field if they
+    /// are the same string.
+    /// </summary>
+    private static readonly EventField Check = Field(AssistantEventFields.Check, FieldShape.Text);
+    private static readonly EventField Resolution = Field(AssistantEventFields.Resolution, FieldShape.Text);
+    private static readonly EventField Net = Field(AssistantEventFields.Net, FieldShape.Text);
+    private static readonly EventField Tool = Field(AssistantEventFields.Tool, FieldShape.Text);
+    private static readonly EventField DeclineReason = Field(AssistantEventFields.DeclineReason, FieldShape.Text);
+    private static readonly EventField ActionInstance = Field(AssistantEventFields.Instance, FieldShape.Text);
+    private static readonly EventField Kind = Field(AssistantEventFields.Kind, FieldShape.Text);
+    private static readonly EventField ExpiresInSec = Field(AssistantEventFields.ExpiresInSec, FieldShape.Number);
+    private static readonly EventField Probe = Field(AssistantEventFields.Probe, FieldShape.Text);
+    private static readonly EventField AuthoringOutcome =
+        Field(AssistantEventFields.AuthoringOutcome, FieldShape.Text);
+    private static readonly EventField DurationSec = Field(AssistantEventFields.DurationSec, FieldShape.Number);
+
+    /// <summary>
+    /// The conversation a claim was corrected in. <see cref="FieldShape.Opaque"/> because it means
+    /// nothing to a reader, and <see cref="FieldSensitivity.Personal"/> because the key embeds the
+    /// account it belongs to — it is a correlation token that happens to name somebody.
+    /// </summary>
+    private static readonly EventField ConversationId =
+        Field(AssistantEventFields.ConversationId, FieldShape.Opaque, FieldSensitivity.Personal);
 
     /// <summary>
     /// The name and id a game shows other players in its own scoreboard. Public because that is what
