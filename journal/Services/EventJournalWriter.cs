@@ -46,6 +46,8 @@ public sealed class EventJournalWriter : IEventJournalWriter
     private readonly EventJournalWriterOptions _options;
     private readonly string _directory;
     private readonly ILogger<EventJournalWriter> _logger;
+    private readonly Lock _segmentGate = new();
+    private string? _currentSegment;
 
     /// <summary>
     /// Initializes a writer for the producer named in <paramref name="options"/>.
@@ -74,6 +76,54 @@ public sealed class EventJournalWriter : IEventJournalWriter
             _logger.LogWarning("Event journal misconfigured: {Problem}", mismatch);
 
         EnsureDirectory();
+
+        // Startup is one of the two moments this producer prunes, and the only one a short-lived
+        // process ever reaches: a socket-activated authority may exist for the length of one request,
+        // so a timer would never fire and a "prune every N hours" loop has nothing to run in.
+        Prune();
+    }
+
+    /// <summary>
+    /// Removes segments past this producer's retention window.
+    /// </summary>
+    /// <remarks>
+    /// <b>Cadence comes from the data, not from a clock.</b> This runs at startup and again whenever
+    /// the segment date rolls over — which is exactly daily for a resident daemon, and is the smallest
+    /// unit retention can ever remove, since a segment is a day. So no timer is needed, and with it no
+    /// hosting stack: this package is consumed by a root-running firewall authority that builds no
+    /// container and by an AOT daemon that counts its megabytes.
+    /// <para>
+    /// ⚠ The one case this does not cover: a process that runs for longer than the window <em>and
+    /// records nothing in it</em> keeps segments it would otherwise drop. It is also, by construction,
+    /// a journal that is not growing — and the next restart prunes it.
+    /// </para>
+    /// </remarks>
+    private void Prune() => JournalRetention.Prune(
+        _directory, _options.RetentionDays, _options.Clock?.Invoke() ?? DateTimeOffset.UtcNow, _logger);
+
+    /// <summary>
+    /// Prunes when this append is the first to land in a new day's segment.
+    /// </summary>
+    /// <remarks>
+    /// The first write of a process only records which segment it is on; the startup prune has already
+    /// run, and pruning twice within a second of each other would be work for nothing. Guarded so the
+    /// scan happens once per day rather than once per event.
+    /// </remarks>
+    private void PruneIfSegmentRolled(string segment)
+    {
+        lock (_segmentGate)
+        {
+            if (string.Equals(_currentSegment, segment, StringComparison.Ordinal))
+                return;
+
+            bool rolled = _currentSegment is not null;
+            _currentSegment = segment;
+
+            if (!rolled)
+                return;
+        }
+
+        Prune();
     }
 
     /// <summary>
@@ -144,6 +194,8 @@ public sealed class EventJournalWriter : IEventJournalWriter
     {
         string segment = now.UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) + ".ndjson";
         string path = Path.Combine(_directory, segment);
+
+        PruneIfSegmentRolled(segment);
 
         try
         {

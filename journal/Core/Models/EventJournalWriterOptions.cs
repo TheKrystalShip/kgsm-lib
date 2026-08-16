@@ -1,4 +1,5 @@
 using TheKrystalShip.KGSM.Events;
+using TheKrystalShip.KGSM.Services;
 
 namespace TheKrystalShip.KGSM.Core.Models;
 
@@ -57,6 +58,24 @@ public sealed class EventJournalWriterOptions
     /// Gets or sets the clock, for tests. Null uses <see cref="DateTimeOffset.UtcNow"/>.
     /// </summary>
     public Func<DateTimeOffset>? Clock { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many days of this producer's own journal to keep.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A producer prunes the journal it owns and no other — the same rule that says it writes only
+    /// what it did. Nothing else can: a leaf's journal may be root-owned or live under a state
+    /// directory another service user cannot enter, so a central pruner would be a component reaching
+    /// into directories it has no business in, and would have to be granted the privilege to do it.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>Zero or negative keeps everything.</b> The explicit opt-out for a host whose audit trail is
+    /// retained elsewhere — and the reason it has to be explicit is that an unbounded journal is a disk
+    /// that fills, slowly, on a machine whose whole job is to keep running.
+    /// </para>
+    /// </remarks>
+    public int RetentionDays { get; set; } = JournalRetention.DefaultRetentionDays;
 
     /// <summary>
     /// Throws unless these options can be used, and fills <see cref="Directory"/> from

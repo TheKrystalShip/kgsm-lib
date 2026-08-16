@@ -335,6 +335,127 @@ public sealed class JournalConformanceTests : IDisposable
         Assert.DoesNotContain(discovery.Discover(), s => s.Producer == "kgsm-monitor");
     }
 
+    // ── Retention ───────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Retention_RemovesOnlySegmentsPastTheWindow()
+    {
+        string dir = Segments("kgsm-api", "2026-01-01", "2026-05-17", "2026-05-18", "2026-08-16");
+
+        // 90 days before 2026-08-16 is 2026-05-18, and a segment dated exactly on the boundary is
+        // kept: the window is "90 days of history", and rounding it inward returns one day less than
+        // the number an operator configured.
+        int removed = JournalRetention.Prune(dir, 90, At("2026-08-16"), NullLogger.Instance);
+
+        Assert.Equal(2, removed);
+        Assert.Equal(
+            ["2026-05-18.ndjson", "2026-08-16.ndjson"],
+            Directory.GetFiles(dir).Select(f => Path.GetFileName(f)!).Order().ToArray());
+    }
+
+    [Fact]
+    public void Retention_LeavesAnythingItDidNotWrite()
+    {
+        // The directory belongs to one producer, which is a reason to be careful with it rather than a
+        // licence to delete whatever is in it.
+        string dir = Segments("kgsm-api", "2020-01-01");
+        File.WriteAllText(Path.Combine(dir, "notes.txt"), "x");
+        File.WriteAllText(Path.Combine(dir, "cursor.ndjson"), "x");
+
+        Assert.Equal(1, JournalRetention.Prune(dir, 90, At("2026-08-16"), NullLogger.Instance));
+        Assert.Equal(
+            ["cursor.ndjson", "notes.txt"],
+            Directory.GetFiles(dir).Select(f => Path.GetFileName(f)!).Order().ToArray());
+    }
+
+    [Fact]
+    public void Retention_AgeComesFromTheNameNotTheMtime()
+    {
+        // A restore, a copy or a backup tool moves an mtime without any event moving. The segment's
+        // name is its date whatever the filesystem thinks.
+        string dir = Segments("kgsm-api", "2020-01-01");
+        File.SetLastWriteTimeUtc(Path.Combine(dir, "2020-01-01.ndjson"), new DateTime(2026, 8, 16));
+
+        Assert.Equal(1, JournalRetention.Prune(dir, 90, At("2026-08-16"), NullLogger.Instance));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Retention_KeepsEverythingWhenDisabled(int days)
+    {
+        string dir = Segments("kgsm-api", "2001-01-01");
+
+        Assert.Equal(0, JournalRetention.Prune(dir, days, At("2026-08-16"), NullLogger.Instance));
+        Assert.Single(Directory.GetFiles(dir));
+    }
+
+    [Fact]
+    public void Retention_IsNeverFatal()
+    {
+        // Housekeeping. A producer that cannot prune must still be able to record what it did.
+        Assert.Equal(0, JournalRetention.Prune(
+            Path.Combine(_root, "nothing-here"), 90, At("2026-08-16"), NullLogger.Instance));
+    }
+
+    [Fact]
+    public void Writer_PrunesAtStartup()
+    {
+        // The only moment a socket-activated authority ever reaches: it may exist for the length of one
+        // request, so a timer would never fire.
+        string dir = Segments("kgsm-firewall", "2020-01-01");
+
+        _ = new EventJournalWriter(
+            Options("kgsm-firewall", dir, clock: () => At("2026-08-16")),
+            new Mock<ILogger<EventJournalWriter>>().Object);
+
+        Assert.Empty(Directory.GetFiles(dir, "*.ndjson"));
+    }
+
+    [Fact]
+    public async Task Writer_PrunesWhenTheSegmentRollsOver()
+    {
+        // The second moment, and the one a resident daemon lives on: a segment is a day, so a rollover
+        // is a daily cadence that needs no timer and no hosting stack to produce.
+        string dir = Segments("kgsm-monitor");
+        DateTimeOffset now = At("2026-08-16");
+
+        IEventJournalWriter writer = new EventJournalWriter(
+            Options("kgsm-monitor", dir, clock: () => now),
+            new Mock<ILogger<EventJournalWriter>>().Object);
+
+        await writer.AppendAsync("thing_happened", Payload());
+
+        // A segment that ages past the window while the process is running.
+        File.WriteAllText(Path.Combine(dir, "2026-05-01.ndjson"), "{}\n");
+        Assert.True(File.Exists(Path.Combine(dir, "2026-05-01.ndjson")));
+
+        now = At("2026-08-17");
+        await writer.AppendAsync("thing_happened", Payload());
+
+        Assert.False(File.Exists(Path.Combine(dir, "2026-05-01.ndjson")));
+        Assert.True(File.Exists(Path.Combine(dir, "2026-08-17.ndjson")));
+    }
+
+    [Fact]
+    public async Task Writer_DoesNotRescanOnEveryAppend()
+    {
+        // Guarded to once a day rather than once per event: the scan is cheap, and doing it on a write
+        // path a supervisor calls three times per server start is still work for nothing.
+        string dir = Segments("kgsm-monitor");
+        IEventJournalWriter writer = new EventJournalWriter(
+            Options("kgsm-monitor", dir, clock: () => At("2026-08-16")),
+            new Mock<ILogger<EventJournalWriter>>().Object);
+
+        await writer.AppendAsync("thing_happened", Payload());
+
+        // Dropped in after the first append; nothing else rolls the segment, so nothing rescans.
+        File.WriteAllText(Path.Combine(dir, "2020-01-01.ndjson"), "{}\n");
+        await writer.AppendAsync("thing_happened", Payload());
+
+        Assert.True(File.Exists(Path.Combine(dir, "2020-01-01.ndjson")));
+    }
+
     // ── The write path ──────────────────────────────────────────────────────────────────
 
     [Fact]
@@ -419,6 +540,24 @@ public sealed class JournalConformanceTests : IDisposable
 
     // ── Helpers ─────────────────────────────────────────────────────────────────────────
 
+    /// <summary>A journal directory for <paramref name="producer"/> holding the named segments.</summary>
+    private string Segments(string producer, params string[] dates)
+    {
+        string dir = Path.Combine(_root, producer, "events");
+        Directory.CreateDirectory(dir);
+
+        foreach (string date in dates)
+            File.WriteAllText(Path.Combine(dir, date + ".ndjson"), "{}\n");
+
+        return dir;
+    }
+
+    private static DateTimeOffset At(string date) =>
+        DateTimeOffset.Parse(date + "T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static Action<System.Text.Json.Utf8JsonWriter> Payload() =>
+        w => w.WriteString("Subject", "x");
+
     /// <summary>A container with both registrations, made in the order under test.</summary>
     private ServiceProvider BuildProvider(bool servicesFirst)
     {
@@ -447,11 +586,13 @@ public sealed class JournalConformanceTests : IDisposable
         EventJournalDirectory = Path.Combine(_root, "kgsm", "events"),
     };
 
-    private EventJournalWriterOptions Options(string producer, string directory) => new()
+    private EventJournalWriterOptions Options(
+        string producer, string directory, Func<DateTimeOffset>? clock = null) => new()
     {
         Producer = producer,
         Directory = directory,
         Hostname = "testhost",
+        Clock = clock,
     };
 
     private EventJournalWriter Writer(string producer) => new(

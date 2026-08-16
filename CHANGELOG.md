@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — a producer prunes the journal it owns (`Journal` 1.4.0, `Lib` 4.31.0)
+
+`JournalRetention.Prune` removes segments past `EventJournalWriterOptions.RetentionDays`, defaulting
+to **90 days** — the engine's own `event_journal_retention_days`, so a merged page's coverage is
+bounded by one number rather than by whichever producer was least generous. Zero or negative keeps
+everything, the explicit opt-out for a host that retains its trail elsewhere.
+
+⚠ **Only one producer of five pruned anything before this.** The engine has a daily timer running
+`kgsm events journal prune`, which prunes the engine's directory alone; every leaf journal grew
+without bound. They are days old today, which is the point at which to fix it rather than the point
+at which it hurts.
+
+**Each producer prunes its own, and nothing else can.** A leaf's journal may be root-owned or sit
+under a state directory another service user cannot enter — kgsm-firewall's is both — so a central
+pruner would be a component reaching into directories it has no business in, and would have to be
+granted the privilege to do it.
+
+**The cadence comes from the data, not from a clock.** Pruning runs at construction and again when
+the segment date rolls over, which is exactly daily for a resident daemon and is the smallest unit
+retention can ever remove, since a segment *is* a day. So there is no timer, and with it no hosting
+dependency — this package is consumed by a root-running firewall authority that builds no container.
+Startup is what covers the other extreme: a socket-activated authority may exist for the length of
+one request, and a timer would never fire in it. ⚠ The gap left is a process that runs longer than
+the window and records nothing in it — which is by construction a journal that is not growing, and
+the next restart prunes it.
+
+Two safety properties, both tested:
+
+- **Whole segments are unlinked, never truncated.** Every consumer's position is a byte offset into a
+  named segment, so rewriting one in place invalidates every cursor into it and silently misplaces
+  every event after the cut. Removing the file whole makes a consumer report an `EventJournalGap` —
+  a discontinuity it can say out loud.
+- **Age comes from the segment's name, not its mtime.** A restore, a copy or a backup tool moves an
+  mtime without any event moving. ⚠ This differs from the engine's `find -mtime`; the two agree on a
+  normally-operating host and only the name still agrees on a recovered one.
+
+A file whose name is not a date is left alone rather than guessed at.
+
 ### Fixed — federation no longer depends on the order it was registered in (`Lib` 4.30.0)
 
 `AddKgsmServices` and `AddKgsmJournalFederation` register the **same resolution rule** for
