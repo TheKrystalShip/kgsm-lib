@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — an instance's whole configuration, with what may be changed (`Lib` 4.39.0)
+
+`IInstanceService.GetInstanceConfig(instance, settableOnly)` reads every key, its value, and whether
+`SetInstanceConfigValue` will accept a change to it, as `InstanceConfigEntry`.
+
+The settable flag is the engine's own judgement, from the same rule the setter applies — so a surface
+offering to change a key marked settable is offering something the write path accepts, and there is no
+second copy of the rule to keep in step. Null means the read failed: an instance always has a
+configuration, so an empty list is never the honest answer to one.
+
+### Added — the host's ports and port conflicts, typed (`Lib` 4.38.0)
+
+`INetworkService.ListUsedPortsDetailed()` and `FindConflictsDetailed()` read the engine's
+`--json` forms into `HostPort` and `PortConflict`.
+
+A listening socket the scan could not attribute carries a null `Process` — the port is still a
+measurement, only who holds it is unknown. A host with no conflicts deserializes to an empty list,
+the same shape a host with findings produces, so nothing above this layer recognises a sentinel
+word (or a progress message) to learn which it got.
+
+Both return null when the scan could not be made, rather than the empty list that means it ran and
+found nothing. It matters most on the conflict read: no conflicts is the ordinary answer, so
+collapsing a failed scan into it would report "all clear" on a host nobody managed to check.
+
+`ListUsedPorts()` and `FindConflicts()` are unchanged: they return the human rendering and the
+exit-code signal, which is what tells "nothing is listening" apart from "the read failed".
+
 ### Added — the assistant's own event contract (`Lib` 4.36.0)
 
 The read half of what the assistant leaf reports about its own conduct: five event types, their

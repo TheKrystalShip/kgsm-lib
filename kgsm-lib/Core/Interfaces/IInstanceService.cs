@@ -409,6 +409,22 @@ public interface IInstanceService
     KgsmResult GetInstanceConfigValue(string instanceName, string key);
 
     /// <summary>
+    /// Reads an instance's whole configuration: every key, its value, and whether
+    /// <see cref="SetInstanceConfigValue"/> will accept a change to it.
+    /// </summary>
+    /// <param name="instanceName">The instance whose config to read.</param>
+    /// <param name="settableOnly">
+    /// When true, only the keys the setter accepts are returned — the vocabulary a surface offering
+    /// to change something should be written in.
+    /// </param>
+    /// <returns>
+    /// The entries, or <see langword="null"/> when the configuration could not be read. An instance
+    /// always has a configuration, so an empty list is never the honest answer to a failed read.
+    /// </returns>
+    /// <exception cref="ArgumentException">Thrown when instanceName is null or whitespace.</exception>
+    List<InstanceConfigEntry>? GetInstanceConfig(string instanceName, bool settableOnly = false);
+
+    /// <summary>
     /// Sets a single key=value in an instance's configuration file.
     /// </summary>
     /// <remarks>

@@ -30,6 +30,17 @@ public interface INetworkService
     KgsmResult ListUsedPorts();
 
     /// <summary>
+    /// Lists the host's listening ports as typed entries.
+    /// </summary>
+    /// <returns>
+    /// One <see cref="HostPort"/> per listening socket, ordered by protocol then port. An empty
+    /// list means the scan ran and found nothing listening; <see langword="null"/> means the scan
+    /// could not be made at all (no <c>ss</c> or <c>netstat</c> on the host). Those are different
+    /// answers and neither is the other.
+    /// </returns>
+    List<HostPort>? ListUsedPortsDetailed();
+
+    /// <summary>
     /// Checks KGSM-managed instances for port conflicts.
     /// </summary>
     /// <returns>
@@ -37,6 +48,17 @@ public interface INetworkService
     /// <see cref="KgsmResult.IsSuccess"/> is <c>true</c> when no conflicts are found.
     /// </returns>
     KgsmResult FindConflicts();
+
+    /// <summary>
+    /// Checks KGSM-managed instances for port conflicts, as typed findings.
+    /// </summary>
+    /// <returns>
+    /// One <see cref="PortConflict"/> per finding. An empty list is the ordinary "no conflicts"
+    /// answer — the encoding is identical whether or not anything was found, so no caller parses a
+    /// message to learn which it got. <see langword="null"/> means the scan could not be made, which
+    /// on this read is the one thing that must never be reported as "all clear".
+    /// </returns>
+    List<PortConflict>? FindConflictsDetailed();
 
     /// <summary>
     /// Kills the process that is using the specified port. Requires elevated privileges (sudo).

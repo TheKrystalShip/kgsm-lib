@@ -412,6 +412,21 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
+    public List<InstanceConfigEntry>? GetInstanceConfig(string instanceName, bool settableOnly = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+
+        // Null is carried through rather than collapsed to an empty list: an instance always has a
+        // configuration, so an empty result can only mean the read failed, and reporting that as
+        // "this server has no settings" is a fabrication a caller cannot see through.
+        string[] args = settableOnly
+            ? ["instances", "config-list", instanceName, "--settable", "--json"]
+            : ["instances", "config-list", instanceName, "--json"];
+
+        return _commandExecutor.ExecuteForJson<List<InstanceConfigEntry>>(args);
+    }
+
+    /// <inheritdoc/>
     public KgsmResult SetInstanceConfigValue(string instanceName, string key, string value, string? actor = null, string? origin = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));

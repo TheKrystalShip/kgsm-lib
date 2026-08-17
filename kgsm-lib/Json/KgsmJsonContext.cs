@@ -41,6 +41,12 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(BlueprintValidation))]
 [JsonSerializable(typeof(InstanceBackup))]
 [JsonSerializable(typeof(List<InstanceBackup>))]
+[JsonSerializable(typeof(InstanceConfigEntry))]
+[JsonSerializable(typeof(List<InstanceConfigEntry>))]
+[JsonSerializable(typeof(HostPort))]
+[JsonSerializable(typeof(List<HostPort>))]
+[JsonSerializable(typeof(PortConflict))]
+[JsonSerializable(typeof(List<PortConflict>))]
 [JsonSerializable(typeof(List<string>))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 // --- kgsm-watchdog control-surface DTOs (typed client over the unix socket) ---
