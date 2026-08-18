@@ -35,6 +35,43 @@ public record class InstanceBackup
     [JsonPropertyName("created_at")]
     public DateTimeOffset? CreatedAt { get; set; }
 
+    /// <summary>
+    /// Why the backup was taken — one of <see cref="BackupReason"/>. A fact fixed at capture and
+    /// never edited, which is what tells a routine archive apart from one taken over a broken
+    /// server.
+    /// </summary>
+    /// <remarks>
+    /// Null means the manifest records no reason, which is <b>unknown</b> and never a guess: a
+    /// backup written before the field existed cannot be identified after the fact, and inferring
+    /// one from its age or position would put a classification nobody measured into the record. A
+    /// surface must say so rather than showing a default.
+    /// </remarks>
+    [JsonPropertyName("reason")]
+    public string? Reason { get; set; }
+
+    /// <summary>
+    /// Whether rotation may delete this backup — one of <see cref="BackupRetention"/>. A policy, and
+    /// the one part of a backup an operator revises.
+    /// </summary>
+    /// <remarks>
+    /// Null means the manifest records no retention, which <b>is</b> prunable: that is what the
+    /// field's absence means and the behaviour the backup already had. Read it through
+    /// <see cref="IsPinned"/> rather than comparing the string, so null resolves the one way.
+    /// </remarks>
+    [JsonPropertyName("retention")]
+    public string? Retention { get; set; }
+
+    /// <summary>
+    /// Whether <c>prune-backups</c> will skip this backup. Pinned backups are also not counted
+    /// toward the sweep's keep window, so pinning one never erodes the rotation.
+    /// </summary>
+    /// <remarks>
+    /// This is not a delete guard: deleting a pinned backup by id still works. Pinned means the
+    /// rotation will not take it, never that an operator naming it cannot.
+    /// </remarks>
+    [JsonIgnore]
+    public bool IsPinned => string.Equals(Retention, BackupRetention.Pinned, StringComparison.Ordinal);
+
     /// <summary>Whether the payload is a <c>data.tar.gz</c> archive rather than a <c>data/</c> tree.</summary>
     [JsonPropertyName("compressed")]
     public bool Compressed { get; set; }

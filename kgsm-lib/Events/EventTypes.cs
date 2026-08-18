@@ -591,9 +591,51 @@ public class InstanceBackupsPrunedData : EventDataBase
     public int Deleted { get; set; }
 
     /// <summary>
-    /// Gets or sets the retention window the sweep ran with (the number of most-recent backups kept).
+    /// Gets or sets the retention window the sweep ran with (the number of most-recent prunable
+    /// backups kept).
     /// </summary>
     public int Kept { get; set; }
+
+    /// <summary>
+    /// Gets or sets how many backups the sweep skipped because they were pinned.
+    /// </summary>
+    /// <remarks>
+    /// Reported alongside what was deleted so the pair states what the policy actually did: without
+    /// it, a sweep that removed nothing because everything was protected reads exactly like one that
+    /// found nothing to remove. Pinned backups do not consume a <see cref="Kept"/> slot, so the two
+    /// numbers do not sum to the store's size.
+    /// </remarks>
+    public int Pinned { get; set; }
+}
+
+/// <summary>
+/// Event data for when a backup is put out of retention's reach.
+/// </summary>
+/// <remarks>
+/// Retention is a policy an operator revises, so both directions are recorded. Pinning changes
+/// nothing about the archive itself — why it was taken is a fact and stays as it was.
+/// </remarks>
+public class InstanceBackupPinnedData : EventDataBase
+{
+    /// <summary>
+    /// Gets or sets the id of the backup that was pinned.
+    /// </summary>
+    public string Source { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Event data for when a pinned backup is handed back to retention.
+/// </summary>
+/// <remarks>
+/// The direction that can cost data later: the backup becomes eligible for the next sweep, so a
+/// store that keeps growing is answered by knowing who released what.
+/// </remarks>
+public class InstanceBackupUnpinnedData : EventDataBase
+{
+    /// <summary>
+    /// Gets or sets the id of the backup that was unpinned.
+    /// </summary>
+    public string Source { get; set; } = string.Empty;
 }
 
 /// <summary>

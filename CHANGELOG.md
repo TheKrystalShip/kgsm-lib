@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — a backup's reason and retention (`Lib` 4.40.0)
+
+`InstanceBackup` carries `Reason` and `Retention`, and `IsPinned` resolves the latter so a consumer
+never compares the string. They are deliberately separate: the reason is a fact fixed when the
+archive was captured, the retention is a policy an operator revises, and a slot they shared could
+never diverge. `BackupReason` and `BackupRetention` hold the closed vocabularies the engine accepts.
+
+`CreateBackup` takes a `reason` and a `retention`, validated here so a typo costs no round trip and
+never lands as an unrecognised word in the one record of what a backup is. `PinBackup` and
+`UnpinBackup` change the policy afterwards; `PruneBackups` keeps N *prunable* backups, since the
+engine skips pinned ones without counting them.
+
+`Reason` is null when the manifest records none. That is **unknown** and never a guess — a backup
+written before the field existed cannot be identified after the fact, and a surface must say so.
+A null `Retention` is prunable, which is what the field's absence means and the behaviour that
+backup already had.
+
+`InstanceBackupsPrunedData` gained `Pinned`, so a sweep that removed nothing because everything was
+protected is distinguishable from one that found nothing to remove. `InstanceBackupPinnedData` and
+`InstanceBackupUnpinnedData` are the two new events, classified in `KgsmEventCatalog` and registered
+in `KgsmJsonContext`.
+
 ### Added — an instance's whole configuration, with what may be changed (`Lib` 4.39.0)
 
 `IInstanceService.GetInstanceConfig(instance, settableOnly)` reads every key, its value, and whether

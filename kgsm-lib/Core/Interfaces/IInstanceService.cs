@@ -248,11 +248,58 @@ public interface IInstanceService
     /// <summary>
     /// Creates a backup for an instance.
     /// </summary>
+    /// <remarks>
+    /// State the <paramref name="reason"/> whenever the caller knows it. It is written into the
+    /// backup's manifest as a fact and never edited afterwards, and it is the only thing that tells
+    /// a routine archive apart from one taken over a broken server — which is what makes "restore
+    /// the latest" safe or dangerous. A caller that states nothing produces a
+    /// <see cref="BackupReason.Manual"/> backup.
+    /// </remarks>
     /// <param name="instanceName">Instance name to create backup for.</param>
     /// <param name="actor">Optional audit principal — see <see cref="Install"/>.</param>
     /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
+    /// <param name="reason">Why this backup is being taken — one of <see cref="BackupReason"/>.</param>
+    /// <param name="retention">
+    /// Whether rotation may take it — one of <see cref="BackupRetention"/>. Absent ⇒ prunable, which
+    /// is right for nearly everything: pinning is what an incident archive wants, and it is a
+    /// separate decision from why the backup exists.
+    /// </param>
     /// <returns>Result of the backup creation operation.</returns>
-    KgsmResult CreateBackup(string instanceName, string? actor = null, string? origin = null);
+    /// <exception cref="ArgumentException">
+    /// Thrown when <paramref name="reason"/> or <paramref name="retention"/> is not one the engine
+    /// accepts — refused here rather than after minutes of archiving.
+    /// </exception>
+    KgsmResult CreateBackup(string instanceName, string? actor = null, string? origin = null,
+        string? reason = null, string? retention = null);
+
+    /// <summary>
+    /// Pins one of an instance's backups: <c>prune-backups</c> skips it, and it does not count
+    /// toward the sweep's keep window.
+    /// </summary>
+    /// <remarks>
+    /// Reversible — see <see cref="UnpinBackup"/>, which is what an incident archive wants once its
+    /// triage is done. It is not a delete guard: <see cref="DeleteBackup"/> removes a pinned backup
+    /// like any other. Why the backup was taken is a separate fact and neither verb touches it.
+    /// </remarks>
+    /// <param name="instanceName">The instance whose backup to pin.</param>
+    /// <param name="backupName">The id of the backup to pin.</param>
+    /// <param name="actor">Optional audit principal — see <see cref="Install"/>.</param>
+    /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
+    /// <returns>Result of the pin operation.</returns>
+    /// <exception cref="ArgumentException">Thrown when either argument is null or whitespace.</exception>
+    KgsmResult PinBackup(string instanceName, string backupName, string? actor = null, string? origin = null);
+
+    /// <summary>
+    /// Hands a pinned backup back to the rotation: <c>prune-backups</c> may delete it again once it
+    /// falls outside the keep window.
+    /// </summary>
+    /// <param name="instanceName">The instance whose backup to unpin.</param>
+    /// <param name="backupName">The id of the backup to unpin.</param>
+    /// <param name="actor">Optional audit principal — see <see cref="Install"/>.</param>
+    /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
+    /// <returns>Result of the unpin operation.</returns>
+    /// <exception cref="ArgumentException">Thrown when either argument is null or whitespace.</exception>
+    KgsmResult UnpinBackup(string instanceName, string backupName, string? actor = null, string? origin = null);
 
     /// <summary>
     /// Prunes old backups for <paramref name="instanceName"/>, keeping the
@@ -262,7 +309,11 @@ public interface IInstanceService
     /// configured backups directory.
     /// </summary>
     /// <param name="instanceName">The instance whose backups to prune.</param>
-    /// <param name="keepN">Number of most-recent backups to keep (must be ≥ 1).</param>
+    /// <param name="keepN">
+    /// Number of most-recent <b>prunable</b> backups to keep (must be ≥ 1). Pinned backups are
+    /// skipped and do not consume a slot, so the window holds this many live backups however many
+    /// are pinned.
+    /// </param>
     /// <param name="actor">Optional audit actor label (e.g. "scheduler").</param>
     /// <param name="origin">Optional audit origin label (e.g. "scheduler").</param>
     /// <returns>Result of the prune operation.</returns>

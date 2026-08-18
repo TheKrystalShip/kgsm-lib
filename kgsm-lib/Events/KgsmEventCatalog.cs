@@ -159,8 +159,15 @@ public static class KgsmEventCatalog
             Instance<InstanceBackupCreatedData>("instance_backup_created", EventWeight.Fact, EventOutcome.Success, [Source, Version]),
             Instance<InstanceBackupRestoredData>("instance_backup_restored", EventWeight.Fact, EventOutcome.Success, [Source, Version]),
             Instance<InstanceBackupDeletedData>("instance_backup_deleted", EventWeight.Fact, EventOutcome.Neutral, [Source]),
+
+            // Retention is a policy an operator revises, and both directions are facts worth having:
+            // pinning is why an archive outlived the rotation, unpinning is why one stopped doing so.
+            Instance<InstanceBackupPinnedData>("instance_backup_pinned", EventWeight.Fact, EventOutcome.Neutral, [Source]),
+            Instance<InstanceBackupUnpinnedData>("instance_backup_unpinned", EventWeight.Fact, EventOutcome.Neutral, [Source]),
+
             Instance<InstanceBackupsPrunedData>("instance_backups_pruned", EventWeight.Fact, EventOutcome.Neutral,
-                [Field("Deleted", FieldShape.Number), Field("Kept", FieldShape.Number)]),
+                [Field("Deleted", FieldShape.Number), Field("Kept", FieldShape.Number),
+                 Field("Pinned", FieldShape.Number)]),
 
             // -- the doors ---------------------------------------------------------------------
             // A host firewall rule and a router NAT forward are different facts about different

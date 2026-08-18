@@ -1166,6 +1166,86 @@ public class InstanceServiceTests
     }
 
     [Fact]
+    public void CreateBackup_WithReasonAndRetention_ForwardsBoth()
+    {
+        SetupEnvTimeout();
+
+        _instanceService.CreateBackup("valheim", actor: "system:reactor", origin: "system",
+            reason: BackupReason.Incident, retention: BackupRetention.Pinned);
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.IsAny<IReadOnlyDictionary<string, string>>(),
+            It.IsAny<TimeSpan>(),
+            It.Is<string[]>(a => ArgsAre(a, "instances", "create-backup", "valheim",
+                "--reason=incident", "--retention=pinned"))), Times.Once);
+    }
+
+    [Fact]
+    public void CreateBackup_WithoutAReason_SendsNoFlag()
+    {
+        // The engine's own default (manual) applies. Sending "--reason=manual" here would make the
+        // library, not the engine, the place that decides what an unqualified backup is.
+        SetupEnvTimeout();
+
+        _instanceService.CreateBackup("valheim", actor: "discord:haru", origin: "discord");
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.IsAny<IReadOnlyDictionary<string, string>>(),
+            It.IsAny<TimeSpan>(),
+            It.Is<string[]>(a => ArgsAre(a, "instances", "create-backup", "valheim"))), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("whenever")]
+    [InlineData("Manual")]
+    public void CreateBackup_WithAnUnknownReason_Throws(string reason)
+    {
+        // Refused before the process is spawned: an unrecognised word in the one record of what a
+        // backup is reads as a classification without being one.
+        Assert.Throws<ArgumentException>(() => _instanceService.CreateBackup("valheim", reason: reason));
+    }
+
+    [Fact]
+    public void CreateBackup_WithAnUnknownRetention_Throws()
+    {
+        Assert.Throws<ArgumentException>(() => _instanceService.CreateBackup("valheim", retention: "forever"));
+    }
+
+    [Fact]
+    public void PinBackup_WithProvenance_StampsEnv()
+    {
+        SetupEnvTimeout();
+
+        _instanceService.PinBackup("valheim", "backup-1", actor: "discord:haru", origin: "ui");
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.Is<IReadOnlyDictionary<string, string>>(e => e["KGSM_EVENT_ORIGIN"] == "ui"),
+            It.IsAny<TimeSpan>(),
+            It.Is<string[]>(a => ArgsAre(a, "instances", "pin-backup", "valheim", "backup-1"))), Times.Once);
+    }
+
+    [Fact]
+    public void UnpinBackup_WithProvenance_StampsEnv()
+    {
+        SetupEnvTimeout();
+
+        _instanceService.UnpinBackup("valheim", "backup-1", actor: "discord:haru", origin: "ui");
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.Is<IReadOnlyDictionary<string, string>>(e => e["KGSM_EVENT_ACTOR"] == "discord:haru"),
+            It.IsAny<TimeSpan>(),
+            It.Is<string[]>(a => ArgsAre(a, "instances", "unpin-backup", "valheim", "backup-1"))), Times.Once);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void PinBackup_WithBlankBackupName_Throws(string backupName)
+    {
+        Assert.Throws<ArgumentException>(() => _instanceService.PinBackup("valheim", backupName));
+    }
+
+    [Fact]
     public void RestoreBackup_WithProvenance_StampsEnv()
     {
         SetupEnvTimeout();

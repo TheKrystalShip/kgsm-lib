@@ -107,6 +107,8 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(InstanceBackupRestoredData))]
 [JsonSerializable(typeof(InstanceBackupDeletedData))]
 [JsonSerializable(typeof(InstanceBackupsPrunedData))]
+[JsonSerializable(typeof(InstanceBackupPinnedData))]
+[JsonSerializable(typeof(InstanceBackupUnpinnedData))]
 [JsonSerializable(typeof(InstanceFilesRemovedData))]
 [JsonSerializable(typeof(InstanceDirectoriesRemovedData))]
 [JsonSerializable(typeof(InstanceRemovedData))]

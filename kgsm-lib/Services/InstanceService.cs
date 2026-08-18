@@ -272,14 +272,52 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
-    public KgsmResult CreateBackup(string instanceName, string? actor = null, string? origin = null)
+    public KgsmResult CreateBackup(string instanceName, string? actor = null, string? origin = null,
+        string? reason = null, string? retention = null)
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
+        // Checked before the process is spawned. The engine refuses an unknown value too, but only
+        // after resolving the instance — and a typo'd reason should not cost the caller a round trip
+        // to find out, nor risk landing as an unrecognised word in the one record of what a backup is.
+        if (reason is not null && !BackupReason.All.Contains(reason))
+            throw new ArgumentException(
+                $"Unknown backup reason '{reason}'. One of: {string.Join(", ", BackupReason.All)}.", nameof(reason));
+
+        if (retention is not null && !BackupRetention.All.Contains(retention))
+            throw new ArgumentException(
+                $"Unknown backup retention '{retention}'. One of: {string.Join(", ", BackupRetention.All)}.", nameof(retention));
+
+        List<string> args = ["instances", "create-backup", instanceName];
+        if (reason is not null) args.Add($"--reason={reason}");
+        if (retention is not null) args.Add($"--retention={retention}");
+
         IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
         return provenance is null
-            ? _commandExecutor.Execute(_timeouts.Backup, "instances", "create-backup", instanceName)
-            : _commandExecutor.Execute(provenance, _timeouts.Backup, "instances", "create-backup", instanceName);
+            ? _commandExecutor.Execute(_timeouts.Backup, [.. args])
+            : _commandExecutor.Execute(provenance, _timeouts.Backup, [.. args]);
+    }
+
+    /// <inheritdoc/>
+    public KgsmResult PinBackup(string instanceName, string backupName, string? actor = null, string? origin = null)
+        => SetBackupRetention("pin-backup", instanceName, backupName, actor, origin);
+
+    /// <inheritdoc/>
+    public KgsmResult UnpinBackup(string instanceName, string backupName, string? actor = null, string? origin = null)
+        => SetBackupRetention("unpin-backup", instanceName, backupName, actor, origin);
+
+    // Both verbs differ only in the word they send, so they share one path — the argument checks and
+    // the provenance stamping cannot drift between pinning and unpinning.
+    private KgsmResult SetBackupRetention(string verb, string instanceName, string backupName,
+        string? actor, string? origin)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+        ArgumentException.ThrowIfNullOrWhiteSpace(backupName, nameof(backupName));
+
+        IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
+        return provenance is null
+            ? _commandExecutor.Execute(_timeouts.Backup, "instances", verb, instanceName, backupName)
+            : _commandExecutor.Execute(provenance, _timeouts.Backup, "instances", verb, instanceName, backupName);
     }
 
     /// <inheritdoc/>
