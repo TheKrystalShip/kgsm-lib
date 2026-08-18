@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — `Journal` 1.9.1 / `Lib` 4.41.1 carry the id write that 1.9.0 was supposed to
+
+**`TheKrystalShip.KGSM.Journal` 1.9.0 on the feed does not contain the `Id` write.** It was packed from
+a Release tree that predated the change: `dotnet pack` builds, but it honours the up-to-date check, and
+the intervening `dotnet test` runs had only rebuilt Debug. A published version is immutable, so 1.9.0
+cannot be corrected — **do not use it**; it emits no id and is otherwise identical to 1.8.1.
+
+`scripts/publish-packages.sh` now builds `--no-incremental` before packing, so a package can no longer
+be assembled from output older than its source.
+
 ### Added — every line the shared writer emits now carries its own id (`Journal` 1.9.0, `Lib` 4.41.0)
 
 `EventJournalWriter.Compose` mints a **UUIDv7** per line (`Guid.CreateVersion7()`), written beside `V`.
