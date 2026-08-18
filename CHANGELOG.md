@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — every line the shared writer emits now carries its own id (`Journal` 1.9.0, `Lib` 4.41.0)
+
+`EventJournalWriter.Compose` mints a **UUIDv7** per line (`Guid.CreateVersion7()`), written beside `V`.
+Every .NET producer inherits it by re-pinning; none changes a line of its own code.
+
+Minted, never derived from the content — two identical events in the same second are two events, and a
+digest over the line folds them into one, which is the defect the engine's own index has. v7 rather
+than v4 so an id sorts the way the journal does.
+
+The tests assert the version nibble and the variant bits rather than "is a guid" (a v4 would pass the
+looser check and lose the ordering the choice was made for), that two identical events get different
+ids, and that a line carrying an id **still conforms** — which closes the §2·m ordering constraint end
+to end.
+
 ### Added — the contract knows the line's own id, before anything writes one (`Journal` 1.9.0)
 
 `JournalConformance.OptionalFields` carries `Id`. Nothing emits one yet, and that ordering is the

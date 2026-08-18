@@ -380,6 +380,65 @@ public sealed class JournalConformanceTests : IDisposable
         Assert.Null(JournalAccess.DescribeUnreachable(null));
     }
 
+    // ── The line's own id (§2·m) ─────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Writer_GivesEveryLineAUuidV7()
+    {
+        string dir = Segments("kgsm-monitor");
+        IEventJournalWriter writer = new EventJournalWriter(
+            Options("kgsm-monitor", dir, clock: () => At("2026-08-16")),
+            new Mock<ILogger<EventJournalWriter>>().Object);
+
+        await writer.AppendAsync("thing_happened", Payload());
+
+        string line = File.ReadAllLines(Path.Combine(dir, "2026-08-16.ndjson"))[^1];
+        string id = System.Text.Json.JsonDocument.Parse(line).RootElement.GetProperty("Id").GetString()!;
+
+        // The version nibble and the variant bits, asserted rather than assumed: a v4 would satisfy
+        // "is a guid" and lose the ordering the whole choice was made for.
+        Assert.Matches("^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", id);
+    }
+
+    [Fact]
+    public async Task Writer_GivesTwoIdenticalEventsDifferentIds()
+    {
+        // The reason the id is minted and never derived from content. Two identical events in the
+        // same second are two events; a digest over the line would fold them into one, which is the
+        // defect the engine's own index has.
+        string dir = Segments("kgsm-monitor");
+        IEventJournalWriter writer = new EventJournalWriter(
+            Options("kgsm-monitor", dir, clock: () => At("2026-08-16")),
+            new Mock<ILogger<EventJournalWriter>>().Object);
+
+        await writer.AppendAsync("thing_happened", Payload());
+        await writer.AppendAsync("thing_happened", Payload());
+
+        string[] lines = File.ReadAllLines(Path.Combine(dir, "2026-08-16.ndjson"));
+        string[] ids = [.. lines.Select(l =>
+            System.Text.Json.JsonDocument.Parse(l).RootElement.GetProperty("Id").GetString()!)];
+
+        Assert.Equal(2, ids.Length);
+        Assert.NotEqual(ids[0], ids[1]);
+    }
+
+    [Fact]
+    public async Task Writer_ProducesALineThatStillConforms()
+    {
+        // The ordering constraint behind §2·m, closed end to end: the checker has to already know the
+        // field, or the first producer to emit an id reports every line as having invented one.
+        string dir = Segments("kgsm-monitor");
+        IEventJournalWriter writer = new EventJournalWriter(
+            Options("kgsm-monitor", dir, clock: () => At("2026-08-16")),
+            new Mock<ILogger<EventJournalWriter>>().Object);
+
+        await writer.AppendAsync("thing_happened", Payload(), actor: "system:monitor", origin: "system");
+
+        string line = File.ReadAllLines(Path.Combine(dir, "2026-08-16.ndjson"))[^1];
+
+        Assert.Empty(TheKrystalShip.KGSM.Conformance.JournalConformance.CheckLine("kgsm-monitor", "2026-08-16.ndjson", 1, line));
+    }
+
     // ── Retention ───────────────────────────────────────────────────────────────────────
 
     [Fact]

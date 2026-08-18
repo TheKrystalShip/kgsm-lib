@@ -259,6 +259,12 @@ public sealed class EventJournalWriter : IEventJournalWriter
             writer.WriteStartObject();
 
             writer.WriteNumber("V", SchemaVersion);
+
+            // The line's own name (conformance §2·m). Minted here and never derived from the content:
+            // two identical events in the same second are two events, and a digest folds them into
+            // one. UUIDv7 rather than v4 so an id sorts the way the journal does.
+            writer.WriteString("Id", Guid.CreateVersion7().ToString("d"));
+
             writer.WriteString("EventType", eventType);
 
             writer.WritePropertyName("Data");
