@@ -76,6 +76,31 @@ public abstract class BlueprintEventDataBase : KgsmEventDataBase
 public class EventWrapper
 {
     /// <summary>
+    /// Gets or sets the line's own name — the id its producer minted when it wrote the line
+    /// (conformance §2·m). <see langword="null"/> when the line carries none.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A lowercase hyphenated UUIDv7, minted at write time and never derived from the content: two
+    /// identical events in the same second are two events, and anything digest-shaped folds them into
+    /// one. Being a v7 it sorts the way the journal does, so a range over ids is a range over time.
+    /// </para>
+    /// <para>
+    /// <b>Null is unknown, never a mismatch.</b> Every line written before the field existed has no
+    /// id and stays readable for as long as retention holds it, and a producer whose shell cannot mint
+    /// one writes null rather than a lesser id. A reader that treats absence as a disagreement
+    /// condemns the entire back catalogue.
+    /// </para>
+    /// <para>
+    /// A <see cref="string"/> rather than a <see cref="Guid"/>: a malformed id costs the comparison
+    /// it would have served, where a parse would cost the whole envelope — and losing an event to a
+    /// bad field on it is a worse trade than carrying a field that cannot be compared.
+    /// <see cref="Conformance.JournalConformance.IsWellFormedEventId"/> is where the shape is judged.
+    /// </para>
+    /// </remarks>
+    public string? Id { get; set; }
+
+    /// <summary>
     /// Gets or sets the type of the event.
     /// </summary>
     public string EventType { get; set; } = string.Empty;

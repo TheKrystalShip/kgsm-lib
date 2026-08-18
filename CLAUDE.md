@@ -110,14 +110,23 @@ payloads compact for that reason, and only complete lines are dispatched. Anythi
 rewrites a segment in place (a log rotator's `copytruncate`) invalidates every cursor into it,
 which is why retention deletes whole segments and never truncates one.
 
-**Every event carries its position.** `IEventSource.EventReceived` and
+**Every event carries its position, and its name.** `IEventSource.EventReceived` and
 `IEventService.RegisterRawHandler` both take an `EventPosition` (segment + byte offset)
-alongside the envelope. That position is the event's *identity*: one line per event and
-whole-segment retention together mean no two events share one and an event's never changes.
-`AuditId.ForPosition` turns it into `evt_<segment>_<offset>` — unique by construction, and
-ordered like the file, so the same value works as an id and as a pagination cursor. Only raw
-handlers see it; a consumer that needs the id inside a *typed* handler captures it from a raw
-handler first (raw handlers run before typed dispatch, for every envelope).
+alongside the envelope. Only raw handlers see it; a consumer that needs it inside a *typed* handler
+captures it from a raw handler first (raw handlers run before typed dispatch, for every envelope).
+
+The position says where the event **is**. `AuditId.ForPosition` turns it into
+`evt_<segment>_<offset>` — unique by construction, and ordered like the file, so one value works as an
+id and as a pagination cursor. That rests on a promise rather than on arithmetic: one line per event,
+and segments appended to and deleted whole (conformance §2·l). ⚠ **Rewrite a segment and it breaks
+silently** — deleting a line shifts every byte after it, and a stored position then resolves to a real,
+parseable event of the wrong kind.
+
+`EventWrapper.Id` and `EventPosition.EventId` say what the event is **called** — the UUIDv7 its
+producer minted at write time (§2·m). `EventService` joins the id onto the position once, for every
+handler, so a consumer storing a reference keeps identity and location together and can check one
+against the other. **Null is unknown, never a mismatch:** lines written before the field existed are
+readable for as long as retention holds them.
 
 ### 4·a. Reading history back
 
@@ -142,7 +151,7 @@ happened into the audit trail.
 ### 4·a·i. Checking that every producer writes the same envelope
 
 `TheKrystalShip.KGSM.Conformance` (in the `journal/` package, beside the writer that has to satisfy
-it) reads what producers actually wrote and reports where it does not match the contract. Thirteen
+it) reads what producers actually wrote and reports where it does not match the contract. Fourteen
 rules, catalogued in `ConformanceRule`. It is **mechanism only** — no rule looks at an event type or a
 payload field, because what a producer records and when is its own business.
 

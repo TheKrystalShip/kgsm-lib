@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — a reader receives the line's own id (`Journal` 1.10.0 / `Lib` 4.42.0)
+
+`EventWrapper.Id` carries the id off the envelope, and `EventPosition.EventId` carries it beside the
+location, so a raw handler is handed both without re-parsing a line it has already been given.
+`EventService` joins them once, for every handler, because the transport can only know a location
+without parsing while the name lives in the line.
+
+**Nothing consumes it yet.** A consumer that stores a reference can now store identity *and* location
+together, which is what turns the silent failure into a loud one: seek by the position, compare the
+id, and a rewritten segment stops resolving to a real event of the wrong kind.
+
+Null is unknown and never a mismatch, on both. Every line written before the field existed stays on
+disk for as long as retention holds it, and so does every line from a producer whose shell cannot mint
+an id.
+
+`EventPosition.EventId` takes part in equality, like `Producer`: two values that disagree about which
+event this is are two different assertions. Addressability is `IsKnown`, which reads the segment
+alone — never a comparison against `None`.
+
+### Added — `envelope.event-id-shape`, the fourteenth conformance rule (`Journal` 1.10.0)
+
+An id, when there is one, is a lowercase hyphenated UUIDv7 with the RFC 4122 variant.
+`JournalConformance.IsWellFormedEventId` is the judgment, public because a consumer comparing a stored
+id needs the same answer the checker gives.
+
+Stricter than `Guid.TryParse`, in the two directions that matter. **Case**, because every store that
+keeps an id compares it as text, so an uppercase spelling of the same id is a different string and a
+producer writing one would look like a producer writing different events. **Version**, because a v4
+parses perfectly and silently loses the time-ordering the format was chosen for.
+
+Null stays absence; an empty string stays `envelope.absent-spelling`'s single finding rather than
+becoming two findings for one defect.
+
+Measured against the live host before shipping: 588 lines across all ten journals, every id well
+formed, no rule fired.
+
+
 ### Fixed — `Journal` 1.9.1 / `Lib` 4.41.1 carry the id write that 1.9.0 was supposed to
 
 **`TheKrystalShip.KGSM.Journal` 1.9.0 on the feed does not contain the `Id` write.** It was packed from

@@ -113,6 +113,7 @@ public static class JournalConformance
             CheckAbsentSpelling(root, Add);
             CheckActor(root, Add);
             CheckProducerVersion(root, Add);
+            CheckEventId(root, Add);
             CheckUnknownFields(root, Add);
         }
 
@@ -416,6 +417,80 @@ public static class JournalConformance
         }
 
         return true;
+    }
+
+    private static void CheckEventId(JsonElement root, Action<string, string> add)
+    {
+        if (!root.TryGetProperty("Id", out JsonElement id) || id.ValueKind == JsonValueKind.Null)
+        {
+            // Absent is a spelling, and it is the whole back catalogue plus any producer whose shell
+            // is too old to mint one. It is never a finding.
+            return;
+        }
+
+        if (id.ValueKind != JsonValueKind.String)
+        {
+            add(ConformanceRule.EventIdShape, $"Id is {id.ValueKind}, expected a string");
+            return;
+        }
+
+        string value = id.GetString() ?? string.Empty;
+
+        // The empty string is CheckAbsentSpelling's finding. Reporting it twice for one defect makes
+        // a report harder to read without telling anybody anything more.
+        if (string.IsNullOrWhiteSpace(value))
+            return;
+
+        if (!IsWellFormedEventId(value))
+        {
+            add(ConformanceRule.EventIdShape,
+                $"'{value}' is not a lowercase hyphenated UUIDv7");
+        }
+    }
+
+    /// <summary>
+    /// Whether an id is spelled the way the contract requires: a lowercase, hyphenated UUID whose
+    /// version nibble is 7 and whose variant is the RFC 4122 one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Deliberately stricter than <see cref="Guid.TryParse(string, out Guid)"/>, in both directions
+    /// that matter. <b>Case</b>, because an id is compared as text by everything that stores one — the
+    /// reactor's ledger, the audit cursor — and an uppercase spelling of the same id is a different
+    /// string, so a producer writing one would look like a producer writing different events.
+    /// <b>Version</b>, because a v4 parses as a uuid perfectly well while losing the time-ordering the
+    /// format was chosen for, and nothing downstream is in a position to notice the loss.
+    /// </para>
+    /// <para>
+    /// This is the shape check, not an identity check: it says the id could name an event, never that
+    /// it names the right one. Comparing an id against the line it was stored for is a consumer's job,
+    /// because only a consumer holds the earlier reading to compare against.
+    /// </para>
+    /// </remarks>
+    /// <param name="id">The id as written, or null.</param>
+    /// <returns>True when the id is well formed; false for null, empty, or any other shape.</returns>
+    public static bool IsWellFormedEventId(string? id)
+    {
+        if (id is not { Length: 36 })
+            return false;
+
+        for (int i = 0; i < 36; i++)
+        {
+            char c = id[i];
+
+            if (i is 8 or 13 or 18 or 23)
+            {
+                if (c != '-')
+                    return false;
+            }
+            else if (!char.IsAsciiDigit(c) && c is < 'a' or > 'f')
+            {
+                return false;
+            }
+        }
+
+        // The version nibble leads the third group; the variant nibble leads the fourth.
+        return id[14] == '7' && id[19] is '8' or '9' or 'a' or 'b';
     }
 
     private static void CheckUnknownFields(JsonElement root, Action<string, string> add)

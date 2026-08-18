@@ -47,6 +47,14 @@ public static class ConformanceRule
     /// <summary>The producer version is the number a release carries, not a four-part assembly version.</summary>
     public const string ProducerVersionShape = "envelope.producer-version-shape";
 
+    /// <summary>An id, when there is one, is a lowercase hyphenated UUIDv7.</summary>
+    /// <remarks>
+    /// A reader compares ids as text, so a different spelling of the same id reads as a different
+    /// event. The version nibble is checked too: a v4 satisfies "is a uuid" while losing the
+    /// ordering the format was chosen for, and nothing downstream would notice.
+    /// </remarks>
+    public const string EventIdShape = "envelope.event-id-shape";
+
     /// <summary>The envelope carries no field the contract does not define.</summary>
     public const string UnknownField = "envelope.unknown-field";
 

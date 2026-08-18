@@ -6,7 +6,9 @@ namespace TheKrystalShip.KGSM.Core.Models;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This is the event's identity, and it is an identity <b>borrowed from a promise</b>: each event is
+/// This is where the event <em>is</em>; <see cref="EventId"/> is what it is <em>called</em>. Until
+/// every line on disk carries a name, the location does the identifying, and it is an identity
+/// <b>borrowed from a promise</b>: each event is
 /// one whole line, and a segment is only ever appended to and deleted whole (conformance §2·l). While
 /// that holds, no two events share a position and no event's position changes, which is what lets
 /// <see cref="TheKrystalShip.KGSM.Events.AuditId.ForPosition(string, long)"/> turn it into a stable id.
@@ -46,6 +48,31 @@ public readonly record struct EventPosition(string Segment, long Offset)
     /// </para>
     /// </remarks>
     public string? Producer { get; init; }
+
+    /// <summary>
+    /// The id the event's producer minted for it, or <see langword="null"/> when the line carries
+    /// none or the transport did not read one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The identity the position is only a <em>location</em> for, carried alongside it so a consumer
+    /// storing a reference keeps both without re-reading the line. A stored pair is then
+    /// self-checking: seek by the position, compare the id, and the rewrite that used to resolve
+    /// silently to a real event of the wrong kind announces itself instead.
+    /// </para>
+    /// <para>
+    /// <b>Null is unknown, never a mismatch</b> — see <see cref="Events.EventWrapper.Id"/>. A check
+    /// that reads absence as disagreement condemns every line written before the field existed.
+    /// </para>
+    /// <para>
+    /// It takes part in equality, like <see cref="Producer"/>: two values that disagree about which
+    /// event this is are two different assertions, and equality that quietly ignored the disagreement
+    /// would be the same silence the id exists to break. Addressability is
+    /// <see cref="IsKnown"/> — which reads the segment alone — never a comparison against
+    /// <see cref="None"/>.
+    /// </para>
+    /// </remarks>
+    public string? EventId { get; init; }
 
     /// <summary>
     /// Initializes a position in a named producer's journal.

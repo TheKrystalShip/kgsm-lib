@@ -32,10 +32,14 @@ public class EventServiceTests
     /// <summary>Where the fake transport claims its envelopes came from.</summary>
     private static readonly EventPosition TestPosition = new("2026-08-04.ndjson", 512);
 
-    private static string Wire(string eventType, string dataJson) =>
-        $$"""
-        {"EventType":"{{eventType}}","Data":{{dataJson}},"Timestamp":"2026-06-11T21:00:43Z","Hostname":"hotrod","KGSMVersion":"unknown"}
+    private static string Wire(string eventType, string dataJson, string? id = null)
+    {
+        string idField = id is null ? string.Empty : $"\"Id\":\"{id}\",";
+
+        return $$"""
+        {{{idField}}"EventType":"{{eventType}}","Data":{{dataJson}},"Timestamp":"2026-06-11T21:00:43Z","Hostname":"hotrod","KGSMVersion":"unknown"}
         """;
+    }
 
     [Fact]
     public async Task Initialize_IsIdempotent_SoOneEventIsDeliveredOnce()
@@ -360,6 +364,77 @@ public class EventServiceTests
         EventPosition received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(TestPosition, received);
         Assert.True(received.IsKnown);
+    }
+
+    /// <summary>
+    /// The line's own id reaches a handler on both halves of what it is given: the envelope it was
+    /// written on, and the position it is joined onto.
+    /// </summary>
+    /// <remarks>
+    /// Joined here rather than in each consumer because the transport hands over a location — all it
+    /// can know without parsing — while the name lives in the line, which this service has already
+    /// parsed. A consumer storing a reference then keeps identity and location together without
+    /// re-reading the envelope it was handed.
+    /// </remarks>
+    [Fact]
+    public async Task RegisterRawHandler_ReceivesTheLinesOwnId()
+    {
+        const string id = "0198f3a2-7c41-7b3e-9f2a-1d4c8e5b6a70";
+
+        using EventService svc = CreateService();
+        var tcs = new TaskCompletionSource<(EventWrapper Wrapper, EventPosition Position)>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        svc.RegisterRawHandler((wrapper, position) =>
+        {
+            tcs.TrySetResult((wrapper, position));
+            return Task.CompletedTask;
+        });
+        svc.Initialize();
+
+        _mockClient.Raise(c => c.EventReceived += null,
+            Wire("instance_started", """{"InstanceName":"7dtd"}""", id), TestPosition);
+
+        (EventWrapper wrapper, EventPosition position) = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(id, wrapper.Id);
+        Assert.Equal(id, position.EventId);
+
+        // The location is untouched by the join — the id is carried beside it, never instead of it.
+        Assert.Equal(TestPosition.Segment, position.Segment);
+        Assert.Equal(TestPosition.Offset, position.Offset);
+    }
+
+    /// <summary>
+    /// A line with no id reaches a handler as an unknown one, not as a mismatch.
+    /// </summary>
+    /// <remarks>
+    /// Every line written before the field existed is on disk for as long as retention holds it, and
+    /// so is every line from a producer whose shell cannot mint one. A reader treating absence as a
+    /// disagreement would condemn the entire back catalogue on the day it shipped.
+    /// </remarks>
+    [Fact]
+    public async Task RegisterRawHandler_ALineWithNoIdArrivesAsUnknown()
+    {
+        using EventService svc = CreateService();
+        var tcs = new TaskCompletionSource<(EventWrapper Wrapper, EventPosition Position)>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        svc.RegisterRawHandler((wrapper, position) =>
+        {
+            tcs.TrySetResult((wrapper, position));
+            return Task.CompletedTask;
+        });
+        svc.Initialize();
+
+        _mockClient.Raise(c => c.EventReceived += null,
+            Wire("instance_started", """{"InstanceName":"7dtd"}"""), TestPosition);
+
+        (EventWrapper wrapper, EventPosition position) = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Null(wrapper.Id);
+        Assert.Null(position.EventId);
+        Assert.Equal(TestPosition, position);
     }
 
     [Fact]

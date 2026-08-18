@@ -305,6 +305,85 @@ public sealed class JournalConformanceCheckerTests : IDisposable
         Assert.Empty(Check(line));
     }
 
+    // ── envelope.event-id-shape ──────────────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData("0198F3A2-7C41-7B3E-9F2A-1D4C8E5B6A70", "uppercase reads as a different id")]
+    [InlineData("0198f3a27c417b3e9f2a1d4c8e5b6a70", "unhyphenated reads as a different id")]
+    [InlineData("{0198f3a2-7c41-7b3e-9f2a-1d4c8e5b6a70}", "braced reads as a different id")]
+    [InlineData("0198f3a2-7c41-4b3e-9f2a-1d4c8e5b6a70", "a v4 parses fine and does not sort")]
+    [InlineData("0198f3a2-7c41-7b3e-0f2a-1d4c8e5b6a70", "no RFC 4122 variant")]
+    [InlineData("not-a-uuid", "not a uuid at all")]
+    [InlineData("0198f3a2-7c41-7b3e-9f2a-1d4c8e5b6a7", "a nibble short")]
+    public void An_id_spelled_any_other_way_is_reported(string id, string why)
+    {
+        // Every one of these is a real id in some other system's spelling, and every one of them
+        // compares unequal to the id it is. A reader storing one has stored a name that will never
+        // match the line it came from.
+        Assert.False(string.IsNullOrEmpty(why));
+        AssertBreaks(ConformanceRule.EventIdShape, Line(id: id));
+    }
+
+    [Fact]
+    public void An_id_that_is_not_even_a_string_is_reported()
+    {
+        string line = """
+        {"V":1,"EventType":"a_b","Data":{},"Timestamp":"2026-08-16T10:04:37.799Z","Id":12345}
+        """;
+
+        AssertBreaks(ConformanceRule.EventIdShape, line);
+    }
+
+    [Theory]
+    [InlineData("0198f3a2-7c41-7b3e-8f2a-1d4c8e5b6a70")]
+    [InlineData("0198f3a2-7c41-7b3e-9f2a-1d4c8e5b6a70")]
+    [InlineData("0198f3a2-7c41-7b3e-af2a-1d4c8e5b6a70")]
+    [InlineData("0198f3a2-7c41-7b3e-bf2a-1d4c8e5b6a70")]
+    [InlineData("00000000-0000-7000-8000-000000000000")]
+    public void Every_variant_nibble_the_format_defines_is_accepted(string id)
+    {
+        // All four spellings of the RFC 4122 variant are legal, and the bash writer reaches all four:
+        // it ORs 0x8000 over fourteen random bits. A check accepting only the one .NET happened to
+        // produce would go red on the engine's own lines, sporadically.
+        Assert.Empty(Check(Line(id: id)));
+    }
+
+    [Fact]
+    public void A_null_id_is_absence_and_not_a_shape_fault()
+    {
+        string line = """
+        {"V":1,"EventType":"a_b","Data":{},"Timestamp":"2026-08-16T10:04:37.799Z","Id":null}
+        """;
+
+        Assert.Empty(Check(line));
+    }
+
+    [Fact]
+    public void An_empty_id_is_reported_once_as_the_absence_fault_it_is()
+    {
+        // Two findings for one defect makes a report harder to read and tells nobody anything more,
+        // so the shape check stands aside for the one that already names it.
+        string line = """
+        {"V":1,"EventType":"a_b","Data":{},"Timestamp":"2026-08-16T10:04:37.799Z","Id":""}
+        """;
+
+        ConformanceFinding finding = Assert.Single(Check(line));
+        Assert.Equal(ConformanceRule.AbsentSpelling, finding.Rule);
+    }
+
+    [Fact]
+    public void The_writer_and_the_shape_check_agree_on_what_an_id_is()
+    {
+        // Pinned to what the writer actually mints rather than to a literal, so the check cannot start
+        // rejecting the ids every .NET producer on the fleet is writing.
+        for (int i = 0; i < 64; i++)
+            Assert.True(JournalConformance.IsWellFormedEventId(Guid.CreateVersion7().ToString("d")));
+
+        Assert.False(JournalConformance.IsWellFormedEventId(Guid.NewGuid().ToString("d")));
+        Assert.False(JournalConformance.IsWellFormedEventId(null));
+        Assert.False(JournalConformance.IsWellFormedEventId(string.Empty));
+    }
+
     [Theory]
     [InlineData("OpId")]
     [InlineData("RunId")]
@@ -531,7 +610,7 @@ public sealed class JournalConformanceCheckerTests : IDisposable
             .Where(static f => f.IsLiteral && f.FieldType == typeof(string))
             .Select(static f => (string)f.GetRawConstantValue()!)];
 
-        Assert.Equal(13, declared.Length);
+        Assert.Equal(14, declared.Length);
         Assert.All(declared, rule => Assert.Contains(rule, ExercisedRules));
     }
 
@@ -545,6 +624,7 @@ public sealed class JournalConformanceCheckerTests : IDisposable
         ConformanceRule.AbsentSpelling,
         ConformanceRule.Actor,
         ConformanceRule.ProducerVersionShape,
+        ConformanceRule.EventIdShape,
         ConformanceRule.UnknownField,
         ConformanceRule.ProducerMatchesDirectory,
         ConformanceRule.SegmentName,
@@ -607,7 +687,8 @@ public sealed class JournalConformanceCheckerTests : IDisposable
         string timestamp = "2026-08-16T10:04:37.799Z",
         string? actor = "system:monitor",
         string? hostname = "hotrod",
-        string? producerVersion = "2.7.1")
+        string? producerVersion = "2.7.1",
+        string? id = null)
     {
         var fields = new List<string>
         {
@@ -625,6 +706,9 @@ public sealed class JournalConformanceCheckerTests : IDisposable
 
         if (producerVersion is not null)
             fields.Add($"\"ProducerVersion\":\"{producerVersion}\"");
+
+        if (id is not null)
+            fields.Add($"\"Id\":\"{id}\"");
 
         return "{" + string.Join(",", fields) + "}";
     }

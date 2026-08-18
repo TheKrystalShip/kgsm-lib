@@ -307,6 +307,13 @@ public class EventService : IEventService, IAsyncDisposable
 
             _logger.LogDebug("Processing event of type {EventType}", eventWrapper.EventType);
 
+            // The transport hands over a location, because a location is all it can know without
+            // parsing. The name lives in the line, so it is joined on here — once, for every handler
+            // — rather than each consumer re-reading an envelope it has already been given.
+            // Null when the line carries no id, which is what a pre-id line and a producer that
+            // cannot mint one both look like.
+            position = position with { EventId = eventWrapper.Id };
+
             // Raw handlers see every envelope — known or unknown EventType — before
             // typed dispatch runs, and never suppress it.
             await InvokeRawHandlersAsync(eventWrapper, position).ConfigureAwait(false);
