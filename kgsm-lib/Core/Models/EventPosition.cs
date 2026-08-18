@@ -6,10 +6,17 @@ namespace TheKrystalShip.KGSM.Core.Models;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This is the event's identity. Because each event is one whole line and retention deletes
-/// whole segments rather than rewriting them, no two events ever share a position and an
-/// event's position never changes — which is what lets
+/// This is the event's identity, and it is an identity <b>borrowed from a promise</b>: each event is
+/// one whole line, and a segment is only ever appended to and deleted whole (conformance §2·l). While
+/// that holds, no two events share a position and no event's position changes, which is what lets
 /// <see cref="TheKrystalShip.KGSM.Events.AuditId.ForPosition(string, long)"/> turn it into a stable id.
+/// </para>
+/// <para>
+/// ⚠ <b>Rewrite a segment and this breaks silently.</b> Deleting one line shifts every byte after it,
+/// and a stored position then resolves to a real, parseable event that is simply not the one it named
+/// — no exception, nothing malformed, and every reading derived from it as trustworthy-looking as one
+/// derived from the truth. Nothing here can detect that; it is prevented upstream by §2·l, and
+/// detected downstream by a consumer that kept a baseline to compare against.
 /// </para>
 /// <para>
 /// A consumer watching events arrive and a consumer reading history back therefore name the

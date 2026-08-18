@@ -33,14 +33,23 @@ public static class JournalConformance
     public static readonly IReadOnlyList<string> RequiredFields = ["V", "EventType", "Data", "Timestamp"];
 
     /// <summary>
-    /// Envelope fields a line may carry, including the ones reserved for correlation.
+    /// Envelope fields a line may carry, including <c>Id</c> and the three reserved for correlation.
     /// </summary>
     /// <remarks>
-    /// The reserved three are listed so a producer that starts populating them is not reported as
+    /// <para>
+    /// The reserved ones are listed so a producer that starts populating them is not reported as
     /// having invented a field — they are part of the contract whether or not anything writes them.
+    /// <b>A field must be listed here before any producer emits it</b>, or every line that producer
+    /// writes is reported as carrying an unknown field.
+    /// </para>
+    /// <para>
+    /// <c>Id</c> is optional and stays optional. Lines written before it existed are on disk for as
+    /// long as retention holds them, so a reader meets one that has no id for years yet — and absent
+    /// means <b>unknown</b>, never a mismatch (§2·e).
+    /// </para>
     /// </remarks>
     public static readonly IReadOnlyList<string> OptionalFields =
-        ["Actor", "Origin", "Hostname", "ProducerVersion", "OpId", "RunId", "During"];
+        ["Actor", "Origin", "Hostname", "ProducerVersion", "Id", "OpId", "RunId", "During"];
 
     /// <summary>How many lines of a journal a host check reads when the caller names no number.</summary>
     /// <remarks>

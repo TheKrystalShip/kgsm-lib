@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — the contract knows the line's own id, before anything writes one (`Journal` 1.9.0)
+
+`JournalConformance.OptionalFields` carries `Id`. Nothing emits one yet, and that ordering is the
+point: the checker enforces `envelope.unknown-field` against this list, so a producer that shipped an
+id first would have every line it writes reported as having invented a field — and the host
+conformance check runs against the live journals.
+
+The field is defined by **`event-conformance-plan.md` §2·m**: UUIDv7, lowercase hyphenated, minted by
+the producer and never derived from content, optional forever. A line written before it existed is on
+disk for as long as retention holds it, so **absent means unknown, never a mismatch**. Adding it does
+not bump `V` — a reader that has never heard of `Id` reads such a line exactly as it always did.
+
+### Added — the rule every stored position depends on (`Journal` 1.9.0)
+
+**`event-conformance-plan.md` §2·l: a segment is appended to and deleted whole, never rewritten.**
+Every durable reference to an event on this host is a byte offset into a named segment, and that only
+works while lines do not move. The rule existed as prose in three doc comments and as an obligation
+nowhere.
+
+`Retention_LeavesEveryKeptSegmentByteIdentical` enforces it at the pruner, asserting the **bytes** of a
+kept segment over several lines rather than that the file still exists — `copytruncate` and dropping
+the first N lines both leave the file there.
+
+⚠ There is deliberately **no `ConformanceRule` id** for it. A line-level checker reads a journal as it
+is now and holds no baseline, so it could never produce that finding, and a rule that can never fire
+is a check that exists only in a list.
+
+### Changed — `EventPosition` no longer promises what it cannot (`Lib` 4.40.0)
+
+Its remarks asserted that an event's position never changes. That is true only while §2·l holds, and
+the doc now says so — along with what breaks when it does not: a stored position resolving to a real,
+parseable event that is simply not the one it named.
+
 ### Added — a backup's reason and retention (`Lib` 4.40.0)
 
 `InstanceBackup` carries `Reason` and `Retention`, and `IsPinned` resolves the latter so a consumer

@@ -383,6 +383,30 @@ public sealed class JournalConformanceTests : IDisposable
     // ── Retention ───────────────────────────────────────────────────────────────────────
 
     [Fact]
+    public void Retention_LeavesEveryKeptSegmentByteIdentical()
+    {
+        // §2·l as a test. Every stored position on this host — the reactor's ledger, the audit ids the
+        // API derives and paginates on — is a byte offset into a named segment, so a pruner that
+        // rewrote a file rather than unlinking it would silently misplace every event after the cut.
+        // Asserted on the bytes rather than on "the file is still there", because copytruncate and
+        // dropping the first N lines both leave the file there.
+        string dir = Segments("kgsm-api", "2026-01-01", "2026-08-16");
+        string kept = Path.Combine(dir, "2026-08-16.ndjson");
+
+        // Several lines, not the helper's single one: the failure §2·l names is dropping the first N
+        // lines of a segment that is otherwise kept, and a one-line fixture cannot tell that apart
+        // from removing the file.
+        File.WriteAllText(kept, """{"V":1,"EventType":"a"}""" + "\n"
+            + """{"V":1,"EventType":"b"}""" + "\n"
+            + """{"V":1,"EventType":"c"}""" + "\n");
+        byte[] before = File.ReadAllBytes(kept);
+
+        JournalRetention.Prune(dir, 90, At("2026-08-16"), NullLogger.Instance);
+
+        Assert.Equal(before, File.ReadAllBytes(kept));
+    }
+
+    [Fact]
     public void Retention_RemovesOnlySegmentsPastTheWindow()
     {
         string dir = Segments("kgsm-api", "2026-01-01", "2026-05-17", "2026-05-18", "2026-08-16");

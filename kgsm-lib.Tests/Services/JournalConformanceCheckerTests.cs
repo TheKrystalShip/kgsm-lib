@@ -175,6 +175,7 @@ public sealed class JournalConformanceCheckerTests : IDisposable
     [InlineData("Origin")]
     [InlineData("Hostname")]
     [InlineData("ProducerVersion")]
+    [InlineData("Id")]
     [InlineData("OpId")]
     [InlineData("RunId")]
     public void An_empty_string_where_a_value_is_absent_is_reported(string field)
@@ -276,6 +277,32 @@ public sealed class JournalConformanceCheckerTests : IDisposable
 
         ConformanceFinding finding = AssertBreaks(ConformanceRule.UnknownField, line);
         Assert.Contains("Instance", finding.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_line_carrying_its_own_id_conforms()
+    {
+        // ⚠ The ordering constraint behind §2·m, as a test. The checker has to know this field BEFORE
+        // any producer emits it: otherwise the first producer to ship an id has every line it writes
+        // reported as having invented a field, and the host conformance check goes red on a fleet that
+        // is doing exactly what the contract asks.
+        string line = """
+        {"V":1,"EventType":"a_b","Data":{},"Timestamp":"2026-08-16T10:04:37.799Z","Id":"0198f3a2-7c41-7b3e-9f2a-1d4c8e5b6a70"}
+        """;
+
+        Assert.Empty(Check(line));
+    }
+
+    [Fact]
+    public void A_line_with_no_id_still_conforms()
+    {
+        // Optional, and optional forever: every line written before §2·m existed is on disk for as
+        // long as retention holds it. Absent is unknown, never a fault.
+        string line = """
+        {"V":1,"EventType":"a_b","Data":{},"Timestamp":"2026-08-16T10:04:37.799Z"}
+        """;
+
+        Assert.Empty(Check(line));
     }
 
     [Theory]
