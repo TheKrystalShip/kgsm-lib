@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Text;
+
 using TheKrystalShip.KGSM.Events;
 
 namespace TheKrystalShip.KGSM.Tests.Services;
@@ -57,6 +60,12 @@ public sealed class EventJournalHistoryTests : IDisposable
         string actorField = actor is null ? "" : $$""","Actor":"{{actor}}" """.TrimEnd();
         return $$"""{"EventType":"{{type}}","Data":{{data}},"Timestamp":"{{timestamp}}"{{actorField}}}""";
     }
+
+    /// <summary>The same envelope, carrying the id its producer minted for it.</summary>
+    private static string Named(string type, string timestamp, string id, string? instance = null) =>
+        Envelope(type, timestamp, instance).Insert(1, $"\"Id\":\"{id}\",");
+
+    private static string Uuid7(int n) => $"01a016e9-d535-7b03-8a6a-{n:d12}";
 
     /// <summary>Appends complete lines the way the engine does — one whole line per event.</summary>
     private void Append(string segment, params string[] lines)
@@ -195,6 +204,133 @@ public sealed class EventJournalHistoryTests : IDisposable
 
         Assert.Equal(3, page.Events.Count);
         Assert.Equal(3, page.Events.Select(e => e.Id).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task QueryAsync_Id_IsTheLinesOwnNameWhenItHasOne()
+    {
+        // A position is right only while a segment is appended to and deleted whole. Delete one line
+        // and every id after it silently becomes the id of a DIFFERENT event — the row keeps its
+        // identity here instead, and the rewrite shows up as a position that no longer resolves.
+        Append("2026-08-04.ndjson",
+            Named("instance_started", "2026-08-04T10:00:00Z", Uuid7(1), instance: "factorio"));
+
+        EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery());
+
+        Assert.Equal("evt_" + Uuid7(1), Assert.Single(page.Events).Id);
+    }
+
+    [Fact]
+    public async Task QueryAsync_Id_StaysPositionalForALineWithNoName()
+    {
+        // Every line written before the field existed is on disk for as long as retention holds it,
+        // and each one still needs an id. Falling back is what keeps the back catalogue addressable.
+        Append("2026-08-04.ndjson", Envelope("instance_started", "2026-08-04T10:00:00Z", "factorio"));
+
+        EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery());
+
+        Assert.Equal("evt_2026-08-04_000000000000", Assert.Single(page.Events).Id);
+    }
+
+    [Fact]
+    public async Task QueryAsync_Id_FallsBackWhenTheLinesNameIsMalformed()
+    {
+        // An id this ecosystem did not write cannot be assumed unique or ordered, and building an audit
+        // id on one would put a duplicate or a mis-sort into the page. The shape is checked, not
+        // trusted; envelope.event-id-shape is where the producer gets told.
+        Append("2026-08-04.ndjson",
+            Named("instance_started", "2026-08-04T10:00:00Z", "NOT-A-UUID", instance: "factorio"));
+
+        EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery());
+
+        Assert.Equal("evt_2026-08-04_000000000000", Assert.Single(page.Events).Id);
+    }
+
+    /// <summary>
+    /// ⚠ Paging must not skip a row when the id scheme changes underneath a cursor — which is what a
+    /// deploy does to a client mid-scroll.
+    /// </summary>
+    /// <remarks>
+    /// The cursor is <c>(timestamp, id)</c> and the id is only the tie-break <em>within one
+    /// millisecond</em>, so this is the only place a scheme change can be felt. The check is that the
+    /// walk loses nothing: a duplicate is a re-render, where a skipped audit row is a fact nobody
+    /// ever sees.
+    /// </remarks>
+    [Fact]
+    public async Task QueryAsync_ACursorFromTheOldSchemeSkipsNothing()
+    {
+        const string ts = "2026-08-04T10:00:00.000Z";
+
+        // Four events sharing one millisecond — the tie-break's whole domain.
+        Append("2026-08-04.ndjson",
+            Named("instance_started", ts, Uuid7(1), instance: "a"),
+            Named("instance_ready", ts, Uuid7(2), instance: "b"),
+            Named("instance_stopped", ts, Uuid7(3), instance: "c"),
+            Named("instance_started", ts, Uuid7(4), instance: "d"));
+
+        IEventJournalHistory history = CreateHistory();
+
+        EventHistoryPage all = await history.QueryAsync(new EventHistoryQuery());
+        Assert.Equal(4, all.Events.Count);
+
+        // A cursor the PREVIOUS build would have handed out, naming the second line by its position.
+        // Byte offsets are what that scheme encoded, and the second line starts after the first.
+        long secondOffset = Encoding.UTF8.GetByteCount(
+            Named("instance_started", ts, Uuid7(1), instance: "a")) + 1;
+
+        EventHistoryPage next = await history.QueryAsync(new EventHistoryQuery
+        {
+            BeforeTsMs = DateTimeOffset.Parse(ts, CultureInfo.InvariantCulture).ToUnixTimeMilliseconds(),
+            BeforeId = AuditId.ForPosition("2026-08-04", secondOffset),
+        });
+
+        // Nothing the old cursor named is lost: every event still reachable from it.
+        Assert.Equal(
+            all.Events.Select(e => e.Id).OrderBy(x => x, StringComparer.Ordinal),
+            next.Events.Select(e => e.Id).OrderBy(x => x, StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// A page of mixed named and unnamed lines pages cleanly, which is what the whole retention window
+    /// looks like until every line predating the id has aged out.
+    /// </summary>
+    [Fact]
+    public async Task QueryAsync_MixedNamedAndUnnamedLinesPageWithoutLoss()
+    {
+        const string ts = "2026-08-04T10:00:00.000Z";
+
+        Append("2026-08-04.ndjson",
+            Named("instance_started", ts, Uuid7(1), instance: "a"),
+            Envelope("instance_ready", ts, "b"),
+            Named("instance_stopped", ts, Uuid7(3), instance: "c"),
+            Envelope("instance_started", ts, "d"));
+
+        IEventJournalHistory history = CreateHistory();
+
+        var seen = new List<string>();
+        long? cursorTs = null;
+        string? cursorId = null;
+
+        // Walk one row at a time, the way a client does.
+        for (int page = 0; page < 8; page++)
+        {
+            EventHistoryPage p = await history.QueryAsync(new EventHistoryQuery
+            {
+                Limit = 1, BeforeTsMs = cursorTs, BeforeId = cursorId,
+            });
+
+            if (p.Events.Count == 0) break;
+
+            seen.AddRange(p.Events.Select(e => e.Id));
+            if (p.NextCursorTsMs is null) break;
+
+            cursorTs = p.NextCursorTsMs;
+            cursorId = p.NextCursorId;
+        }
+
+        // Four rows, each exactly once: no skip, and no row served twice.
+        Assert.Equal(4, seen.Count);
+        Assert.Equal(4, seen.Distinct(StringComparer.Ordinal).Count());
     }
 
     [Fact]

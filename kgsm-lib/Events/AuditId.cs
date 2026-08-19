@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using TheKrystalShip.KGSM.Conformance;
 
 namespace TheKrystalShip.KGSM.Events;
 
@@ -135,6 +136,67 @@ public static class AuditId
 
         return "evt_" + producer + "_" + StemOf(segment) + "_" + offset.ToString("D12", CultureInfo.InvariantCulture);
     }
+
+    /// <summary>
+    /// The id for one journal line: its own name when it has one, else where it sits.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>A line's minted id is the better identity and this prefers it.</b> A position is right only
+    /// while a segment is appended to and deleted whole (conformance §2·l); delete one line and every
+    /// id after it silently becomes the id of a different event. An id is the line's own name, so it
+    /// survives that — the row keeps its identity and the rewrite shows up as a position that no longer
+    /// resolves, which is a fault somebody can see.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>Every derivation of an event's id must make this same choice.</b> One event served two ways
+    /// — pushed live and found in history — has to come back with one id, or a client reconciling the
+    /// two sees two facts. That is why this takes the id as an argument rather than reading it
+    /// somewhere: both callers hold it already, and neither can quietly opt out.
+    /// </para>
+    /// <para>
+    /// <b>Ordering survives.</b> The id is the tie-break in the <c>(timestamp, id)</c> keyset a page
+    /// walks, compared as a plain string. A UUIDv7 is time-ordered, so within a producer these sort the
+    /// way the journal does; across producers, within a single millisecond, the order is deterministic
+    /// rather than true — which is exactly what the positional form gave. ⚠ The tie-break's real
+    /// requirement is only that it is a <em>stable total order both sources of a merged page agree
+    /// on</em>: a caller merges this history with rows that have no journal position at all, so the
+    /// comparison can never be positional. Mixed forms compare fine, which is what lets the two
+    /// coexist for as long as retention holds a line written before ids existed.
+    /// </para>
+    /// </remarks>
+    /// <param name="eventId">The line's own id, or null when it carries none.</param>
+    /// <param name="segment">The segment file name, with or without its <c>.ndjson</c> extension.</param>
+    /// <param name="offset">The byte offset the event's line starts at.</param>
+    /// <returns>
+    /// <c>evt_&lt;id&gt;</c> when the line is named, otherwise <see cref="ForPosition(string, long)"/>.
+    /// </returns>
+    public static string ForLine(string? eventId, string segment, long offset) =>
+        Named(eventId) ?? ForPosition(segment, offset);
+
+    /// <inheritdoc cref="ForLine(string?, string, long)"/>
+    /// <param name="eventId">The line's own id, or null when it carries none.</param>
+    /// <param name="producer">The journal's producer id (see <see cref="JournalProducer"/>).</param>
+    /// <param name="segment">The segment file name, with or without its <c>.ndjson</c> extension.</param>
+    /// <param name="offset">The byte offset the event's line starts at.</param>
+    /// <remarks>
+    /// The producer-prefixed fallback. A named line needs no producer in its id — the name is already
+    /// unique across every journal on the host, which is the property the prefix was compensating for.
+    /// </remarks>
+    public static string ForLine(string? eventId, string producer, string segment, long offset) =>
+        Named(eventId) ?? ForPosition(producer, segment, offset);
+
+    /// <summary>
+    /// One line's minted id as an audit id, or null when it has none or the id is not well formed.
+    /// </summary>
+    /// <remarks>
+    /// The shape is checked rather than trusted, and falling back to the position is the right failure:
+    /// an id this ecosystem did not write cannot be assumed to be unique or ordered, and building an
+    /// audit id on one would put a duplicate or a mis-sort into the page. A producer writing such an id
+    /// is reported by <c>envelope.event-id-shape</c>, which is where that belongs.
+    /// </remarks>
+    private static string? Named(string? eventId) =>
+        JournalConformance.IsWellFormedEventId(eventId) ? "evt_" + eventId : null;
 
     /// <summary>
     /// Reads a journal position back out of an id produced by <see cref="ForPosition(string, long)"/>.

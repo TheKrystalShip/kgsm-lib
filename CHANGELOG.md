@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — a segment's top rows were selected by file order and served in id order (`Lib` 4.43.0)
+
+⚠ **A silent skip.** Each segment is streamed forward once with matches kept in a bounded ring, and
+the ring dropped the oldest as it went — right only while id order and file order agree. The
+assembled page is then sorted by `(timestamp, id)`, and a row the ring already discarded is one that
+sort never sees and no page ever serves. Nothing counts it, so a walk just comes up short.
+
+The ring is now a bounded heap ordered by the page's own comparator, `PageOrderAscending` — one
+definition, used by the scan to decide what to keep and by the page to decide what order to serve.
+Same single forward pass, same O(page) memory, one comparison per match.
+
+This also makes the read correct for a segment whose lines are not in timestamp order, which the
+final sort was documented as covering and could not.
+
+Measured: four events sharing one millisecond, paged one row at a time, served three.
+
+### Changed — an audit id is the line's own name when the line has one (`Lib` 4.43.0)
+
+`AuditId.ForLine` prefers the producer's minted id (`evt_<uuidv7>`) and falls back to the positional
+form for a line that carries none. A position is right only while a segment is appended to and
+deleted whole (conformance §2·l); a name survives a rewrite, so a row keeps its identity and the
+rewrite surfaces as a position that no longer resolves.
+
+The shape is checked rather than trusted — an id this ecosystem did not write cannot be assumed
+unique or ordered, and a malformed one falls back to the position rather than putting a duplicate or
+a mis-sort into a page.
+
+⚠ **Audit row ids change**, for lines written since producers began minting ids. Nothing persists
+one, so there is no stored migration; the `/audit` cursor is opaque and its encoding has changed
+before. A named id carries no producer prefix — a minted id is already unique across every journal on
+the host, which is what the prefix compensated for.
+
+⚠ **Every derivation of an event's id must make the same choice**, or one event served two ways —
+pushed live and found in history — comes back with two ids. `ForLine` takes the id as an argument so
+neither caller can quietly opt out.
+
+Ordering survives: a UUIDv7 is time-ordered, so within a producer these sort the way the journal
+does. The tie-break's real requirement is only that both sources of a merged page agree on a stable
+total order — a caller merges this history with rows that have no journal position at all, so the
+comparison can never be positional. Mixed forms page cleanly, which is what lets the two coexist for
+the 90 days retention holds a line written before ids existed.
+
 ### Added — a reader receives the line's own id (`Journal` 1.10.0 / `Lib` 4.42.0)
 
 `EventWrapper.Id` carries the id off the envelope, and `EventPosition.EventId` carries it beside the

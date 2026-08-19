@@ -167,11 +167,7 @@ public sealed class EventJournalHistory : IEventJournalHistory
         // the concatenation is already in order under the normal case where file order and
         // timestamp order agree. A final sort makes that independent of the assumption, at the
         // cost of ordering one page.
-        results.Sort(static (a, b) =>
-        {
-            int byTime = b.Ts.CompareTo(a.Ts);
-            return byTime != 0 ? byTime : string.CompareOrdinal(b.Id, a.Id);
-        });
+        results.Sort(static (a, b) => PageOrderAscending.Compare(b, a));
 
         if (results.Count > limit)
             results.RemoveRange(limit, results.Count - limit);
@@ -188,6 +184,22 @@ public sealed class EventJournalHistory : IEventJournalHistory
 
         return new EventHistoryPage(results, nextTs, nextId, coverageFrom, truncated, true);
     }
+
+    /// <summary>
+    /// The page's order, ascending — oldest and lowest-id first.
+    /// </summary>
+    /// <remarks>
+    /// <b>One definition, used twice.</b> The per-segment scan evicts the smallest under this to keep
+    /// the top of a segment, and the assembled page is sorted by its reverse. Two copies of the rule
+    /// would be free to drift, and a scan selecting by one order while the page is sorted by another
+    /// drops rows that belong on it — silently, because what is dropped is never counted.
+    /// </remarks>
+    private static readonly IComparer<EventHistoryEntry> PageOrderAscending =
+        Comparer<EventHistoryEntry>.Create(static (a, b) =>
+        {
+            int byTime = a.Ts.CompareTo(b.Ts);
+            return byTime != 0 ? byTime : string.CompareOrdinal(a.Id, b.Id);
+        });
 
     /// <summary>
     /// The segments that can contain events matching the query, newest first.
@@ -276,9 +288,21 @@ public sealed class EventJournalHistory : IEventJournalHistory
             return (matches, 0, false);
         }
 
-        // The ring holds at most `wanted` entries: enqueueing past that drops the oldest, so
-        // what survives a forward pass is exactly the segment's newest matches.
-        var ring = new Queue<EventHistoryEntry>(wanted);
+        // Bounded top-K by the SAME order the page is sorted in, not by file order.
+        //
+        // ⚠ Dropping the oldest line as it streams past is only right while id order and file order
+        // agree, which held while every id was derived from a byte offset. A line's own id does not
+        // sort that way: within one millisecond a named line can rank BELOW an unnamed one written
+        // after it, and a plain ring would already have discarded the one that outranks it — a row
+        // the final sort never sees and no page ever serves. Measured as a silent skip in a four-row
+        // window paged one row at a time.
+        //
+        // A heap of the same size keeps that O(1)-memory single forward pass and costs a comparison
+        // per match. The smallest by (timestamp, id) is what gets evicted, so what survives is the
+        // segment's top `wanted` under the page's own comparator whatever order the file is in —
+        // which also makes the read correct for a segment whose lines are not in timestamp order,
+        // something the final sort was documented as covering and could not.
+        var ring = new PriorityQueue<EventHistoryEntry, EventHistoryEntry>(wanted, PageOrderAscending);
         long bytes = 0;
         bool budgetHit = false;
 
@@ -325,14 +349,17 @@ public sealed class EventJournalHistory : IEventJournalHistory
                     continue;
                 }
 
+                // The line's own name when it has one, the position when it does not — and the SAME
+                // choice the live path makes, or one event would come back with two ids depending on
+                // which side served it.
                 string id = _prefixIds && _producer is { } p
-                    ? AuditId.ForPosition(p, stem, lineStart)
-                    : AuditId.ForPosition(stem, lineStart);
+                    ? AuditId.ForLine(wrapper.Id, p, stem, lineStart)
+                    : AuditId.ForLine(wrapper.Id, stem, lineStart);
 
                 if (!Matches(wrapper, ts, id, query))
                     continue;
 
-                ring.Enqueue(new EventHistoryEntry(
+                var entry = new EventHistoryEntry(
                     id, ts, wrapper.EventType,
                     ReadName(wrapper.Data, "InstanceName"),
                     ReadName(wrapper.Data, "BlueprintName"),
@@ -342,15 +369,20 @@ public sealed class EventJournalHistory : IEventJournalHistory
                         : wrapper.Data,
                     // Stamped from the journal this reader was pointed at, never from the line.
                     _producer,
-                    wrapper.OpId, wrapper.RunId, wrapper.During));
+                    wrapper.OpId, wrapper.RunId, wrapper.During);
+
+                // Its own priority: the comparator reads the fields, so there is nothing to keep in
+                // step between the two arguments.
+                ring.Enqueue(entry, entry);
 
                 if (ring.Count > wanted)
                     ring.Dequeue();
             }
         }
 
-        matches.AddRange(ring);
-        matches.Reverse();
+        // Drained in heap order, which is not the page's order — the caller sorts every segment's
+        // contribution together anyway, so ordering here would be work done twice.
+        matches.AddRange(ring.UnorderedItems.Select(static item => item.Element));
         return (matches, bytes, budgetHit);
     }
 

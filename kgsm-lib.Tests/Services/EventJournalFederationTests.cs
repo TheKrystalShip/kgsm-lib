@@ -313,7 +313,19 @@ public sealed class EventJournalFederationTests : IDisposable
 
         // The producer is stamped from the journal the line was read from, never from the line.
         Assert.Equal("watchdog", entry.Producer);
-        Assert.StartsWith("evt_watchdog_", entry.Id, StringComparison.Ordinal);
+
+        // The id is the LINE'S own name, read back off the line the writer wrote — a round trip
+        // through the file rather than a shape assertion, so the two halves cannot drift into
+        // agreeing about a format while disagreeing about the value.
+        string written = File.ReadAllLines(
+            Directory.GetFiles(DirectoryFor("watchdog"), "*.ndjson").Single()).Single();
+        string name = JsonDocument.Parse(written).RootElement.GetProperty("Id").GetString()!;
+
+        Assert.Equal("evt_" + name, entry.Id);
+
+        // No producer in it, and none needed: a minted id is already unique across every journal on
+        // the host, which is the property the prefix compensated for.
+        Assert.DoesNotContain("watchdog", entry.Id, StringComparison.Ordinal);
 
         // Reserved and unpopulated.
         Assert.Null(entry.OpId);
