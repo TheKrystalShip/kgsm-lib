@@ -53,6 +53,8 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(WatchdogActionResult))]
 [JsonSerializable(typeof(WatchdogInstanceState))]
 [JsonSerializable(typeof(WatchdogInstanceState[]))]
+[JsonSerializable(typeof(WatchdogRunTimes))]
+[JsonSerializable(typeof(WatchdogRunTimes[]))]
 [JsonSerializable(typeof(WatchdogReadyState))]
 [JsonSerializable(typeof(WatchdogPlayer))]
 [JsonSerializable(typeof(WatchdogPlayer[]))]

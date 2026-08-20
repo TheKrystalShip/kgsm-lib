@@ -128,6 +128,17 @@ public interface IWatchdogClient : IDisposable
     Task<IReadOnlyList<WatchdogInstanceState>> ListAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// The run clock for every instance the daemon can date — the ones it supervises right now, and the
+    /// ones only its durable run ledger remembers.
+    /// </summary>
+    /// <remarks>
+    /// Prefer this over <see cref="ListAsync"/> when the question is how long something has been up or
+    /// down: a stopped instance is not in the supervised table, so it does not appear in a list at all.
+    /// </remarks>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    Task<IReadOnlyList<WatchdogRunTimes>> GetRunTimesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Follows the live console (stdout/stderr tail) of a native, supervised instance,
     /// yielding each line as the daemon appends it. The stream carries <b>only</b> lines
     /// written <em>after</em> the call connects — it does not replay history (use

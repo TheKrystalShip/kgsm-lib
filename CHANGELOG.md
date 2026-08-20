@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — the run clock reaches stopped instances (`Lib` 4.45.0)
+
+`IWatchdogClient.GetRunTimesAsync()` reads the daemon's `GET /runtimes`: `WatchdogRunTimes` (name,
+`SpawnedAt`, `LastExitedAt`) for every instance it can date.
+
+This exists because `ListAsync` cannot answer the question it looks like it answers. An instance
+leaves the daemon's supervised table when it stops, so a list walk reports nothing at all for the
+instances that are stopped — which is exactly when "how long has this been down" is asked. The new
+call unions the supervised table with the durable run ledger, so a stopped instance still carries the
+end of its last run.
+
+Prefer it over `ListAsync` for any run-duration question; `ListAsync` stays the supervision-state read.
+
+### Added — the watchdog's instance state dates the run (`Lib` 4.44.0)
+
+`WatchdogInstanceState` carries two new timestamps, so a consumer can say how long an instance has
+been up, or how long it has been down, from the run-state authority itself rather than by correlating
+a second source:
+
+- `SpawnedAt` — when the current run was spawned. Null when nothing is running, and null for an
+  instance the daemon adopted rather than spawned. The daemon persists it alongside the phase, so it
+  is an uptime rather than a "seen since": restarting the watchdog does not reset it.
+- `LastExitedAt` — when the last run ended, from the daemon's durable run ledger. Null for an
+  instance with no recorded runs. It is the run's own last output, not the moment the supervisor
+  noticed the cgroup had emptied.
+
+Both are additive and nullable; a daemon that does not report them deserializes to null.
+
 ### Fixed — a segment's top rows were selected by file order and served in id order (`Lib` 4.43.0)
 
 ⚠ **A silent skip.** Each segment is streamed forward once with matches kept in a bounded ring, and

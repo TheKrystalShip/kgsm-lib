@@ -74,6 +74,52 @@ public record class WatchdogInstanceState
     /// <summary>Last transition reason (e.g. <c>"crashed (exit 139); restart in 2s"</c>).</summary>
     [JsonPropertyName("reason")]
     public string Reason { get; set; } = string.Empty;
+
+    /// <summary>
+    /// When the CURRENT run was spawned (UTC), or null when nothing is running — and when the daemon
+    /// adopted a live cgroup it did not spawn, where there is no spawn time to state.
+    /// <para>
+    /// The daemon persists this alongside the phase, so it survives a daemon restart. That is what makes
+    /// it an uptime rather than a "seen since": a redeploy of the watchdog does not reset it.
+    /// </para>
+    /// </summary>
+    [JsonPropertyName("spawnedAt")]
+    public DateTime? SpawnedAt { get; set; }
+
+    /// <summary>
+    /// When this instance's LAST run ended (UTC), read from the daemon's durable run ledger, or null
+    /// when it has no recorded runs — an honest unknown, never a fabricated date.
+    /// <para>
+    /// This is the run's own last output (the console file's mtime), not the moment the supervisor
+    /// noticed the cgroup had emptied; the two differ by up to a poll interval.
+    /// </para>
+    /// </summary>
+    [JsonPropertyName("lastExitedAt")]
+    public DateTime? LastExitedAt { get; set; }
+}
+
+/// <summary>
+/// One instance's run clock: when its current run was spawned, and when its last run ended.
+/// </summary>
+/// <remarks>
+/// Distinct from <see cref="WatchdogInstanceState"/> because it answers for instances that state cannot:
+/// an instance leaves the daemon's supervised table when it stops, and "how long has this been down" is
+/// asked of exactly those. Both halves are read from state the daemon persists, so both survive a daemon
+/// restart.
+/// </remarks>
+public record class WatchdogRunTimes
+{
+    /// <summary>The instance name.</summary>
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>When the current run was spawned (UTC), or null when nothing is running.</summary>
+    [JsonPropertyName("spawnedAt")]
+    public DateTime? SpawnedAt { get; set; }
+
+    /// <summary>When the last recorded run ended (UTC), or null when no run is on record.</summary>
+    [JsonPropertyName("lastExitedAt")]
+    public DateTime? LastExitedAt { get; set; }
 }
 
 /// <summary>

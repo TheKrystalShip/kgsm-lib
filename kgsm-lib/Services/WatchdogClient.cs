@@ -245,6 +245,19 @@ public sealed class WatchdogClient : IWatchdogClient
     }
 
     /// <inheritdoc/>
+    public async Task<IReadOnlyList<WatchdogRunTimes>> GetRunTimesAsync(CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+
+        using var response = await _http.GetAsync("/runtimes", cancellationToken).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        var times = await ReadJsonAsync(response, KgsmJsonContext.Default.WatchdogRunTimesArray, cancellationToken)
+            .ConfigureAwait(false);
+        return times ?? [];
+    }
+
+    /// <inheritdoc/>
     public Task<IReadOnlyList<string>> GetConsoleTailAsync(string instanceName, int lines, CancellationToken cancellationToken = default) =>
         // Run 0 is the most recent, which is what this call has always read.
         GetConsoleRunTailAsync(instanceName, lines, run: 0, cancellationToken);
