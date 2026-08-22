@@ -18,9 +18,17 @@ public interface ILifecycleService
     /// <param name="origin">Optional surface (through-what: <c>ui</c>/<c>assistant</c>/
     /// <c>discord</c>/<c>system</c>/<c>api</c>) propagated as <c>$KGSM_EVENT_ORIGIN</c>.
     /// When null/empty, KGSM emits no origin (no fabricated surface).</param>
+    /// <param name="force">Start even when KGSM's memory gate would refuse — passes <c>--force</c>.
+    /// The gate refuses a start that would leave the node with less free memory than its configured
+    /// floor, comparing the instance's own <c>memory_cap_mb</c> (or its blueprint's advisory
+    /// <c>min_ram_mb</c>) against what the node reports available. That fallback figure is a vendor
+    /// estimate and can overstate what a game really uses, which is what this exists for. It does not
+    /// create memory: forcing a start the node genuinely cannot fit invites the OOM killer, which may
+    /// take down a different server, or the watchdog supervising them all. Defaults to false, so a
+    /// caller that does not ask for it keeps the protection.</param>
     /// <returns>A <see cref="KgsmResult"/> containing the command execution result.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
-    KgsmResult Start(string instanceName, string? actor = null, string? origin = null);
+    KgsmResult Start(string instanceName, string? actor = null, string? origin = null, bool force = false);
 
     /// <summary>
     /// Gracefully shuts down a running server instance.

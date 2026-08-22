@@ -37,8 +37,8 @@ public class LifecycleService : ILifecycleService
     }
 
     /// <inheritdoc/>
-    public KgsmResult Start(string instanceName, string? actor = null, string? origin = null)
-        => RunLifecycle("start", instanceName, actor, origin);
+    public KgsmResult Start(string instanceName, string? actor = null, string? origin = null, bool force = false)
+        => RunLifecycle("start", instanceName, actor, origin, force);
 
     /// <inheritdoc/>
     public KgsmResult Stop(string instanceName, string? actor = null, string? origin = null)
@@ -60,15 +60,23 @@ public class LifecycleService : ILifecycleService
     /// that completes regardless — the caller learns nothing true.
     /// </para>
     /// </summary>
-    private KgsmResult RunLifecycle(string verb, string instanceName, string? actor, string? origin)
+    // `force` appends --force, which only `start` accepts.
+    private KgsmResult RunLifecycle(string verb, string instanceName, string? actor, string? origin, bool force = false)
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
 
         IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
 
+        // The flag is appended only when asked for: an empty trailing argument would reach KGSM as a
+        // positional it does not expect, and a `--force` sent on every start would silently disable a
+        // protection for callers that never requested it.
+        string[] args = force
+            ? ["lifecycle", verb, instanceName, "--force"]
+            : ["lifecycle", verb, instanceName];
+
         return provenance is null
-            ? _commandExecutor.Execute(_timeouts.Lifecycle, "lifecycle", verb, instanceName)
-            : _commandExecutor.Execute(provenance, _timeouts.Lifecycle, "lifecycle", verb, instanceName);
+            ? _commandExecutor.Execute(_timeouts.Lifecycle, args)
+            : _commandExecutor.Execute(provenance, _timeouts.Lifecycle, args);
     }
 
     /// <inheritdoc/>

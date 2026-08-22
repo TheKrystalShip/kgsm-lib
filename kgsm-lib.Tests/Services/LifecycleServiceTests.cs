@@ -84,6 +84,58 @@ public class LifecycleServiceTests
     }
 
     [Fact]
+    public void Start_WithForce_AppendsTheFlag()
+    {
+        // --force is what overrides KGSM's memory gate, so it has to arrive as its own argument on the
+        // start command rather than being folded into the verb or the instance name.
+        _mockCommandExecutor
+            .Setup(x => x.Execute(Lifecycle, It.Is<string[]>(a => ArgsAre(a, "lifecycle", "start", Instance, "--force"))))
+            .Returns(new KgsmResult(new ProcessResult(0, "started", string.Empty)));
+
+        KgsmResult result = _lifecycleService.Start(Instance, force: true);
+
+        Assert.True(result.IsSuccess);
+        _mockCommandExecutor.Verify(
+            x => x.Execute(Lifecycle, It.Is<string[]>(a => ArgsAre(a, "lifecycle", "start", Instance, "--force"))), Times.Once);
+    }
+
+    [Fact]
+    public void Start_WithoutForce_SendsNoFlag()
+    {
+        // The protection is the default. A caller that does not ask to override the gate must not have
+        // it overridden for them — an empty trailing argument would also reach KGSM as a positional it
+        // does not expect.
+        _mockCommandExecutor
+            .Setup(x => x.Execute(Lifecycle, It.IsAny<string[]>()))
+            .Returns(new KgsmResult(new ProcessResult(0, "started", string.Empty)));
+
+        _lifecycleService.Start(Instance);
+
+        _mockCommandExecutor.Verify(
+            x => x.Execute(Lifecycle, It.Is<string[]>(a => a.Contains("--force"))), Times.Never);
+    }
+
+    [Fact]
+    public void Start_WithForceAndProvenance_KeepsBoth()
+    {
+        // The two travel by different channels — provenance as environment, force as an argument — so
+        // asking for one must not drop the other.
+        _mockCommandExecutor
+            .Setup(x => x.Execute(
+                It.IsAny<IReadOnlyDictionary<string, string>>(),
+                Lifecycle,
+                It.Is<string[]>(a => ArgsAre(a, "lifecycle", "start", Instance, "--force"))))
+            .Returns(new KgsmResult(new ProcessResult(0, "started", string.Empty)));
+
+        _lifecycleService.Start(Instance, actor: "discord:haru", origin: "ui", force: true);
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.Is<IReadOnlyDictionary<string, string>>(e => e.ContainsKey("KGSM_EVENT_ACTOR")),
+            Lifecycle,
+            It.Is<string[]>(a => ArgsAre(a, "lifecycle", "start", Instance, "--force"))), Times.Once);
+    }
+
+    [Fact]
     public void Stop_ValidInstance_IssuesLifecycleStop()
     {
         _mockCommandExecutor

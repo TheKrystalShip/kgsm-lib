@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — a start can override the node's memory gate (`Lib` 4.46.0)
+
+`ILifecycleService.Start` takes `bool force = false`, which passes `--force` to
+`kgsm lifecycle start`. KGSM refuses a start that would leave the node with less free memory than its
+configured floor, comparing the instance's own `memory_cap_mb` — or its blueprint's advisory
+`min_ram_mb` — against what the node reports available. That fallback is a vendor estimate and can
+overstate what a game really uses, which is what this exists for.
+
+The flag is appended only when asked for, and defaults to false, so a caller that does not request it
+keeps the protection. Provenance and force travel by different channels — environment and argument —
+so asking for one never drops the other.
+
+⚠ It does not create memory. Forcing a start the node genuinely cannot fit invites the OOM killer,
+which may take down a different server, or the watchdog supervising them all.
+
 ### Added — the run clock reaches stopped instances (`Lib` 4.45.0)
 
 `IWatchdogClient.GetRunTimesAsync()` reads the daemon's `GET /runtimes`: `WatchdogRunTimes` (name,
