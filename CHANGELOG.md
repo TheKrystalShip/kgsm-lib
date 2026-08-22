@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — an instance carries what it was measured to need (`Lib` 4.47.0)
+
+`Instance` gains four keys the engine emits from the instance config: `ObservedRamMb` — the memory an
+instance has been agreed to need, from what the host measured it using — alongside `ObservedRamPeakMb`
+(the working-set peak that figure was drawn from), `ObservedWindowDays` (how much measurement backs it)
+and `ObservedUpdatedAt`.
+
+⚠ **A record, not a ceiling.** Nothing enforces it and nothing changes behaviour for it. `MemoryCapMb`
+is a limit the watchdog writes to the instance's cgroup; this is what the instance was measured holding,
+which a person looked at and agreed with. It is also not the blueprint's `min_ram_mb` — that describes a
+*game*, curated from vendor documentation, while this describes one world with its own mods and its own
+players. Both are true and they answer different questions.
+
+`JsonStringToNullableIntConverter` maps a value that is absent, empty or unparseable to `null` rather
+than `0`. The existing `JsonStringToIntConverter` answers `0`, which is right for a key whose zero means
+something — `memory_cap_mb="0"` is KGSM's spelling of "uncapped" — and wrong for one recording a
+measurement, where it would report an instance as measured to need nothing. Applied per-property and
+deliberately not registered globally: which answer is honest depends on what the key means, and only the
+property knows that.
+
 ### Added — a start can override the node's memory gate (`Lib` 4.46.0)
 
 `ILifecycleService.Start` takes `bool force = false`, which passes `--force` to
