@@ -10,6 +10,7 @@ public class KgsmClientTests
     private readonly Mock<IKgsmCommandExecutor> _mockCommandExecutor;
     private readonly Mock<IBlueprintService> _mockBlueprintService;
     private readonly Mock<IInstanceService> _mockInstanceService;
+    private readonly Mock<ILibraryService> _mockLibraryService;
     private readonly Mock<IEventService> _mockEventService;
     private readonly Mock<IConfigService> _mockConfigService;
     private readonly Mock<ILifecycleService> _mockLifecycleService;
@@ -29,6 +30,7 @@ public class KgsmClientTests
         _mockCommandExecutor = new Mock<IKgsmCommandExecutor>();
         _mockBlueprintService = new Mock<IBlueprintService>();
         _mockInstanceService = new Mock<IInstanceService>();
+        _mockLibraryService = new Mock<ILibraryService>();
         _mockEventService = new Mock<IEventService>();
         _mockConfigService = new Mock<IConfigService>();
         _mockLifecycleService = new Mock<ILifecycleService>();
@@ -46,6 +48,7 @@ public class KgsmClientTests
             _mockCommandExecutor.Object,
             _mockBlueprintService.Object,
             _mockInstanceService.Object,
+            _mockLibraryService.Object,
             _mockEventService.Object,
             _mockConfigService.Object,
             _mockLifecycleService.Object,
@@ -69,6 +72,7 @@ public class KgsmClientTests
             null!,
             _mockBlueprintService.Object,
             _mockInstanceService.Object,
+            _mockLibraryService.Object,
             _mockEventService.Object,
             _mockConfigService.Object,
             _mockLifecycleService.Object,
@@ -92,6 +96,7 @@ public class KgsmClientTests
             _mockCommandExecutor.Object,
             null!,
             _mockInstanceService.Object,
+            _mockLibraryService.Object,
             _mockEventService.Object,
             _mockConfigService.Object,
             _mockLifecycleService.Object,
@@ -114,6 +119,31 @@ public class KgsmClientTests
         Assert.Throws<ArgumentNullException>(() => new KgsmClient(
             _mockCommandExecutor.Object,
             _mockBlueprintService.Object,
+            null!,
+            _mockLibraryService.Object,
+            _mockEventService.Object,
+            _mockConfigService.Object,
+            _mockLifecycleService.Object,
+            _mockFileService.Object,
+            _mockDirectoryService.Object,
+            _mockWatcherService.Object,
+            _mockNetworkService.Object,
+            _mockSystemService.Object,
+            _mockEventManagementService.Object,
+            _mockInstanceFilesService.Object,
+            _mockBlueprintFilesService.Object,
+            _mockLogger.Object
+        ));
+    }
+
+    [Fact]
+    public void Constructor_NullLibraryService_ThrowsArgumentNullException()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => new KgsmClient(
+            _mockCommandExecutor.Object,
+            _mockBlueprintService.Object,
+            _mockInstanceService.Object,
             null!,
             _mockEventService.Object,
             _mockConfigService.Object,
@@ -138,6 +168,7 @@ public class KgsmClientTests
             _mockCommandExecutor.Object,
             _mockBlueprintService.Object,
             _mockInstanceService.Object,
+            _mockLibraryService.Object,
             null!,
             _mockConfigService.Object,
             _mockLifecycleService.Object,
@@ -161,6 +192,7 @@ public class KgsmClientTests
             _mockCommandExecutor.Object,
             _mockBlueprintService.Object,
             _mockInstanceService.Object,
+            _mockLibraryService.Object,
             _mockEventService.Object,
             null!,
             _mockLifecycleService.Object,
@@ -184,6 +216,7 @@ public class KgsmClientTests
             _mockCommandExecutor.Object,
             _mockBlueprintService.Object,
             _mockInstanceService.Object,
+            _mockLibraryService.Object,
             _mockEventService.Object,
             _mockConfigService.Object,
             null!,
@@ -207,6 +240,7 @@ public class KgsmClientTests
             _mockCommandExecutor.Object,
             _mockBlueprintService.Object,
             _mockInstanceService.Object,
+            _mockLibraryService.Object,
             _mockEventService.Object,
             _mockConfigService.Object,
             _mockLifecycleService.Object,
@@ -230,6 +264,7 @@ public class KgsmClientTests
             _mockCommandExecutor.Object,
             _mockBlueprintService.Object,
             _mockInstanceService.Object,
+            _mockLibraryService.Object,
             _mockEventService.Object,
             _mockConfigService.Object,
             _mockLifecycleService.Object,
@@ -253,6 +288,7 @@ public class KgsmClientTests
             _mockCommandExecutor.Object,
             _mockBlueprintService.Object,
             _mockInstanceService.Object,
+            _mockLibraryService.Object,
             _mockEventService.Object,
             _mockConfigService.Object,
             _mockLifecycleService.Object,
@@ -276,6 +312,7 @@ public class KgsmClientTests
             _mockCommandExecutor.Object,
             _mockBlueprintService.Object,
             _mockInstanceService.Object,
+            _mockLibraryService.Object,
             _mockEventService.Object,
             _mockConfigService.Object,
             _mockLifecycleService.Object,
@@ -299,6 +336,7 @@ public class KgsmClientTests
             _mockCommandExecutor.Object,
             _mockBlueprintService.Object,
             _mockInstanceService.Object,
+            _mockLibraryService.Object,
             _mockEventService.Object,
             _mockConfigService.Object,
             _mockLifecycleService.Object,
@@ -322,6 +360,7 @@ public class KgsmClientTests
             _mockCommandExecutor.Object,
             _mockBlueprintService.Object,
             _mockInstanceService.Object,
+            _mockLibraryService.Object,
             _mockEventService.Object,
             _mockConfigService.Object,
             _mockLifecycleService.Object,
@@ -345,6 +384,7 @@ public class KgsmClientTests
             _mockCommandExecutor.Object,
             _mockBlueprintService.Object,
             _mockInstanceService.Object,
+            _mockLibraryService.Object,
             _mockEventService.Object,
             _mockConfigService.Object,
             _mockLifecycleService.Object,
@@ -368,6 +408,7 @@ public class KgsmClientTests
             _mockCommandExecutor.Object,
             _mockBlueprintService.Object,
             _mockInstanceService.Object,
+            _mockLibraryService.Object,
             _mockEventService.Object,
             _mockConfigService.Object,
             _mockLifecycleService.Object,
@@ -391,6 +432,7 @@ public class KgsmClientTests
             _mockCommandExecutor.Object,
             _mockBlueprintService.Object,
             _mockInstanceService.Object,
+            _mockLibraryService.Object,
             _mockEventService.Object,
             _mockConfigService.Object,
             _mockLifecycleService.Object,

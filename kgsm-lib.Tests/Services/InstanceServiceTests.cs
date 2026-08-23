@@ -324,7 +324,7 @@ public class InstanceServiceTests
             It.IsAny<string[]>()), Times.Never);
     }
 
-    // --- Install : Execute(timeout, "install", blueprint, [--install-dir, --version, --name]) ---
+    // --- Install : Execute(timeout, "install", blueprint, [--library, --version, --name]) ---
 
     [Fact]
     public void Install_NullBlueprintName_ThrowsArgumentNullException()
@@ -357,14 +357,33 @@ public class InstanceServiceTests
                 It.IsAny<TimeSpan>(),
                 It.Is<string[]>(a => ArgsAre(a,
                     "install", "valheim",
-                    "--install-dir", "/custom/path",
+                    "--library", "ssd",
                     "--version", "1.0.0",
                     "--name", "my-server"))))
             .Returns(new KgsmResult(new ProcessResult(0, "installed", string.Empty)));
 
-        KgsmResult result = _instanceService.Install("valheim", "/custom/path", "1.0.0", "my-server");
+        KgsmResult result = _instanceService.Install("valheim", "ssd", "1.0.0", "my-server");
 
         Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void Install_WithoutLibrary_PassesNoPlacementFlag()
+    {
+        // Placement is the engine's to resolve (default_library, else the sole registered
+        // library). Passing a flag here would decide it in the wrong place.
+        _mockCommandExecutor
+            .Setup(x => x.Execute(
+                It.IsAny<TimeSpan>(),
+                It.Is<string[]>(a => ArgsAre(a, "install", "valheim", "--version", "1.0.0"))))
+            .Returns(new KgsmResult(new ProcessResult(0, "installed", string.Empty)));
+
+        KgsmResult result = _instanceService.Install("valheim", version: "1.0.0");
+
+        Assert.True(result.IsSuccess);
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.IsAny<TimeSpan>(),
+            It.Is<string[]>(a => !a.Contains("--library"))), Times.Once);
     }
 
     // --- Uninstall : Execute(timeout, "uninstall", name, "--force") ---

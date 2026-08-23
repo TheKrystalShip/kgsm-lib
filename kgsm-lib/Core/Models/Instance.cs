@@ -39,10 +39,28 @@ public record class Instance
     public string BackupsDir { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the installation directory for the instance.
+    /// Gets or sets the installation directory for the instance — the game binaries
+    /// subdirectory of <see cref="WorkingDir"/>, not the root the instance was placed
+    /// under. That root is <see cref="LibraryDir"/>.
     /// </summary>
     [JsonPropertyName("install_dir")]
     public string InstallDir { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the absolute path of the library root the instance lives in.
+    /// Empty for an instance the engine has not stamped yet.
+    /// </summary>
+    [JsonPropertyName("library_dir")]
+    public string LibraryDir { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the name of the library the instance resolves to, or
+    /// <c>unregistered</c> when its root matches no registered library. The engine
+    /// resolves this from <see cref="LibraryDir"/> per invocation; the instance stores
+    /// the path, so a library rename costs nothing.
+    /// </summary>
+    [JsonPropertyName("library")]
+    public string Library { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the saves directory for the instance.
@@ -489,6 +507,8 @@ public record class Instance
                $"Platform: {Platform}, " +
                $"WorkingDir: {WorkingDir}, " +
                $"InstallDir: {InstallDir}, " +
+               $"LibraryDir: {LibraryDir}, " +
+               $"Library: {Library}, " +
                $"LogsDir: {LogsDir}, " +
                $"InstallDateTime: {InstallDateTime}, " +
                $"BlueprintFile: {BlueprintFile}, " +

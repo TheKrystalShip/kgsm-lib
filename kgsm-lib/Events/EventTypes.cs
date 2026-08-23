@@ -67,6 +67,20 @@ public abstract class BlueprintEventDataBase : KgsmEventDataBase
 }
 
 /// <summary>
+/// Base class for library-scoped event data — every event whose subject is a placement root rather
+/// than an instance or a blueprint. A library outlives the instances placed in it and exists before
+/// any of them, so these carry a <see cref="LibraryName"/> of their own.
+/// </summary>
+public abstract class LibraryEventDataBase : KgsmEventDataBase
+{
+    /// <summary>
+    /// Gets or sets the name of the library the event is about — its registry name, which is what
+    /// <c>--library</c> takes.
+    /// </summary>
+    public string LibraryName { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// Represents the wrapper for events received from KGSM — the top-level envelope
 /// around each event's <see cref="Data"/> payload. Mirrors the wire shape emitted
 /// by KGSM's <c>_build_event_payload</c>: <c>EventType</c>, <c>Data</c>, and the
@@ -1047,6 +1061,33 @@ public class BlueprintRemovedData : BlueprintEventDataBase
     /// <see langword="null"/> when the emitter could not determine it.
     /// </summary>
     public bool? RevertedToSystem { get; set; }
+}
+
+/// <summary>
+/// Data for the <c>library_added</c> event — a placement root was registered, so the host has somewhere
+/// new to put instances.
+/// </summary>
+public class LibraryAddedData : LibraryEventDataBase
+{
+    /// <summary>
+    /// Gets or sets the absolute path of the library root. Always present: a library has no identity
+    /// without one, so the emitter never leaves it unstated.
+    /// </summary>
+    public string Path { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Data for the <c>library_removed</c> event — a placement root was deregistered. No file inside it is
+/// touched, so an instance that lived there still exists on disk; it simply resolves to no registered
+/// library until the root is registered again.
+/// </summary>
+public class LibraryRemovedData : LibraryEventDataBase
+{
+    /// <summary>
+    /// Gets or sets the absolute path of the library root. Always present: a library has no identity
+    /// without one, so the emitter never leaves it unstated.
+    /// </summary>
+    public string Path { get; set; } = string.Empty;
 }
 
 /// <summary>

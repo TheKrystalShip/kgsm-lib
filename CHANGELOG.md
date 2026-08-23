@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — placement is a named library, not a path (`Lib` 5.0.0) — BREAKING
+
+`IInstanceService.Install` takes `library` where it took `installDir`, and passes it as
+`--library`. The engine has no `--install-dir` flag: every instance is placed in a registered
+library, so there is no path escape to model. A caller that still hands the argument a path gets
+the engine's unregistered-library refusal — a loud failure at the engine rather than a silent
+install somewhere nobody enumerates.
+
+`library` is optional, and null is the ordinary case: KGSM resolves placement from
+`default_library`, else from the sole registered library, else refuses. Deciding it in the library
+would put a host's placement policy in every consumer.
+
+### Added — `ILibraryService`, the typed surface over `kgsm libraries` (`Lib` 5.0.0)
+
+`List`, `Add`, `Remove` and `Rename`, reachable as `IKgsmClient.Libraries`. This is the only route
+a C# project has to library management; nothing else shells `kgsm libraries`.
+
+`Library` carries `Name`, `Path`, `State`, `FreeBytes`, `TotalBytes` and `InstanceCount`.
+⚠ **An offline library reports null capacity, not zero** — an unreachable root was never measured,
+and a zero would read as a full disk. Its `InstanceCount` is still answered, being read from the
+instance registry rather than from the disk. `List()` returns null on a failed read and an empty
+list for a host with nothing registered: a surface that collapses the two offers "no libraries" as
+a fact it never read.
+
+`Instance` gains `LibraryDir` (the absolute root the instance sits under) and `Library` (the
+resolved library name, or `unregistered` when its root matches no registered library).
+⚠ `InstallDir` is unchanged and unrelated — it is the game-binaries subdirectory of `WorkingDir`.
+
+`library_added` and `library_removed` are classified in `KgsmEventCatalog` under a new
+`EventSubject.Library`, so they dispatch into `LibraryAddedData`/`LibraryRemovedData` instead of
+being dropped as unknown. A library is its own subject: it is registered before anything lives in
+it and survives every instance leaving it.
+
+
 ### Added — a nullable answer for a stringly-typed integer (`Lib` 4.48.0)
 
 `JsonStringToNullableIntConverter` maps a value that is absent, empty or unparseable to `null` rather

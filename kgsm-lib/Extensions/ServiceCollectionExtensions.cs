@@ -61,6 +61,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IBlueprintService, BlueprintService>();
         services.AddTransient<ILifecycleService, LifecycleService>();
         services.AddTransient<IInstanceService, InstanceService>();
+        services.AddTransient<ILibraryService, LibraryService>();
         services.AddTransient<IConfigService, ConfigService>();
         services.AddTransient<IFileService, FileService>();
         services.AddTransient<IDirectoryService, DirectoryService>();

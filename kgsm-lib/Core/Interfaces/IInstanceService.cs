@@ -83,7 +83,9 @@ public interface IInstanceService
     /// Installs an instance of a blueprint.
     /// </summary>
     /// <param name="blueprintName">Name of the blueprint to install.</param>
-    /// <param name="installDir">Optional installation directory.</param>
+    /// <param name="library">Optional library to place the instance in, by name. Null lets KGSM
+    /// resolve it: the configured <c>default_library</c>, else the sole registered library, else
+    /// an error. Every instance lives in a library — there is no path escape.</param>
     /// <param name="version">Optional version to install.</param>
     /// <param name="name">Optional identifier used when creating the instance.</param>
     /// <param name="actor">Optional audit principal (who) propagated to KGSM as <c>KGSM_EVENT_ACTOR</c>
@@ -96,7 +98,7 @@ public interface IInstanceService
     /// <param name="start">If <c>true</c>, start the server immediately after install (one-shot, not
     /// watchdog boot-autostart).</param>
     /// <returns>Result of the instance installation operation.</returns>
-    KgsmResult Install(string blueprintName, string? installDir = null, string? version = null, string? name = null, string? actor = null, string? origin = null, int? port = null, bool? start = null);
+    KgsmResult Install(string blueprintName, string? library = null, string? version = null, string? name = null, string? actor = null, string? origin = null, int? port = null, bool? start = null);
 
     /// <summary>
     /// Uninstalls an instance.

@@ -32,6 +32,7 @@ public class KgsmEventCatalogTests
     [
         typeof(EventDataBase),
         typeof(BlueprintEventDataBase),
+        typeof(LibraryEventDataBase),
         typeof(KgsmEventDataBase),
     ];
 

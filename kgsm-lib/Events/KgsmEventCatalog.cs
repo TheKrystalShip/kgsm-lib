@@ -225,6 +225,13 @@ public static class KgsmEventCatalog
             BlueprintEvent<BlueprintUpdatedData>("blueprint_updated", [Tier, OverridesSystem, Runtime]),
             BlueprintEvent<BlueprintRemovedData>("blueprint_removed", [Tier, Field("RevertedToSystem", FieldShape.Text)]),
 
+            // -- libraries ---------------------------------------------------------------------
+            // Where instances can be placed, which is a property of the host rather than of anything
+            // installed on it. Neutral: registering a disk and letting one go are both ordinary
+            // administration, and an instance whose library was deregistered is still on disk.
+            LibraryEvent<LibraryAddedData>("library_added"),
+            LibraryEvent<LibraryRemovedData>("library_removed"),
+
             // -- accounts ----------------------------------------------------------------------
             // Signing in and authority changing. The Control Panel performs these itself — no engine
             // command runs — so it authors them, and they are classified here because a payload field
@@ -362,6 +369,18 @@ public static class KgsmEventCatalog
         where TData : BlueprintEventDataBase =>
         new(type, EventSubject.Blueprint, EventWeight.Fact, EventOutcome.Neutral, fields,
             typeof(TData), Known: true);
+
+    /// <summary>
+    /// A library-subject descriptor — something that happened to a placement root.
+    /// </summary>
+    /// <remarks>
+    /// The path is on the payload rather than in the field list on purpose: it is the library's
+    /// identity, not a detail rendered beside its name, and both events carry exactly the same two.
+    /// </remarks>
+    private static EventDescriptor LibraryEvent<TData>(string type)
+        where TData : LibraryEventDataBase =>
+        new(type, EventSubject.Library, EventWeight.Fact, EventOutcome.Neutral,
+            [Field("Path", FieldShape.Text)], typeof(TData), Known: true);
 
     /// <summary>An account-subject descriptor — something that happened to somebody's access.</summary>
     private static EventDescriptor Account<TData>(
@@ -621,6 +640,12 @@ public enum EventSubject
     /// about without being an event that server produced.
     /// </summary>
     Host,
+
+    /// <summary>
+    /// One library — a named root instances are placed in. Never read as being about an instance: a
+    /// library is registered before anything lives in it and survives every instance leaving it.
+    /// </summary>
+    Library,
 
     /// <summary>
     /// One KGSM account — who signed in, whose authority changed, which identity was attached. The

@@ -87,16 +87,16 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
-    public KgsmResult Install(string blueprintName, string? installDir = null, string? version = null, string? name = null, string? actor = null, string? origin = null, int? port = null, bool? start = null)
+    public KgsmResult Install(string blueprintName, string? library = null, string? version = null, string? name = null, string? actor = null, string? origin = null, int? port = null, bool? start = null)
     {
         ArgumentNullException.ThrowIfNull(blueprintName, nameof(blueprintName));
 
         List<string> args = ["install", blueprintName];
 
-        if (installDir is not null)
+        if (library is not null)
         {
-            args.Add("--install-dir");
-            args.Add(installDir);
+            args.Add("--library");
+            args.Add(library);
         }
 
         if (version is not null)

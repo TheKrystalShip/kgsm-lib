@@ -84,11 +84,11 @@ public class KgsmInterop
     /// Create an instance of a blueprint
     /// </summary>
     /// <param name="blueprintName">Name of the blueprint to install</param>
-    /// <param name="installDir">Optional installation directory</param>
+    /// <param name="library">Optional library to place the instance in, by name</param>
     /// <param name="version">Optional version to install</param>
     /// <param name="name">Optional identifier used when creating the instance</param>
-    public KgsmResult Install(string blueprintName, string? installDir = null, string? version = null, string? name = null)
-        => _client.Instances.Install(blueprintName, installDir, version, name);
+    public KgsmResult Install(string blueprintName, string? library = null, string? version = null, string? name = null)
+        => _client.Instances.Install(blueprintName, library, version, name);
 
     /// <summary>
     /// Uninstall an instance

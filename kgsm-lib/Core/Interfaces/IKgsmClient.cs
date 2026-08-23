@@ -19,6 +19,11 @@ public interface IKgsmClient
     IInstanceService Instances { get; }
 
     /// <summary>
+    /// Gets the library service for managing the named roots instances are placed in.
+    /// </summary>
+    ILibraryService Libraries { get; }
+
+    /// <summary>
     /// Gets the event service for subscribing to KGSM events.
     /// </summary>
     IEventService Events { get; }

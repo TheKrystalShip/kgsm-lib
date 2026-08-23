@@ -9,6 +9,7 @@ namespace TheKrystalShip.KGSM.Services;
 /// Provides access to the various KGSM modules:
 /// - Blueprint Service
 /// - Instance Service
+/// - Library Service
 /// - Event Service
 /// - Configuration Service
 /// - Lifecycle Service
@@ -29,6 +30,9 @@ public class KgsmClient : IKgsmClient
 
     /// <inheritdoc/>
     public IInstanceService Instances { get; }
+
+    /// <inheritdoc/>
+    public ILibraryService Libraries { get; }
 
     /// <inheritdoc/>
     public IEventService Events { get; }
@@ -69,6 +73,7 @@ public class KgsmClient : IKgsmClient
     /// <param name="commandExecutor">The command executor to use for executing KGSM commands.</param>
     /// <param name="blueprintService">The blueprint service to use for managing blueprints.</param>
     /// <param name="instanceService">The instance service to use for managing instances.</param>
+    /// <param name="libraryService">The library service to use for managing libraries.</param>
     /// <param name="eventService">The event service to use for handling events.</param>
     /// <param name="configService">The configuration service to use for managing configuration.</param>
     /// <param name="lifecycleService">The lifecycle service to use for managing instance lifecycle operations.</param>
@@ -85,6 +90,7 @@ public class KgsmClient : IKgsmClient
         IKgsmCommandExecutor commandExecutor,
         IBlueprintService blueprintService,
         IInstanceService instanceService,
+        ILibraryService libraryService,
         IEventService eventService,
         IConfigService configService,
         ILifecycleService lifecycleService,
@@ -101,6 +107,7 @@ public class KgsmClient : IKgsmClient
         _commandExecutor = commandExecutor ?? throw new ArgumentNullException(nameof(commandExecutor));
         Blueprints = blueprintService ?? throw new ArgumentNullException(nameof(blueprintService));
         Instances = instanceService ?? throw new ArgumentNullException(nameof(instanceService));
+        Libraries = libraryService ?? throw new ArgumentNullException(nameof(libraryService));
         Events = eventService ?? throw new ArgumentNullException(nameof(eventService));
         Config = configService ?? throw new ArgumentNullException(nameof(configService));
         Lifecycle = lifecycleService ?? throw new ArgumentNullException(nameof(lifecycleService));
