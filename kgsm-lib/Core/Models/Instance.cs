@@ -63,6 +63,21 @@ public record class Instance
     public string Library { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets where the instance stands relative to that library — reachable, away, or under
+    /// a root this host has no entry for. Present on every read the engine makes, mounted or not;
+    /// <see langword="null"/> only from an engine that predates libraries.
+    /// </summary>
+    /// <remarks>
+    /// This is the field that says why the rest of this object is mostly empty.
+    /// <see cref="InstanceLibraryState.Offline"/> means the instance's config sits behind a
+    /// dangling symlink: <see cref="Name"/>, <see cref="Blueprint"/>, <see cref="WorkingDir"/>,
+    /// <see cref="LibraryDir"/> and <see cref="Library"/> come from the registry and are real;
+    /// every other property is its default because nothing read one, not because it is unset.
+    /// </remarks>
+    [JsonPropertyName("library_state")]
+    public InstanceLibraryState? LibraryState { get; set; }
+
+    /// <summary>
     /// Gets or sets the saves directory for the instance.
     /// </summary>
     [JsonPropertyName("saves_dir")]
@@ -133,8 +148,15 @@ public record class Instance
     /// supervision discriminator: native instances are supervised by kgsm-watchdog,
     /// container instances by Docker. Binds case-insensitively from KGSM's lowercase
     /// <c>runtime</c> field (no <c>[JsonPropertyName]</c> needed).
+    /// <see langword="null"/> when the engine did not report one — it is written in the instance's
+    /// own config, which an unmounted library takes with it (<see cref="LibraryState"/> says so).
     /// </summary>
-    public InstanceRuntime Runtime { get; set; } = InstanceRuntime.Native;
+    /// <remarks>
+    /// ⚠ Null is not <see cref="InstanceRuntime.Native"/>. Reading an unreported runtime as native
+    /// sends a consumer to the watchdog for a container's run state, and the answer it gets back is
+    /// a confident wrong one.
+    /// </remarks>
+    public InstanceRuntime? Runtime { get; set; }
 
     /// <summary>
     /// Gets or sets the per-instance cgroup v2 directory KGSM derives for a native
@@ -492,9 +514,38 @@ public record class Instance
     public string CommandShortcutFile { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets the blueprint name extracted from the blueprint file path.
+    /// Gets or sets the name of the blueprint the instance was made from — <c>factorio</c>, not
+    /// <c>factorio.bp.yaml</c>.
     /// </summary>
-    public string Blueprint => Path.GetFileNameWithoutExtension(BlueprintFile);
+    /// <remarks>
+    /// The engine states this directly for an instance whose library is away, where
+    /// <see cref="BlueprintFile"/> is one of the many things that cannot be read: the name comes
+    /// out of the instance registry, which is on this host rather than on the absent disk. When it
+    /// is not stated, it is derived from the file path — a unified blueprint is
+    /// <c>&lt;name&gt;.bp.yaml</c>, so the compound suffix comes off as a unit.
+    /// </remarks>
+    [JsonPropertyName("blueprint")]
+    public string Blueprint
+    {
+        get => string.IsNullOrEmpty(_blueprint) ? DeriveBlueprintName(BlueprintFile) : _blueprint;
+        set => _blueprint = value;
+    }
+
+    private string? _blueprint;
+
+    private static readonly string[] BlueprintSuffixes = [".bp.yaml", ".bp.yml"];
+
+    private static string DeriveBlueprintName(string blueprintFile)
+    {
+        if (string.IsNullOrEmpty(blueprintFile)) return string.Empty;
+
+        string file = Path.GetFileName(blueprintFile);
+        foreach (string suffix in BlueprintSuffixes)
+            if (file.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                return file[..^suffix.Length];
+
+        return Path.GetFileNameWithoutExtension(file);
+    }
 
     /// <summary>
     /// Returns a string that represents the current object.
@@ -509,6 +560,7 @@ public record class Instance
                $"InstallDir: {InstallDir}, " +
                $"LibraryDir: {LibraryDir}, " +
                $"Library: {Library}, " +
+               $"LibraryState: {LibraryState}, " +
                $"LogsDir: {LogsDir}, " +
                $"InstallDateTime: {InstallDateTime}, " +
                $"BlueprintFile: {BlueprintFile}, " +

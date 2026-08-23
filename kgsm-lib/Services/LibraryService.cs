@@ -10,6 +10,7 @@ namespace TheKrystalShip.KGSM.Services;
 public class LibraryService : ILibraryService
 {
     private readonly IKgsmCommandExecutor _commandExecutor;
+    private readonly KgsmTimeoutOptions _timeouts;
     private readonly ILogger<LibraryService> _logger;
 
     /// <summary>
@@ -17,9 +18,18 @@ public class LibraryService : ILibraryService
     /// </summary>
     /// <param name="commandExecutor">The command executor used to run KGSM commands.</param>
     /// <param name="logger">The logger used for diagnostic output.</param>
-    public LibraryService(IKgsmCommandExecutor commandExecutor, ILogger<LibraryService> logger)
+    /// <param name="kgsmOptions">
+    /// KGSM options, used here for the drain timeout. Optional: when null (tests that do not
+    /// exercise timeouts), generous defaults are used. The DI container injects the registered
+    /// instance.
+    /// </param>
+    public LibraryService(
+        IKgsmCommandExecutor commandExecutor,
+        ILogger<LibraryService> logger,
+        KgsmOptions? kgsmOptions = null)
     {
         _commandExecutor = commandExecutor ?? throw new ArgumentNullException(nameof(commandExecutor));
+        _timeouts = kgsmOptions?.Timeouts ?? new KgsmTimeoutOptions();
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         _logger.LogDebug("LibraryService initialized");
@@ -51,18 +61,29 @@ public class LibraryService : ILibraryService
     }
 
     /// <inheritdoc/>
-    public KgsmResult Remove(string name, bool force = false, string? actor = null, string? origin = null)
+    public KgsmResult Remove(string name, bool force = false, string? drainTo = null, string? actor = null, string? origin = null)
     {
         ArgumentNullException.ThrowIfNull(name, nameof(name));
 
         List<string> args = ["libraries", "remove", name];
+
+        if (!string.IsNullOrWhiteSpace(drainTo))
+        {
+            args.Add("--drain");
+            args.Add(drainTo);
+        }
 
         if (force)
         {
             args.Add("--force");
         }
 
-        return Execute(actor, origin, args);
+        // A drain copies every resident instance's tree; a bare deregistration writes a registry
+        // line. Only the first needs the ceiling, and giving the second the same one would let a
+        // hung registry write sit for hours.
+        return drainTo is null
+            ? Execute(actor, origin, args)
+            : Execute(actor, origin, args, _timeouts.Move);
     }
 
     /// <inheritdoc/>
@@ -74,11 +95,19 @@ public class LibraryService : ILibraryService
         return Execute(actor, origin, ["libraries", "rename", oldName, newName]);
     }
 
-    private KgsmResult Execute(string? actor, string? origin, List<string> args)
+    private KgsmResult Execute(string? actor, string? origin, List<string> args, TimeSpan? timeout = null)
     {
         IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
+
+        if (timeout is null)
+        {
+            return provenance is null
+                ? _commandExecutor.Execute(args.ToArray())
+                : _commandExecutor.Execute(provenance, args.ToArray());
+        }
+
         return provenance is null
-            ? _commandExecutor.Execute(args.ToArray())
-            : _commandExecutor.Execute(provenance, args.ToArray());
+            ? _commandExecutor.Execute(timeout.Value, args.ToArray())
+            : _commandExecutor.Execute(provenance, timeout.Value, args.ToArray());
     }
 }

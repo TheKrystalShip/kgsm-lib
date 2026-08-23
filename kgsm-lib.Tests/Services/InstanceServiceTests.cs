@@ -413,6 +413,67 @@ public class InstanceServiceTests
             It.Is<string[]>(a => ArgsAre(a, "uninstall", Instance, "--force"))), Times.Once);
     }
 
+    // --- Move : Execute("instances", "move", name, "--library", target) ---
+
+    [Fact]
+    public void Move_NullArguments_ThrowArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _instanceService.Move(null!, "ssd"));
+        Assert.Throws<ArgumentNullException>(() => _instanceService.Move(Instance, null!));
+    }
+
+    [Fact]
+    public void Move_IssuesTheMoveCommandUnderTheMoveTimeout()
+    {
+        var timeouts = new KgsmTimeoutOptions();
+        var service = new InstanceService(
+            _mockCommandExecutor.Object,
+            _mockLogSubscriptionService.Object,
+            _mockLifecycleService.Object,
+            _mockLogger.Object,
+            new KgsmOptions { KgsmPath = "/opt/kgsm/kgsm.sh", Timeouts = timeouts });
+
+        _mockCommandExecutor
+            .Setup(x => x.Execute(
+                timeouts.Move,
+                It.Is<string[]>(a => ArgsAre(a, "instances", "move", Instance, "--library", "ssd"))))
+            .Returns(new KgsmResult(new ProcessResult(0, "moved", string.Empty)));
+
+        KgsmResult result = service.Move(Instance, "ssd");
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void Move_WithSkipSpaceCheck_PassesTheFlag()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(
+                It.IsAny<TimeSpan>(),
+                It.Is<string[]>(a => ArgsAre(
+                    a, "instances", "move", Instance, "--library", "ssd", "--skip-space-check"))))
+            .Returns(new KgsmResult(new ProcessResult(0, "moved", string.Empty)));
+
+        KgsmResult result = _instanceService.Move(Instance, "ssd", skipSpaceCheck: true);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void Move_RefusedByTheEngine_ReportsTheRefusalRatherThanThrowing()
+    {
+        // 57 is EC_INSTANCE_RUNNING. The refusal text names what blocked it, and that text is
+        // what a surface shows — so it has to come back rather than become an exception message.
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.IsAny<TimeSpan>(), It.IsAny<string[]>()))
+            .Returns(new KgsmResult(new ProcessResult(57, string.Empty, "Instance 'my-server' is running")));
+
+        KgsmResult result = _instanceService.Move(Instance, "ssd");
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("is running", result.Stderr);
+    }
+
     // --- GetInfo : Execute("instances", "info", name) (raw, not JSON) ---
 
     [Fact]
@@ -1155,6 +1216,19 @@ public class InstanceServiceTests
             It.Is<IReadOnlyDictionary<string, string>>(e => e["KGSM_EVENT_ORIGIN"] == "discord"),
             It.IsAny<TimeSpan>(),
             It.Is<string[]>(a => ArgsAre(a, "uninstall", "valheim", "--force"))), Times.Once);
+    }
+
+    [Fact]
+    public void Move_WithProvenance_StampsEnv()
+    {
+        SetupEnvTimeout();
+
+        _instanceService.Move("valheim", "ssd", actor: "user:heisen", origin: "web");
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.Is<IReadOnlyDictionary<string, string>>(e => e["KGSM_EVENT_ORIGIN"] == "web"),
+            It.IsAny<TimeSpan>(),
+            It.Is<string[]>(a => ArgsAre(a, "instances", "move", "valheim", "--library", "ssd"))), Times.Once);
     }
 
     [Fact]

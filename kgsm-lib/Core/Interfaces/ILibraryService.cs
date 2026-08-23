@@ -47,11 +47,26 @@ public interface ILibraryService
     /// Deregister even while instances resolve to the library. Without it the engine
     /// refuses, naming what blocks the removal.
     /// </param>
+    /// <param name="drainTo">
+    /// Name of the library to move every resident instance into before deregistering — the way a
+    /// disk is emptied before it is taken out. The engine moves them one at a time and deregisters
+    /// once the last has landed; every resident has to be stopped first, and it lists the running
+    /// ones and does nothing rather than stopping servers on the caller's behalf.
+    /// <para>
+    /// Minutes of copying per resident instance. Drive this as a job, and give the executor
+    /// <see cref="KgsmTimeoutOptions.Move"/> rather than the default ceiling.
+    /// </para>
+    /// <para>
+    /// ⚠ Mutually exclusive with <paramref name="force"/> — one moves the instances and the other
+    /// abandons them. Both together is refused by the engine, which owns that rule so there is one
+    /// answer to it.
+    /// </para>
+    /// </param>
     /// <param name="actor">Optional audit principal — see <see cref="Add"/>.</param>
     /// <param name="origin">Optional driving surface — see <see cref="Add"/>.</param>
     /// <returns>Result of the remove operation.</returns>
     /// <exception cref="ArgumentNullException">Thrown when name is null.</exception>
-    KgsmResult Remove(string name, bool force = false, string? actor = null, string? origin = null);
+    KgsmResult Remove(string name, bool force = false, string? drainTo = null, string? actor = null, string? origin = null);
 
     /// <summary>
     /// Renames a library in the registry and in its marker. Instances are unaffected:

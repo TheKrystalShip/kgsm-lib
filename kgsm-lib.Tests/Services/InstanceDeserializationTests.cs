@@ -7,8 +7,9 @@ namespace TheKrystalShip.KGSM.Tests.Services;
 /// on <see cref="Instance.Runtime"/>. With systemd removed, <c>runtime</c> (native|container) is the
 /// SOLE supervision discriminator (kgsm-watchdog gates on it), so its binding is load-bearing —
 /// and the property carries no <c>[JsonPropertyName]</c>, relying on case-insensitive matching of
-/// KGSM's lowercase <c>runtime</c> field. These guard that, plus the safety net that a missing field
-/// falls to <c>Native</c> and the removed legacy fields are tolerated rather than thrown on.
+/// KGSM's lowercase <c>runtime</c> field. These guard that, plus the placement fields an instance
+/// reports whether or not its library is mounted, and that the removed legacy fields are tolerated
+/// rather than thrown on.
 /// </summary>
 public class InstanceDeserializationTests
 {
@@ -44,14 +45,80 @@ public class InstanceDeserializationTests
     }
 
     [Fact]
-    public void Runtime_defaults_to_Native_when_the_field_is_absent()
+    public void Runtime_is_unknown_when_the_field_is_absent()
+    {
+        // The engine omits it for an instance whose library is not mounted — the value lives in the
+        // instance's own config, on the disk that is away. Reading that as Native would send a
+        // consumer to the watchdog for what might be a container.
+        StubProcessOutput("""{"name":"7dtd"}""");
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        Assert.Null(result!.Runtime);
+    }
+
+    [Fact]
+    public void LibraryState_binds_the_three_states_the_engine_measures()
+    {
+        foreach ((string wire, InstanceLibraryState expected) in new[]
+        {
+            ("online", InstanceLibraryState.Online),
+            ("offline", InstanceLibraryState.Offline),
+            ("unregistered", InstanceLibraryState.Unregistered),
+        })
+        {
+            StubProcessOutput($$"""{"name":"7dtd","library_state":"{{wire}}"}""");
+
+            Instance? result = Info();
+
+            Assert.NotNull(result);
+            Assert.Equal(expected, result!.LibraryState);
+        }
+    }
+
+    [Fact]
+    public void LibraryState_is_unknown_on_an_engine_that_does_not_report_it()
     {
         StubProcessOutput("""{"name":"7dtd"}""");
 
         Instance? result = Info();
 
         Assert.NotNull(result);
-        Assert.Equal(InstanceRuntime.Native, result!.Runtime);
+        Assert.Null(result!.LibraryState);
+    }
+
+    [Fact]
+    public void Blueprint_is_derived_from_the_unified_blueprint_file_name()
+    {
+        // "<name>.bp.yaml" — the compound suffix comes off as a unit, not one extension at a time.
+        StubProcessOutput("""{"name":"7dtd","blueprint_file":"/opt/kgsm/blueprints/factorio.bp.yaml"}""");
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        Assert.Equal("factorio", result!.Blueprint);
+    }
+
+    [Fact]
+    public void Blueprint_comes_from_the_engine_when_the_library_is_offline()
+    {
+        // The whole of what an offline instance reports: no blueprint_file, because that path is on
+        // the absent disk. The name is on this host, in the instance registry.
+        StubProcessOutput(
+            """
+            {"name":"7dtd","blueprint":"7daystodie","working_dir":"/mnt/ssd/instances/7daystodie/7dtd",
+             "library":"ssd","library_dir":"/mnt/ssd","library_state":"offline"}
+            """);
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        Assert.Equal("7daystodie", result!.Blueprint);
+        Assert.Equal(InstanceLibraryState.Offline, result.LibraryState);
+        Assert.Equal("ssd", result.Library);
+        Assert.Equal("/mnt/ssd", result.LibraryDir);
+        Assert.Null(result.Runtime);
     }
 
     [Fact]

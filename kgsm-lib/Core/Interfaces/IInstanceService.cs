@@ -110,6 +110,37 @@ public interface IInstanceService
     KgsmResult Uninstall(string instanceName, string? actor = null, string? origin = null);
 
     /// <summary>
+    /// Moves a stopped instance's files into another library.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Minutes of copying on a large world, not a request: the engine takes a backup, copies the
+    /// tree, rewrites every path the instance holds, re-points its registry entry and starts it once
+    /// on the new path to confirm it runs there before removing the old tree. A caller that blocks a
+    /// request thread on this holds it for the whole of that — drive it as a job.
+    /// </para>
+    /// <para>
+    /// ⚠ The verification start emits <c>instance_started</c> and <c>instance_stopped</c> partway
+    /// through, with no bracket around them. A surface that reads run-state off those alone shows
+    /// the server running mid-move; the move's own bracket is the caller's to keep.
+    /// </para>
+    /// <para>
+    /// Refused unless the instance is stopped and both libraries are reachable. The engine states
+    /// which of those blocked it, and the refusal text is what a surface shows.
+    /// </para>
+    /// </remarks>
+    /// <param name="instanceName">Instance to move.</param>
+    /// <param name="library">Name of the library to move it into.</param>
+    /// <param name="skipSpaceCheck">
+    /// Move even when the target library has less free space than the instance currently occupies.
+    /// The engine still measures and prints the shortfall.
+    /// </param>
+    /// <param name="actor">Optional audit principal — see <see cref="Install"/>.</param>
+    /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
+    /// <returns>Result of the move operation.</returns>
+    KgsmResult Move(string instanceName, string library, bool skipSpaceCheck = false, string? actor = null, string? origin = null);
+
+    /// <summary>
     /// Gets the logs for an instance.
     /// </summary>
     /// <param name="instanceName">Instance name to get logs for.</param>

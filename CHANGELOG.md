@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — an instance whose disk is away reports unknown, not stopped (`Lib` 6.0.0) — BREAKING
+
+The engine measures an unmounted library as an absence and says so; the library was reading that
+absence as a set of confident defaults. Four properties change type so it cannot:
+
+- `InstanceRuntimeStatus.Status` is `bool?`. The engine emits `null` for an instance it could not
+  read, and the old `bool` landed on `false` — telling an operator their server is down when what
+  happened is a disk came out.
+- `Instance.Runtime` is `InstanceRuntime?`. The offline payload omits `runtime` entirely, and the
+  old non-nullable enum landed on `Native`'s zero: a consumer would ask the watchdog for a
+  container's run state and get back a confident wrong answer.
+- `InstanceRuntimeStatus.Version.Current`, `.Configuration.Runtime` and `.Resources.DiskUsage` are
+  nullable, because the engine sends `null` for each of them and a non-nullable `string` holding
+  `null` is a promise the type does not keep.
+- `ILibraryService.Remove` takes `drainTo` before `actor`/`origin`.
+
+`Instance.Blueprint` and `InstanceRuntimeStatus.LibraryState`/`.Configuration.Library` bind the
+fields the engine already sends. `Blueprint` is now settable and reads the engine's own `blueprint`
+field — the name comes out of the instance registry, which is on this host rather than on the
+absent disk — falling back to deriving it from `BlueprintFile`. That derivation strips `.bp.yaml`
+as a unit, so a unified blueprint reads `factorio` rather than `factorio.bp`.
+
+`Instance.LibraryState` and `InstanceRuntimeStatus.LibraryState` carry the engine's always-present
+`library_state` as `InstanceLibraryState` — `Online`, `Offline` or `Unregistered`, three states
+where `LibraryState` has two, because an instance can also sit under a root this host holds no
+entry for. This is the field that says why the rest of an offline instance is empty: `Name`,
+`Blueprint`, `WorkingDir`, `LibraryDir` and `Library` are real, and everything else is its default
+because nothing read one.
+
+### Added — moving an instance between libraries (`Lib` 6.0.0)
+
+`IInstanceService.Move(instance, library, skipSpaceCheck)` runs `kgsm instances move`, and
+`ILibraryService.Remove(name, drainTo:)` runs `libraries remove --drain` — move every resident
+instance into a target library, then deregister. Together they are how a disk is emptied before it
+is taken out.
+
+Both are minutes of copying, not requests: `KgsmTimeoutOptions.Move` (2 hours) is sized for a
+populated drive going out rather than for one server, and a caller should drive either as a job.
+⚠ **The move starts the instance once on the new path to confirm it runs there**, so an
+`instance_started` and an `instance_stopped` land partway through with no bracket around them. A
+surface reading run-state off those alone shows the server running mid-move; the operation's own
+bracket is the caller's to keep.
+
+`--drain` and `--force` are mutually exclusive and the engine owns that rule — the library sends
+both and lets the refusal come back, so there is one answer to it and the surface shows the
+engine's words.
+
+`instance_moved` is classified in `KgsmEventCatalog`, dispatching into `InstanceMovedData`
+(`FromLibrary`, `ToLibrary`). Both libraries are named because a reader that learns only the
+destination cannot tell which disk just got its space back. `InstanceInstalledData` gains
+`Library`, so a record of an install can say which disk the server went onto.
+
 ### Changed — placement is a named library, not a path (`Lib` 5.0.0) — BREAKING
 
 `IInstanceService.Install` takes `library` where it took `installDir`, and passes it as

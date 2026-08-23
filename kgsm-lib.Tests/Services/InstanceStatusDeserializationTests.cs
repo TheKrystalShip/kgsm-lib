@@ -1,3 +1,5 @@
+using TheKrystalShip.KGSM.Core.Models.Enums;
+
 namespace TheKrystalShip.KGSM.Tests.Services;
 
 /// <summary>
@@ -207,6 +209,74 @@ public class InstanceStatusDeserializationTests
         Assert.Equal(ReadingCode.RequiresRegeneration, broken.Code);
         Assert.Equal("Management file does not support --status command", broken.Reason);
         Assert.Null(broken.Value); // no masquerading status object
+    }
+
+    [Fact]
+    public void BulkStatus_OfflineLibraryInstance_ReportsUnknownRatherThanStopped()
+    {
+        // Exact shape from commands/instances.sh `_get_instance_status_offline_json`. Every
+        // reading a status takes comes out of the instance's own directory, so on an unmounted
+        // library not one of them can be taken — `status` included. A false here would tell an
+        // operator their server is down when what happened is a disk came out.
+        const string json = """
+            {
+              "7dtd": {
+                "instance_name": "7dtd",
+                "status": null,
+                "library_state": "offline",
+                "process": { "pid": null, "status": null, "start_time": null },
+                "version": { "current": null, "latest": null, "checked": false, "updates_available": null, "checked_at": null },
+                "configuration": { "blueprint": "7daystodie", "runtime": null, "directory": "/mnt/ssd/instances/7daystodie/7dtd",
+                                   "ports": null, "library": "ssd", "library_dir": "/mnt/ssd" },
+                "resources": { "disk_usage": null },
+                "backups": [],
+                "recent_logs": []
+              }
+            }
+            """;
+        StubProcessOutput(json);
+
+        Dictionary<string, Reading<InstanceRuntimeStatus>>? result =
+            Create().ExecuteForJson<Dictionary<string, Reading<InstanceRuntimeStatus>>>(
+                ["instances", "list", "--status", "--json"]);
+
+        Assert.NotNull(result);
+        Reading<InstanceRuntimeStatus> reading = result!["7dtd"];
+        Assert.Equal(ReadingState.Measured, reading.State);
+
+        InstanceRuntimeStatus status = reading.Value!;
+        Assert.Null(status.Status);
+        Assert.Equal(InstanceLibraryState.Offline, status.LibraryState);
+        Assert.Null(status.Version.Current);
+        Assert.Null(status.Configuration.Runtime);
+        Assert.Null(status.Resources.DiskUsage);
+
+        // What the registry knows is real, and says where the files are expected to be.
+        Assert.Equal("7daystodie", status.Configuration.Blueprint);
+        Assert.Equal("ssd", status.Configuration.Library);
+        Assert.Equal("/mnt/ssd", status.Configuration.LibraryDir);
+    }
+
+    [Fact]
+    public void BulkStatus_MountedInstance_CarriesTheOnlineLibraryState()
+    {
+        // The field reads the same on a mounted instance as on an absent one — a key present in
+        // only one of the two is a key nothing can join on.
+        StubProcessOutput("""
+            {"7dtd":{"instance_name":"7dtd","status":false,"library_state":"online",
+             "process":{"pid":null,"status":null,"start_time":null},
+             "version":{"current":"1","latest":null,"checked":false,"updates_available":null,"checked_at":null},
+             "configuration":{"blueprint":"7dtd.bp","runtime":"native","directory":"/opt/7dtd/7dtd","ports":"1/tcp"},
+             "resources":{"disk_usage":"1G"},"backups":[],"recent_logs":""}}
+            """);
+
+        Dictionary<string, Reading<InstanceRuntimeStatus>>? result =
+            Create().ExecuteForJson<Dictionary<string, Reading<InstanceRuntimeStatus>>>(
+                ["instances", "list", "--status", "--json"]);
+
+        InstanceRuntimeStatus status = result!["7dtd"].Value!;
+        Assert.Equal(InstanceLibraryState.Online, status.LibraryState);
+        Assert.False(status.Status);
     }
 }
 

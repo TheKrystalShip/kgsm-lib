@@ -452,6 +452,43 @@ public class InstanceInstalledData : EventDataBase
     /// Gets or sets the blueprint name used for installation.
     /// </summary>
     public string Blueprint { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the name of the library the install landed in. Always stated: placement is
+    /// resolved before a single directory is created, so the installer always knows it, and on a
+    /// host with several disks a record of an install that cannot say which one it went onto is
+    /// the record that host needs most.
+    /// </summary>
+    public string Library { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Event data for when an instance's files were moved into a different library.
+/// </summary>
+/// <remarks>
+/// The instance is the same instance — only its files went anywhere. Both libraries are named
+/// because a reader that learns only the destination cannot tell which disk just got its space
+/// back, and emptying a disk before it is unplugged is the whole reason the verb exists.
+/// <para>
+/// ⚠ The move starts the instance once on the new path to confirm it runs there, so an
+/// <c>instance_started</c> and an <c>instance_stopped</c> land between the operation's beginning
+/// and this event, with no bracket saying they belong to it. A consumer that settles run-state on
+/// those alone reports the server as having been running mid-move.
+/// </para>
+/// </remarks>
+public class InstanceMovedData : EventDataBase
+{
+    /// <summary>
+    /// Gets or sets the name of the library the instance came from. The literal
+    /// <c>unregistered</c> when it was under a root this host holds no entry for — a measurement,
+    /// not an absence.
+    /// </summary>
+    public string FromLibrary { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the name of the library the instance is now in.
+    /// </summary>
+    public string ToLibrary { get; set; } = string.Empty;
 }
 
 /// <summary>

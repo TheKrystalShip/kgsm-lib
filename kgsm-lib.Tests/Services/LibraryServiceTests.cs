@@ -159,6 +159,65 @@ public class LibraryServiceTests
         Assert.True(result.IsSuccess);
     }
 
+    [Fact]
+    public void Remove_WithDrainTarget_PassesTheDrainFlagUnderTheMoveTimeout()
+    {
+        // A drain copies every resident instance's tree one at a time. The default ceiling is
+        // sized for a registry write, and running a drain under it kills a disk mid-empty.
+        var timeouts = new KgsmTimeoutOptions();
+        var service = new LibraryService(
+            _mockCommandExecutor.Object,
+            _mockLogger.Object,
+            new KgsmOptions { KgsmPath = "/opt/kgsm/kgsm.sh", Timeouts = timeouts });
+
+        _mockCommandExecutor
+            .Setup(x => x.Execute(
+                timeouts.Move,
+                It.Is<string[]>(a => ArgsAre(a, "libraries", "remove", "ssd", "--drain", "archive"))))
+            .Returns(new KgsmResult(new ProcessResult(0, "drained", string.Empty)));
+
+        KgsmResult result = service.Remove("ssd", drainTo: "archive");
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void Remove_WithoutDrainTarget_KeepsTheDefaultTimeout()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "libraries", "remove", "ssd"))))
+            .Returns(new KgsmResult(new ProcessResult(0, "removed", string.Empty)));
+
+        KgsmResult result = _libraryService.Remove("ssd");
+
+        Assert.True(result.IsSuccess);
+        _mockCommandExecutor.Verify(
+            x => x.Execute(It.IsAny<TimeSpan>(), It.IsAny<string[]>()), Times.Never);
+    }
+
+    [Fact]
+    public void Remove_WithBothDrainAndForce_SendsBoth_LeavingTheRuleToTheEngine()
+    {
+        // One moves the instances and the other abandons them, and the engine refuses the pair.
+        // Refusing it a second time here would put a second answer beside the one that matters,
+        // and the surface shows the engine's words.
+        var timeouts = new KgsmTimeoutOptions();
+        var service = new LibraryService(
+            _mockCommandExecutor.Object,
+            _mockLogger.Object,
+            new KgsmOptions { KgsmPath = "/opt/kgsm/kgsm.sh", Timeouts = timeouts });
+
+        _mockCommandExecutor
+            .Setup(x => x.Execute(
+                timeouts.Move,
+                It.Is<string[]>(a => ArgsAre(a, "libraries", "remove", "ssd", "--drain", "archive", "--force"))))
+            .Returns(new KgsmResult(new ProcessResult(1, string.Empty, "--drain and --force cannot be combined")));
+
+        KgsmResult result = service.Remove("ssd", force: true, drainTo: "archive");
+
+        Assert.False(result.IsSuccess);
+    }
+
     // --- Rename ---
 
     [Fact]

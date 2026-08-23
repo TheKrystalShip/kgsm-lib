@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using TheKrystalShip.KGSM.Core.Models.Enums;
 
 namespace TheKrystalShip.KGSM.Core.Models;
 
@@ -38,10 +39,12 @@ public record class ProcessInfo
 public record class VersionInfo
 {
     /// <summary>
-    /// Gets or sets the current version.
+    /// Gets or sets the current version. <see langword="null"/> when it could not be read at all —
+    /// the version is written inside the instance's own directory, so an instance whose library is
+    /// not mounted has no readable version rather than an empty one.
     /// </summary>
     [JsonPropertyName("current")]
-    public string Current { get; set; } = string.Empty;
+    public string? Current { get; set; }
 
     /// <summary>
     /// Gets or sets the latest version. Null when KGSM did not check
@@ -82,22 +85,47 @@ public record class VersionInfo
 public record class ConfigurationInfo
 {
     /// <summary>
-    /// Gets or sets the blueprint name.
+    /// Gets or sets the blueprint. Readable whether or not the instance's library is mounted — for
+    /// an absent one the engine takes it from the instance registry, which is on this host.
     /// </summary>
+    /// <remarks>
+    /// ⚠ Two spellings on one field: a mounted instance's management script reports the file name
+    /// (<c>factorio.bp.yaml</c>) and the registry reports the bare name (<c>factorio</c>). Read
+    /// <see cref="Instance.Blueprint"/> for one that is always the name.
+    /// </remarks>
     [JsonPropertyName("blueprint")]
     public string Blueprint { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the runtime environment.
+    /// Gets or sets the runtime environment. <see langword="null"/> when it could not be read —
+    /// it lives in the instance's config, which an unmounted library takes with it.
     /// </summary>
     [JsonPropertyName("runtime")]
-    public string Runtime { get; set; } = string.Empty;
+    public string? Runtime { get; set; }
 
     /// <summary>
     /// Gets or sets the directory.
     /// </summary>
     [JsonPropertyName("directory")]
     public string Directory { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the name of the library the instance is placed in, in the one case a status
+    /// read can answer it: an instance whose library is away, where naming the disk is most of what
+    /// there is to say. Empty otherwise — a mounted instance's status comes from its own management
+    /// script, which knows nothing about the host's registry. <see cref="Instance.Library"/> is the
+    /// field that always carries it.
+    /// </summary>
+    [JsonPropertyName("library")]
+    public string Library { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the registered root of that library — where the instance's files are expected
+    /// to be. Present on the same terms as <see cref="Library"/>; this is the path a surface names
+    /// when it tells somebody which disk to plug back in.
+    /// </summary>
+    [JsonPropertyName("library_dir")]
+    public string LibraryDir { get; set; } = string.Empty;
 
     // NB: no Ports here. The status surface (`status --json`) still echoes a `ports` string from
     // the management script, but nothing read it, and the canonical structured port form lives on
@@ -112,10 +140,11 @@ public record class ConfigurationInfo
 public record class ResourceInfo
 {
     /// <summary>
-    /// Gets or sets the disk usage.
+    /// Gets or sets the disk usage. <see langword="null"/> when nothing measured it — the figure
+    /// comes from walking the instance's own directory.
     /// </summary>
     [JsonPropertyName("disk_usage")]
-    public string DiskUsage { get; set; } = string.Empty;
+    public string? DiskUsage { get; set; }
 }
 
 /// <summary>
@@ -130,11 +159,27 @@ public record class InstanceRuntimeStatus
     public string InstanceName { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets whether the instance is running.
+    /// Gets or sets whether the instance is running. <see langword="null"/> when nothing measured
+    /// it — the engine emits null for an instance whose library is not mounted, because every
+    /// reading it would take comes out of a directory that is not there.
     /// </summary>
+    /// <remarks>
+    /// ⚠ Null is not <see langword="false"/>. An unreadable instance is not a stopped one, and a
+    /// surface that renders the two the same way tells an operator their server is down when what
+    /// happened is that a disk came out. Render null as an explicit unknown, and read
+    /// <see cref="LibraryState"/> for why.
+    /// </remarks>
     [JsonPropertyName("status")]
     [JsonConverter(typeof(JsonStringToBoolConverter))]
-    public bool Status { get; set; } = false;
+    public bool? Status { get; set; }
+
+    /// <summary>
+    /// Gets or sets the state of the library the instance is placed in. Present on every status
+    /// read, mounted or not, so a consumer can join on it; <see langword="null"/> only from an
+    /// engine that predates libraries.
+    /// </summary>
+    [JsonPropertyName("library_state")]
+    public InstanceLibraryState? LibraryState { get; set; }
 
     /// <summary>
     /// Gets or sets the process information.

@@ -55,6 +55,15 @@ public class KgsmTimeoutOptions
     /// <summary>Uninstalling an instance — a bulk filesystem delete that can be slow on large servers.</summary>
     public TimeSpan Uninstall { get; set; } = TimeSpan.FromMinutes(10);
 
+    /// <summary>
+    /// Moving an instance between libraries, and draining a library into another. Both are a whole
+    /// instance tree copied across filesystems, plus a backup and a verification start; a drain pays
+    /// that once per resident instance, one at a time, under this single ceiling. Sized for a disk
+    /// being emptied rather than for one server: a 300MB instance moves in seconds, and the case
+    /// this has to survive is a populated drive going out.
+    /// </summary>
+    public TimeSpan Move { get; set; } = TimeSpan.FromHours(2);
+
     /// <summary>Creating a backup — a potentially large file copy.</summary>
     public TimeSpan Backup { get; set; } = TimeSpan.FromMinutes(15);
 

@@ -145,6 +145,25 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
+    public KgsmResult Move(string instanceName, string library, bool skipSpaceCheck = false, string? actor = null, string? origin = null)
+    {
+        ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));
+        ArgumentNullException.ThrowIfNull(library, nameof(library));
+
+        List<string> args = ["instances", "move", instanceName, "--library", library];
+
+        if (skipSpaceCheck)
+        {
+            args.Add("--skip-space-check");
+        }
+
+        IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
+        return provenance is null
+            ? _commandExecutor.Execute(_timeouts.Move, args.ToArray())
+            : _commandExecutor.Execute(provenance, _timeouts.Move, args.ToArray());
+    }
+
+    /// <inheritdoc/>
     public ICollection<string> GetLogs(string instanceName, int lines = 10)
     {
         ArgumentNullException.ThrowIfNull(instanceName, nameof(instanceName));

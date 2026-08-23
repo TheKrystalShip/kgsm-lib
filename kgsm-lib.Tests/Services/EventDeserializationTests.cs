@@ -453,6 +453,58 @@ public class EventDeserializationTests
             + string.Join(", ", unregistered));
     }
 
+    // ---- placement: which disk an instance's files are on ------------------------------------
+
+    // Both captured verbatim from the host journal, written by the engine's own emitter.
+    private const string InstalledWireJson = """
+        {"V":1,"Id":"01a02c76-c506-785f-a11d-5ecf54837ea7","EventType":"instance_installed","Data":{"InstanceName":"fac-move","Blueprint":"factorio","Library":"scratch-a"},"Timestamp":"2026-08-23T02:32:56.328Z","Actor":"heisen","Origin":null,"Hostname":"hotrod","ProducerVersion":"3.17.0-rc10"}
+        """;
+
+    private const string MovedWireJson = """
+        {"V":1,"Id":"01a02c84-e4e4-7b57-b8ce-3483f2a6183e","EventType":"instance_moved","Data":{"InstanceName":"fac-move","FromLibrary":"scratch-a","ToLibrary":"scratch-b"},"Timestamp":"2026-08-23T02:48:21.990Z","Actor":"heisen","Origin":null,"Hostname":"hotrod","ProducerVersion":"3.17.0-rc10"}
+        """;
+
+    [Fact]
+    public void InstalledEvent_NamesTheLibraryTheInstallLandedIn()
+    {
+        (string eventType, EventDataBase? data) = Deserialize(
+            InstalledWireJson, typeof(InstanceInstalledData));
+
+        Assert.Equal("instance_installed", eventType);
+        var installed = Assert.IsType<InstanceInstalledData>(data);
+        Assert.Equal("fac-move", installed.InstanceName);
+        Assert.Equal("factorio", installed.Blueprint);
+        Assert.Equal("scratch-a", installed.Library);
+    }
+
+    [Fact]
+    public void MovedEvent_NamesBothLibraries()
+    {
+        // Both, not just the destination: a reader that learns only where the files went cannot
+        // tell which disk just got its space back, and that is the question a drain is asked.
+        (string eventType, EventDataBase? data) = Deserialize(
+            MovedWireJson, typeof(InstanceMovedData));
+
+        Assert.Equal("instance_moved", eventType);
+        var moved = Assert.IsType<InstanceMovedData>(data);
+        Assert.Equal("fac-move", moved.InstanceName);
+        Assert.Equal("scratch-a", moved.FromLibrary);
+        Assert.Equal("scratch-b", moved.ToLibrary);
+    }
+
+    [Fact]
+    public void MovedEvent_IsClassifiedAsAnInstanceFact()
+    {
+        EventDescriptor descriptor = KgsmEventCatalog.Describe("instance_moved");
+
+        Assert.True(descriptor.Known);
+        Assert.Equal(typeof(InstanceMovedData), descriptor.PayloadType);
+        Assert.Equal(EventSubject.Instance, descriptor.Subject);
+        Assert.Equal(EventWeight.Fact, descriptor.Weight);
+        Assert.Contains(descriptor.Fields, f => f.Name == "FromLibrary");
+        Assert.Contains(descriptor.Fields, f => f.Name == "ToLibrary");
+    }
+
     // The name→type dispatch, read off the catalog that holds it. EventService deserializes into
     // EventDescriptor.PayloadType, so this IS the table the runtime uses — not a copy of it.
     private static Dictionary<string, Type> GetEventTypeMapping() =>

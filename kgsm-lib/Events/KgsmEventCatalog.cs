@@ -101,7 +101,14 @@ public static class KgsmEventCatalog
             Instance<InstanceDeployedData>("instance_deployed", EventWeight.Phase),
             Instance<InstanceInstallationStartedData>("instance_installation_started", EventWeight.Phase, fields: [Blueprint]),
             Instance<InstanceInstallationFinishedData>("instance_installation_finished", EventWeight.Phase, fields: [Blueprint]),
-            Instance<InstanceInstalledData>("instance_installed", EventWeight.Fact, EventOutcome.Success, [Blueprint]),
+            Instance<InstanceInstalledData>("instance_installed", EventWeight.Fact, EventOutcome.Success, [Blueprint, LibraryName]),
+
+            // -- placement ---------------------------------------------------------------------
+            // Which disk an instance's files are on. Neutral: moving a server between two roots on
+            // the same host changes nothing about the server, and the news is which library gave up
+            // the space and which took it.
+            Instance<InstanceMovedData>("instance_moved", EventWeight.Fact, EventOutcome.Neutral,
+                [Field("FromLibrary", FieldShape.Text), Field("ToLibrary", FieldShape.Text)]),
 
             // -- uninstall ---------------------------------------------------------------------
             Instance<InstanceUninstallStartedData>("instance_uninstall_started", EventWeight.Phase),
@@ -426,6 +433,13 @@ public static class KgsmEventCatalog
     // The fields that appear on more than one event, declared once so two events cannot classify the
     // same field differently.
     private static readonly EventField Blueprint = Field("Blueprint", FieldShape.Text);
+
+    /// <summary>
+    /// The placement root a payload names, as its registry name. Not the same field as the library
+    /// events' own <c>LibraryName</c>, which is their subject rather than a detail on one.
+    /// </summary>
+    private static readonly EventField LibraryName = Field("Library", FieldShape.Text);
+
     private static readonly EventField Source = Field("Source", FieldShape.Text);
     private static readonly EventField Version = Field("Version", FieldShape.Version);
     private static readonly EventField ExitCode = Field("ExitCode", FieldShape.Text);
