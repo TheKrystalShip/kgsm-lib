@@ -9,12 +9,35 @@ namespace TheKrystalShip.KGSM.Core.Models;
 public record class Instance
 {
     /// <summary>
-    /// Gets or sets the name of the instance.
+    /// Gets or sets the instance's id — the identifier every path, file name, cgroup, event and
+    /// downstream store keys on. Auto-generated at install from the blueprint name, unique per
+    /// host, and immutable for the instance's lifetime.
     /// </summary>
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 
-        /// <summary>
+    /// <summary>
+    /// Gets or sets the human-readable label a surface renders for this instance. Free text —
+    /// spaces, punctuation and emoji are all legal, because it never reaches a path — not unique,
+    /// and changed at any time with <see cref="Interfaces.IInstanceService.SetDisplayName"/>.
+    /// </summary>
+    /// <remarks>
+    /// <b>Never null and never empty:</b> an instance that has no label of its own reads as its
+    /// <see cref="Name"/>. The engine already substitutes the id when the config carries no
+    /// <c>display_name</c>, and this derives the same answer for the one case where the engine
+    /// states nothing at all — an instance whose library is offline, whose config cannot be read.
+    /// Giving that instance a blank label instead would render as a nameless row.
+    /// </remarks>
+    [JsonPropertyName("display_name")]
+    public string DisplayName
+    {
+        get => string.IsNullOrEmpty(_displayName) ? Name : _displayName;
+        set => _displayName = value;
+    }
+
+    private string? _displayName;
+
+    /// <summary>
     /// Gets or sets the blueprint file path for the instance.
     /// </summary>
     [JsonPropertyName("blueprint_file")]

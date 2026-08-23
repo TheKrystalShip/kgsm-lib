@@ -87,7 +87,9 @@ public interface IInstanceService
     /// resolve it: the configured <c>default_library</c>, else the sole registered library, else
     /// an error. Every instance lives in a library — there is no path escape.</param>
     /// <param name="version">Optional version to install.</param>
-    /// <param name="name">Optional identifier used when creating the instance.</param>
+    /// <param name="displayName">Optional human-readable label for the instance, passed as
+    /// <c>--name</c>. Free text — it decorates, and never becomes part of a path or an identifier.
+    /// Null leaves the label reading as the id.</param>
     /// <param name="actor">Optional audit principal (who) propagated to KGSM as <c>KGSM_EVENT_ACTOR</c>
     /// so the emitted event is attributable; null/empty = KGSM's OS-user fallback (never fabricated).</param>
     /// <param name="origin">Optional driving surface (through-what) propagated as <c>KGSM_EVENT_ORIGIN</c>;
@@ -97,8 +99,18 @@ public interface IInstanceService
     /// existing positional callers are unaffected.</param>
     /// <param name="start">If <c>true</c>, start the server immediately after install (one-shot, not
     /// watchdog boot-autostart).</param>
+    /// <param name="id">Optional explicit instance id, passed as <c>--id</c>. Null lets KGSM generate
+    /// one from the blueprint name, which is what a human-facing surface wants; a caller that has to
+    /// know the id before the install finishes (a job keyed on it, a test asserting on it) names it
+    /// here. The engine validates it against <c>^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$</c> and against the
+    /// existing roster, and refuses the install rather than adjusting what it was given.</param>
     /// <returns>Result of the instance installation operation.</returns>
-    KgsmResult Install(string blueprintName, string? library = null, string? version = null, string? name = null, string? actor = null, string? origin = null, int? port = null, bool? start = null);
+    /// <remarks>
+    /// The id and the label are two arguments because they are two things: the id is the durable key
+    /// every path, event and downstream store uses, and the label is decoration a person changes
+    /// whenever they like. <see cref="GenerateId"/> answers what an id would be without installing.
+    /// </remarks>
+    KgsmResult Install(string blueprintName, string? library = null, string? version = null, string? displayName = null, string? actor = null, string? origin = null, int? port = null, bool? start = null, string? id = null);
 
     /// <summary>
     /// Uninstalls an instance.
@@ -380,15 +392,16 @@ public interface IInstanceService
     KgsmResult RestoreBackup(string instanceName, string backupName, string? actor = null, string? origin = null);
 
     /// <summary>
-    /// Generates a unique instance identifier for a blueprint.
-    /// If a custom name is provided and is valid and unique, returns that name.
-    /// Otherwise, generates a name with format blueprint-suffix.
+    /// Generates a unique instance id for a blueprint: the blueprint's own name when no instance
+    /// carries it, otherwise that name with a random numeric suffix.
     /// </summary>
-    /// <param name="blueprintName">The blueprint to generate an ID for.</param>
-    /// <param name="customName">Optional custom name to use if valid and unique.</param>
-    /// <returns>Result containing the generated or custom instance name.</returns>
+    /// <param name="blueprintName">The blueprint to generate an id for.</param>
+    /// <param name="id">Optional id to check instead of generating one. It is echoed back when it is
+    /// well-formed and free, and refused otherwise — so a surface can offer a caller's id through the
+    /// same call that would otherwise mint one, and learn before installing whether it is usable.</param>
+    /// <returns>Result whose standard output is the id, with no trailing decoration.</returns>
     /// <exception cref="ArgumentException">Thrown when blueprintName is null or whitespace.</exception>
-    KgsmResult GenerateId(string blueprintName, string? customName = null);
+    KgsmResult GenerateId(string blueprintName, string? id = null);
 
     /// <summary>
     /// Sends a save command to a running instance.
@@ -527,6 +540,33 @@ public interface IInstanceService
     /// <exception cref="ArgumentException">Thrown when instanceName or key is null or whitespace.</exception>
     /// <exception cref="ArgumentNullException">Thrown when value is null.</exception>
     KgsmResult SetInstanceConfigValue(string instanceName, string key, string value, string? actor = null, string? origin = null);
+
+    /// <summary>
+    /// Sets the human-readable label a surface renders for an instance.
+    /// </summary>
+    /// <remarks>
+    /// <para>The id is untouched: nothing on disk is renamed, no path changes, and every downstream
+    /// store keyed on the id keeps its history. That is what makes this safe to run at any time, on a
+    /// running server, as often as somebody likes.</para>
+    /// <para>The engine emits <c>instance_display_name_changed</c>
+    /// (<see cref="Events.InstanceDisplayNameChangedData"/>) carrying both labels, and an
+    /// <c>instance_config_changed</c> naming the key, so a surface can re-label from either.</para>
+    /// <para>Escaping is the engine's: quotes, backslashes, backticks and emoji are handed over as
+    /// typed and come back byte-identical through both <c>instances info --json</c> and
+    /// <c>instances config-list --json</c>. Control characters are the exception — see
+    /// <see cref="InstanceDisplayName.Sanitize"/> for what they do to the engine's config-to-JSON
+    /// render, and why the label is reduced to one line before it is written.</para>
+    /// </remarks>
+    /// <param name="instanceId">The instance's id — the identifier, not its current label.</param>
+    /// <param name="displayName">The new label, stored as
+    /// <see cref="InstanceDisplayName.Sanitize"/> leaves it. The empty string clears it, after which
+    /// the instance reads as its id again; only null is rejected.</param>
+    /// <param name="actor">Optional audit principal — see <see cref="Install"/>.</param>
+    /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
+    /// <returns>Result of the operation.</returns>
+    /// <exception cref="ArgumentException">Thrown when instanceId is null or whitespace.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when displayName is null.</exception>
+    KgsmResult SetDisplayName(string instanceId, string displayName, string? actor = null, string? origin = null);
 
     /// <summary>
     /// Writes an instance's operator-authored server note — the free-text sticky note surfaces

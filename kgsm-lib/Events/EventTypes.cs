@@ -866,6 +866,31 @@ public class InstanceConfigChangedData : EventDataBase
 }
 
 /// <summary>
+/// Event data for when an instance's human-readable label changed — through
+/// <c>kgsm instances rename</c>, or through a <c>config-set</c> of <c>display_name</c>, which emit
+/// an <c>instance_config_changed</c> naming the key alongside this.
+/// </summary>
+/// <remarks>
+/// <para><see cref="EventDataBase.InstanceName"/> is the instance's <em>id</em>, and a rename does
+/// not change it — it is what a consumer holding a stale label looks that label up by.</para>
+/// <para>Both labels ride along in full, unlike <see cref="InstanceConfigChangedData"/>, which
+/// carries a key and never a value. A display name is decoration a person chose to be read; it
+/// cannot hold a credential the way an arbitrary config value can, and a consumer that had only the
+/// key would have to go and ask the engine for the new label to do the one thing this event exists
+/// for.</para>
+/// <para>Neither field is ever empty: an instance with no label of its own reads as its id, and that
+/// is the value reported here — the same answer every other reader of the config gets.</para>
+/// </remarks>
+public class InstanceDisplayNameChangedData : EventDataBase
+{
+    /// <summary>The label the instance was shown as before the change.</summary>
+    public string OldDisplayName { get; set; } = string.Empty;
+
+    /// <summary>The label the instance is shown as now.</summary>
+    public string NewDisplayName { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// Event data for when an arbitrary console command was sent to a running instance
 /// (via <c>kgsm instances input</c> / the lib's <c>IInstanceService.SendInput</c>).
 /// <see cref="EventDataBase.InstanceName"/> identifies the instance and <see cref="Command"/>

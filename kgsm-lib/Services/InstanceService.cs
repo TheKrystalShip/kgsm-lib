@@ -87,7 +87,7 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
-    public KgsmResult Install(string blueprintName, string? library = null, string? version = null, string? name = null, string? actor = null, string? origin = null, int? port = null, bool? start = null)
+    public KgsmResult Install(string blueprintName, string? library = null, string? version = null, string? displayName = null, string? actor = null, string? origin = null, int? port = null, bool? start = null, string? id = null)
     {
         ArgumentNullException.ThrowIfNull(blueprintName, nameof(blueprintName));
 
@@ -105,10 +105,16 @@ public class InstanceService : IInstanceService
             args.Add(version);
         }
 
-        if (name is not null)
+        if (displayName is not null)
         {
             args.Add("--name");
-            args.Add(name);
+            args.Add(displayName);
+        }
+
+        if (id is not null)
+        {
+            args.Add("--id");
+            args.Add(id);
         }
 
         if (port is not null)
@@ -376,16 +382,16 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
-    public KgsmResult GenerateId(string blueprintName, string? customName = null)
+    public KgsmResult GenerateId(string blueprintName, string? id = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(blueprintName, nameof(blueprintName));
 
         var args = new List<string> { "instances", "generate-id", blueprintName };
 
-        if (!string.IsNullOrWhiteSpace(customName))
+        if (!string.IsNullOrWhiteSpace(id))
         {
-            args.Add("--name");
-            args.Add(customName);
+            args.Add("--id");
+            args.Add(id);
         }
 
         return _commandExecutor.Execute(args.ToArray());
@@ -499,6 +505,22 @@ public class InstanceService : IInstanceService
         return provenance is null
             ? _commandExecutor.Execute("instances", "config-set", instanceName, $"{key}={value}")
             : _commandExecutor.Execute(provenance, "instances", "config-set", instanceName, $"{key}={value}");
+    }
+
+    /// <inheritdoc/>
+    public KgsmResult SetDisplayName(string instanceId, string displayName, string? actor = null, string? origin = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceId, nameof(instanceId));
+        // The empty string is the clear — the instance then reads as its id again; only null is rejected.
+        ArgumentNullException.ThrowIfNull(displayName, nameof(displayName));
+
+        // config-set rather than the `rename` verb, though the engine routes both through the same
+        // writer and emits the same two events. rename takes the label as trailing positionals and
+        // still reads `-h`/`--help`/`help` among them as its own flag, so those three labels would
+        // print usage and report success without writing anything. config-set carries the whole
+        // assignment as one argv element, which no label text can be mistaken for.
+        return SetInstanceConfigValue(
+            instanceId, "display_name", InstanceDisplayName.Sanitize(displayName), actor, origin);
     }
 
     /// <inheritdoc/>

@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — an instance's id and the name a person reads it by are two things (`Lib` 6.1.0) — BREAKING
+
+The id is auto-generated at install, path-safe and immutable; the display name is decoration that
+any surface can change at any time without breaking anything keyed on the id. Binds kgsm 3.18.0.
+
+- `Instance.DisplayName` carries the engine's `display_name`. **Never null and never empty:** an
+  instance with no label of its own reads as its `Name`, which is the answer the engine already
+  gives for a config that sets no label, and the one it cannot give for an instance whose library is
+  offline — that payload states nothing at all, and a blank label would render as a nameless row.
+- `IInstanceService.SetDisplayName(instanceId, displayName, actor, origin)` renames. Nothing on disk
+  moves, so it is safe on a running server, as often as somebody likes.
+- `InstanceDisplayNameChangedData` binds the engine's `instance_display_name_changed`, carrying the
+  id plus both labels — in full, unlike `instance_config_changed`'s key-only payload, because a
+  label is text chosen to be read and a consumer holding a stale one has everything it needs to
+  re-render. Classified in `KgsmEventCatalog`, so it dispatches.
+- `InstanceDisplayName.Sanitize` reduces a label to the one line it is: control characters go,
+  surrounding whitespace is trimmed, and everything printable — quotes, backslashes, backticks,
+  emoji — is stored exactly as typed. `SetDisplayName` applies it. A tab would truncate the value
+  where the engine's config-to-JSON render splits key from value, and a newline would make the rest
+  of the label parse as further config keys, one of which is `name`.
+
+**Breaking, and deliberately loud:** `IInstanceService.Install`'s `name` parameter is now
+`displayName` and means the label, matching the engine, where before it named the instance. A caller
+that needs to choose the identifier passes the new trailing `id`, which the engine validates against
+`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$` and the existing roster. `GenerateId`'s second parameter is
+`id` and rides on `--id`; it sent `--name`, which that verb no longer takes. Every call site passing
+an identifier fails to compile rather than silently installing a server under a generated id and
+labelling it with what the caller meant as the name.
+
 ### Changed — an instance whose disk is away reports unknown, not stopped (`Lib` 6.0.0) — BREAKING
 
 The engine measures an unmounted library as an absence and says so; the library was reading that

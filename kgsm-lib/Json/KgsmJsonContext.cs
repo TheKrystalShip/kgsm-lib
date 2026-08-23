@@ -132,6 +132,7 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(InstancePlayerBannedData))]
 [JsonSerializable(typeof(InstancePlayerUnbannedData))]
 [JsonSerializable(typeof(InstanceConfigChangedData))]
+[JsonSerializable(typeof(InstanceDisplayNameChangedData))]
 [JsonSerializable(typeof(InstanceInputSentData))]
 // Host-scoped monitoring facts (kgsm-monitor's journal).
 [JsonSerializable(typeof(HostThresholdBreachedData))]

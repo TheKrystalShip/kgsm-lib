@@ -368,6 +368,41 @@ public class InstanceServiceTests
     }
 
     [Fact]
+    public void Install_WithId_PassesIdAndLabelAsSeparateFlags()
+    {
+        // The two are not interchangeable: --id names the identifier every path and downstream store
+        // keys on, --name is the label a person reads and changes later.
+        _mockCommandExecutor
+            .Setup(x => x.Execute(
+                It.IsAny<TimeSpan>(),
+                It.Is<string[]>(a => ArgsAre(a,
+                    "install", "valheim",
+                    "--name", "Ana's Valheim",
+                    "--id", "valheim-prod"))))
+            .Returns(new KgsmResult(new ProcessResult(0, "installed", string.Empty)));
+
+        KgsmResult result = _instanceService.Install("valheim", displayName: "Ana's Valheim", id: "valheim-prod");
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void Install_WithoutId_LetsTheEngineMintOne()
+    {
+        // No --id at all rather than an empty one: the engine generating the id is the ordinary path,
+        // and an empty flag value would be a malformed id it has to refuse.
+        _mockCommandExecutor
+            .Setup(x => x.Execute(
+                It.IsAny<TimeSpan>(),
+                It.Is<string[]>(a => ArgsAre(a, "install", "valheim", "--name", "Ana's Valheim"))))
+            .Returns(new KgsmResult(new ProcessResult(0, "installed", string.Empty)));
+
+        KgsmResult result = _instanceService.Install("valheim", displayName: "Ana's Valheim");
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
     public void Install_WithoutLibrary_PassesNoPlacementFlag()
     {
         // Placement is the engine's to resolve (default_library, else the sole registered
@@ -610,7 +645,7 @@ public class InstanceServiceTests
         Assert.Same(expected, _instanceService.Restart(Instance));
     }
 
-    // --- GenerateId : Execute("instances", "generate-id", blueprint, [--name, custom]) ---
+    // --- GenerateId : Execute("instances", "generate-id", blueprint, [--id, id]) ---
 
     [Fact]
     public void GenerateId_NullBlueprintName_ThrowsArgumentException()
@@ -638,11 +673,13 @@ public class InstanceServiceTests
     }
 
     [Fact]
-    public void GenerateId_WithCustomName_PassesNameFlag()
+    public void GenerateId_WithProposedId_PassesIdFlag()
     {
+        // --id, not --name: generate-id answers about identifiers, and --name on this verb is the
+        // engine's label flag, which it would have nothing to check.
         _mockCommandExecutor
             .Setup(x => x.Execute(It.Is<string[]>(a =>
-                ArgsAre(a, "instances", "generate-id", "valheim", "--name", "my-valheim"))))
+                ArgsAre(a, "instances", "generate-id", "valheim", "--id", "my-valheim"))))
             .Returns(new KgsmResult(new ProcessResult(0, "my-valheim", string.Empty)));
 
         KgsmResult result = _instanceService.GenerateId("valheim", "my-valheim");
@@ -1026,6 +1063,111 @@ public class InstanceServiceTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal(8, result.ExitCode);
+    }
+
+    // --- SetDisplayName : one config-set of display_name, text handed over verbatim ---
+
+    [Fact]
+    public void SetDisplayName_NullInstanceId_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _instanceService.SetDisplayName(null!, "Ana's Valheim"));
+    }
+
+    [Fact]
+    public void SetDisplayName_NullDisplayName_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _instanceService.SetDisplayName("my-instance", null!));
+    }
+
+    [Fact]
+    public void SetDisplayName_IssuesConfigSetOfDisplayName()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a =>
+                ArgsAre(a, "instances", "config-set", "my-instance", "display_name=Weekend Server"))))
+            .Returns(new KgsmResult(new ProcessResult(0, "ok", string.Empty)));
+
+        KgsmResult result = _instanceService.SetDisplayName("my-instance", "Weekend Server");
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Theory]
+    // A label is free text and never reaches a path, so the engine owns the escaping and none of
+    // this is quoted, escaped or rejected on the way out — doing any of it here would be a second
+    // answer to disagree with the engine's own.
+    [InlineData("Ana's \"Best\" Server")]
+    [InlineData(@"C:\path\to\nowhere")]
+    [InlineData("Sûper Ćool 🎮 Server")]
+    [InlineData("cost: $100 `uname`")]
+    [InlineData("--help")]
+    public void SetDisplayName_HandsThePrintableLabelOverVerbatim(string label)
+    {
+        string[]? captured = CaptureDisplayNameWrite(label);
+
+        Assert.Equal(["instances", "config-set", "my-instance", $"display_name={label}"], captured);
+    }
+
+    [Theory]
+    // The one thing that is not handed over as typed. The engine renders the config to JSON with a
+    // line-oriented parse that separates key from value with a tab, so a tab truncates the value
+    // there and a newline turns the rest of the label into further config keys — an instance can be
+    // made to report an id that is not its own. Both are silent, so the characters do not go.
+    [InlineData("A\tB", "AB")]
+    [InlineData("Nice\nname=victim", "Nicename=victim")]
+    [InlineData("Nice\r\nruntime=container", "Niceruntime=container")]
+    [InlineData("  leading and trailing  ", "leading and trailing")]
+    [InlineData("\t\n  ", "")]
+    public void SetDisplayName_ReducesTheLabelToOneLine(string label, string stored)
+    {
+        string[]? captured = CaptureDisplayNameWrite(label);
+
+        Assert.Equal(["instances", "config-set", "my-instance", $"display_name={stored}"], captured);
+    }
+
+    private string[]? CaptureDisplayNameWrite(string label)
+    {
+        string[]? captured = null;
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.IsAny<string[]>()))
+            .Callback<string[]>(a => captured = a)
+            .Returns(new KgsmResult(new ProcessResult(0, "ok", string.Empty)));
+
+        _instanceService.SetDisplayName("my-instance", label);
+
+        Assert.NotNull(captured);
+        return captured;
+    }
+
+    [Fact]
+    public void SetDisplayName_EmptyLabel_IsTheClear()
+    {
+        // Clearing is a real operation, not a missing argument: the instance goes back to reading as
+        // its id, which is what every reader of a config with no display_name already answers.
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a =>
+                ArgsAre(a, "instances", "config-set", "my-instance", "display_name="))))
+            .Returns(new KgsmResult(new ProcessResult(0, "ok", string.Empty)));
+
+        KgsmResult result = _instanceService.SetDisplayName("my-instance", string.Empty);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void SetDisplayName_WithProvenance_StampsActorAndOrigin()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(
+                It.Is<IReadOnlyDictionary<string, string>>(e =>
+                    e["KGSM_EVENT_ACTOR"] == "discord:Haru" && e["KGSM_EVENT_ORIGIN"] == "bot"),
+                It.Is<string[]>(a =>
+                    ArgsAre(a, "instances", "config-set", "my-instance", "display_name=Weekend Server"))))
+            .Returns(new KgsmResult(new ProcessResult(0, "ok", string.Empty)));
+
+        KgsmResult result = _instanceService.SetDisplayName("my-instance", "Weekend Server", "discord:Haru", "bot");
+
+        Assert.True(result.IsSuccess);
     }
 
     // --- SetInstanceNote : three config-set calls, attribution first, body LAST ---

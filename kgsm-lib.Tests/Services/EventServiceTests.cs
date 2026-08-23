@@ -152,6 +152,34 @@ public class EventServiceTests
     }
 
     [Fact]
+    public async Task ReceivedEvent_DisplayNameChanged_BindsTheIdAndBothLabels()
+    {
+        using EventService svc = CreateService();
+        var tcs = new TaskCompletionSource<InstanceDisplayNameChangedData>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        svc.RegisterHandler<InstanceDisplayNameChangedData>(data =>
+        {
+            tcs.TrySetResult(data);
+            return Task.CompletedTask;
+        });
+        svc.Initialize();
+
+        // Verbatim wire shape: { InstanceName, OldDisplayName, NewDisplayName }. InstanceName is the
+        // id and a rename does not change it — it is what a consumer holding a stale label looks the
+        // label up by. The labels ride in full, unlike the config event's key-only payload.
+        _mockClient.Raise(c => c.EventReceived += null,
+            Wire("instance_display_name_changed",
+                 """{"InstanceName":"factorio-42","OldDisplayName":"factorio-42","NewDisplayName":"Ana's \"Best\" Server 🎮"}"""),
+            TestPosition);
+
+        InstanceDisplayNameChangedData received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("factorio-42", received.InstanceName);
+        Assert.Equal("factorio-42", received.OldDisplayName);
+        Assert.Equal("Ana's \"Best\" Server 🎮", received.NewDisplayName);
+    }
+
+    [Fact]
     public async Task ReceivedEvent_FailureEventWithInstanceOnly_InvokesHandler()
     {
         using EventService svc = CreateService();

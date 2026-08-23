@@ -1,3 +1,4 @@
+using System.Text.Json;
 using TheKrystalShip.KGSM.Core.Models.Enums;
 
 namespace TheKrystalShip.KGSM.Tests.Services;
@@ -327,5 +328,64 @@ public class InstanceDeserializationTests
         Assert.False(ModerationCommand.IsSupported(result.KickCommand));
         Assert.False(ModerationCommand.IsSupported(result.BanCommand));
         Assert.False(ModerationCommand.IsSupported(result.UnbanCommand));
+    }
+
+    // --- display_name : the label, bound off the same info JSON as everything else -------------
+
+    [Fact]
+    public void DisplayName_binds_from_the_wire_field()
+    {
+        StubProcessOutput("""{"name":"factorio-42","display_name":"Weekend Server"}""");
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        Assert.Equal("Weekend Server", result!.DisplayName);
+        // The id is untouched by the label — everything that keys on an instance keys on this.
+        Assert.Equal("factorio-42", result.Name);
+    }
+
+    [Theory]
+    // The engine escapes these on the way into the config and unescapes them on the way back out, so
+    // what reaches the JSON is the text somebody typed. Nothing here needs handling on this side —
+    // these are pinned because a label is the one instance field written from free user input.
+    [InlineData("Ana's \"Best\" Server")]
+    [InlineData(@"C:\path\to\nowhere")]
+    [InlineData("Sûper Ćool 🎮 Server")]
+    [InlineData("cost: $100 `uname`")]
+    public void DisplayName_round_trips_text_the_engine_had_to_escape(string label)
+    {
+        StubProcessOutput(JsonSerializer.Serialize(
+            new Dictionary<string, string> { ["name"] = "factorio-42", ["display_name"] = label }));
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        Assert.Equal(label, result!.DisplayName);
+    }
+
+    [Fact]
+    public void DisplayName_reads_as_the_id_when_the_engine_states_none()
+    {
+        // The one case: an instance whose library is offline, whose config cannot be read — the
+        // engine will not invent a label it cannot see, and the honest label for an instance without
+        // one is its id. A blank here would render as a nameless row.
+        StubProcessOutput("""{"name":"factorio-42","library_state":"offline"}""");
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        Assert.Equal("factorio-42", result!.DisplayName);
+    }
+
+    [Fact]
+    public void DisplayName_reads_as_the_id_when_the_label_was_cleared()
+    {
+        StubProcessOutput("""{"name":"factorio-42","display_name":""}""");
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        Assert.Equal("factorio-42", result!.DisplayName);
     }
 }

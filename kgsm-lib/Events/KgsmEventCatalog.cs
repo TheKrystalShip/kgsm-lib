@@ -225,6 +225,12 @@ public static class KgsmEventCatalog
             Instance<InstanceConfigChangedData>("instance_config_changed", EventWeight.Fact, EventOutcome.Neutral,
                 [Field("Key", FieldShape.Text)]),
 
+            // Both labels, unlike the config event above: a display name is text a person chose to be
+            // read, so there is no value to withhold, and a consumer re-labelling a row would
+            // otherwise have to go back to the engine to learn what to re-label it to.
+            Instance<InstanceDisplayNameChangedData>("instance_display_name_changed", EventWeight.Fact, EventOutcome.Neutral,
+                [Field("OldDisplayName", FieldShape.Text), Field("NewDisplayName", FieldShape.Text)]),
+
             Instance<InstanceInputSentData>("instance_input_sent", EventWeight.Fact, EventOutcome.Neutral, [Command]),
 
             // -- blueprints --------------------------------------------------------------------
