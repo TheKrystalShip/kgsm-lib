@@ -13,7 +13,7 @@ namespace TheKrystalShip.KGSM.Core.Interfaces;
 /// write-side to the existing read-only <see cref="IBlueprintService"/>.
 /// </summary>
 /// <remarks>
-/// Three non-negotiable guardrails (see <c>assistant-blueprint-authoring-plan.md</c>):
+/// Three non-negotiable guardrails:
 /// <list type="number">
 /// <item><b>No semantic validation here.</b> This authority only performs STRUCTURAL checks (a required
 ///   field present, a safe name) — never re-implements what kgsm considers a *valid* blueprint (a legal

@@ -387,10 +387,8 @@ All public APIs require XML doc comments with:
 
 ## Current Development Status
 
-Tracked in `docs/production-readiness-plan.md`. Test suite is green with no skips
-(the prior ~20-failure / 11-skip degraded baseline — stale `IProcessRunner` mocks,
-inverted assertions, dead tests for removed APIs — was cleaned up). Remaining work toward
-publish is operational (CI / publish-on-tag), not product: see the ecosystem-level
+Test suite is green with no skips. Remaining work toward publish is operational
+(CI / publish-on-tag), not product: see the ecosystem-level
 `../architecture-review-findings.md` (findings #1 stranded-lib-distribution, #3 no-CI).
 
 ## Version tracking

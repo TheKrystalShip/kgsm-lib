@@ -4,8 +4,7 @@ namespace TheKrystalShip.KGSM.Core.Models;
 // of hand-assembling YAML. Mirrors the native subset of the schema documented at
 // kgsm/templates/blueprint.tp (the authoring reference) and exemplified by real shipped blueprints such
 // as kgsm/blueprints/valheim.bp.yaml and kgsm/blueprints/factorio.bp.yaml. Deliberately covers ONLY
-// `runtime: native` — container/Wine blueprints are out of scope (see
-// assistant-blueprint-authoring-plan.md, "Scope (locked)"). Never registered in KgsmJsonContext (see the
+// `runtime: native` — container/Wine blueprints are out of scope. Never registered in KgsmJsonContext (see the
 // header note in InstanceFileModels.cs) — this DTO is templated straight to a YAML string in-process, it
 // never round-trips as JSON in this phase.
 
@@ -138,8 +137,7 @@ public sealed record NativeBlueprintNativeDraft
     public string SaveCommand { get; init; } = string.Empty;
 
     /// <summary>Optional regex matched against server output to detect successful startup — also the
-    /// verification readiness signal for the authoring pipeline (see
-    /// <c>assistant-blueprint-authoring-plan.md</c>). Empty means the engine waits for the server to
-    /// listen on its ports instead.</summary>
+    /// verification readiness signal for the assistant's blueprint-authoring pipeline. Empty means the
+    /// engine waits for the server to listen on its ports instead.</summary>
     public string StartupSuccessRegex { get; init; } = string.Empty;
 }

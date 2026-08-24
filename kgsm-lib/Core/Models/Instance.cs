@@ -379,10 +379,10 @@ public record class Instance
     /// Gets or sets whether the resident supervisor (kgsm-watchdog) should UPnP
     /// port-forward this instance — the per-instance gate its <c>UpnpService</c>
     /// reads. <see langword="false"/> (the safe default) when absent from the wire:
-    /// current KGSM stripped UPnP from the bash engine (the headless-network plan
-    /// re-homes it into the watchdog), so it is not emitted today and forwarding
-    /// stays off until that migration re-supplies this flag. Typed here because the
-    /// watchdog is a live consumer — it must compile against this Instance.
+    /// the bash engine holds no UPnP logic of its own — it stores and emits this
+    /// per-instance flag, and the watchdog owns all port-forwarding behaviour.
+    /// Typed here because the watchdog is a live consumer — it must compile
+    /// against this Instance.
     /// </summary>
     [JsonPropertyName("enable_port_forwarding")]
     public bool EnablePortForwarding { get; set; } = false;

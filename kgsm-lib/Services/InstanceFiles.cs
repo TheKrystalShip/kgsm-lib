@@ -16,8 +16,7 @@ namespace TheKrystalShip.KGSM.Services;
 /// is the first kgsm-lib service that does direct <c>System.IO</c> rather than shelling the engine.
 /// </summary>
 /// <remarks>
-/// The jail (ported from kgsm-api's <c>InstanceFileService</c>, the stronger of the ecosystem's two prior
-/// jails — see <c>instance-filesystem-authority-plan.md</c>):
+/// The jail:
 /// <list type="number">
 /// <item>The root is <c>Instance.WorkingDir</c>, resolved fresh on every call (no caching — instances
 ///   get reinstalled) and canonicalised via <see cref="InstanceJail.CanonicalRealPath"/>.</item>
