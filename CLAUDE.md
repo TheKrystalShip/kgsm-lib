@@ -80,9 +80,8 @@ _eventHandlers[typeof(InstanceInstalledData)] = handler;
 **Event lifecycle**: `EventService.Initialize()` starts the background transport, deserializes `EventWrapper`, matches type via `_eventTypeMapping`, invokes registered handlers.
 
 **One source, behind an interface.** `EventService` consumes raw envelopes from `IEventSource`
-and never learns what produced them. That indirection is why the engine's transport could be
-replaced without touching a single consumer's handler code, and it is worth keeping for the
-same reason.
+and never learns what produced them. That indirection keeps every consumer's handler code
+independent of the transport, and it is worth keeping for that reason.
 
 The source is `EventJournalReader`, reading `/var/lib/kgsm/events/YYYY-MM-DD.ndjson`. Any number
 of consumers read the same segments concurrently — a file has no exclusive binding, so there is
@@ -151,8 +150,8 @@ happened into the audit trail.
 ### 4·a·i. Checking that every producer writes the same envelope
 
 `TheKrystalShip.KGSM.Conformance` (in the `journal/` package, beside the writer that has to satisfy
-it) reads what producers actually wrote and reports where it does not match the contract. Fourteen
-rules, catalogued in `ConformanceRule`. It is **mechanism only** — no rule looks at an event type or a
+it) reads what producers actually wrote and reports where it does not match the contract. The
+rules are catalogued in `ConformanceRule`. It is **mechanism only** — no rule looks at an event type or a
 payload field, because what a producer records and when is its own business.
 
 `JournalConformance.CheckHost` takes journals as `(producer, directory)` pairs and checks them
@@ -209,9 +208,9 @@ write, and that is the part to preserve when changing it.
 class the payload deserializes into (`PayloadType`), its subject, whether it is a `Fact` or a `Phase`
 (a step inside a multi-step operation that has its own fact event), whether it reports a `Success` or
 a `Failure`, and per payload field what kind of data that field holds. It lives here because it is a
-property of the engine's events, and because every consumer that renders the journal was otherwise
-deriving it independently — which is how two surfaces came to disagree about whether a player's
-network address may be shown.
+property of the engine's events, and because one registry keeps every consumer that renders the
+journal identical — no two surfaces can disagree about whether a player's network address may be
+shown.
 
 - **Dispatch reads it.** `EventService` deserializes into `Describe(type).PayloadType`, so **an event
   that can be dispatched is necessarily one that has been classified** — there is no second table to
@@ -296,8 +295,8 @@ dotnet build -c Release kgsm-lib.sln         # Release (generates NuGet package)
 **Output**: `bin/$(Configuration)/net10.0/` contains `TheKrystalShip.KGSM.dll`
 
 ### Testing
-xUnit (v2) suite in `kgsm-lib.Tests/` — run with `dotnet test kgsm-lib.sln`. All green,
-no skips. Unit tests mock the collaborator the class under test actually depends on:
+xUnit (v2) suite in `kgsm-lib.Tests/` — run with `dotnet test kgsm-lib.sln`.
+Unit tests mock the collaborator the class under test actually depends on:
 service tests mock `IKgsmCommandExecutor` (and `ILifecycleService` for the operational
 verbs InstanceService forwards), `EventService` tests mock `IEventSource` and raise its
 `EventReceived` event to drive the full wire→dispatch route.
@@ -342,10 +341,10 @@ message text).
 
 This is a library, not a service: it has no install prefix, no systemd unit, and **no
 `deploy/setup.sh` + `deploy/deploy.sh` pair** — the two-script deploy pattern the runnable
-`kgsm-*` repos use does not apply. Shipping a change means bumping `<Version>`, packing, and
-dropping the `.nupkg` into the local feed the consumers restore from. **NuGet caches by
-`id+version`**, so a same-version repack is served stale — every change consumers must see needs a
-version bump, then a matching `<PackageReference>` bump in each consuming repo.
+`kgsm-*` repos use does not apply. Shipping a change means bumping `<Version>`, publishing to the
+org's GitHub Packages feed (`../scripts/publish-packages.sh kgsm-lib`), then bumping the matching
+`<PackageReference>` pin in each consuming repo. **NuGet caches by `id+version`**, so every change
+consumers must see needs a version bump — a published version is immutable.
 
 ## File Organization
 
@@ -363,7 +362,7 @@ kgsm-lib/
 
 ## Common Gotchas
 
-1. **KgsmInterop class**: Marked `[Obsolete]`, use `IKgsmClient` interface instead
+1. **Entry point**: `IKgsmClient` is the facade every consumer starts from
 2. **Journal directory**: needs to be readable, but is tolerated when absent — a host that has never emitted an event has no journal directory until it does, and the reader picks up the first segment when it appears
 3. **KGSM path validation**: No built-in validation - ensure `kgsm.sh` exists before instantiating services
 4. **JSON parsing**: KGSM may return empty strings for missing fields - always null-coalesce: `?? new()`
@@ -384,12 +383,6 @@ All public APIs require XML doc comments with:
 - `<exception>` for thrown exceptions
 
 **Generate docs**: `<DocumentationFile>` produces XML for IntelliSense/NuGet.
-
-## Current Development Status
-
-Test suite is green with no skips. Remaining work toward publish is operational
-(CI / publish-on-tag), not product: see the ecosystem-level
-`../architecture-review-findings.md` (findings #1 stranded-lib-distribution, #3 no-CI).
 
 ## Version tracking
 
@@ -417,6 +410,12 @@ history; never duplicate it into docs or code.
   survive it: *"temporary shim for the rework"*, *"added to satisfy the new requirement"*,
   milestone/phase labels (*"per M2"*, *"the Phase 1 step"*). If a line's justification is the work
   that produced it rather than the system as it now stands, it goes.
+- **No volatile numbers.** Counts and versions that drift — how many projects/files/tests/
+  partials exist, a dependency's pinned version, a file's line count — never go in prose: they are
+  stale the moment anything changes, and nothing fails to remind anyone. Name the authoritative
+  source instead (the csproj, the directory, the barrel file). A number belongs in prose only when
+  it *is* the contract (a port, a timeout, a cap) or a measured fact that is itself the reason a
+  design exists.
 - **Edits are replacements, not appends.** When changing an existing feature, rewrite the affected
   doc/comment fresh as if writing it for the first time — never append a correction under the
   stale version, and never leave the stale version standing beside the new. The current revision
