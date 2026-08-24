@@ -358,7 +358,10 @@ public sealed class EventJournalFederationTests : IDisposable
     public async Task Federated_OrdersDeterministicallyWithinOneInstant()
     {
         // Two producers appending in the same millisecond cannot be truly ordered by any host-local
-        // mechanism. What matters is that every reader agrees, which the producer-prefixed id gives.
+        // mechanism, and which of them lands first is not a fact about the producers: the tie-break
+        // is the event's own id, and a line carrying one is read back under it. What has to hold is
+        // that the answer does not depend on the reader — the same events in the same order,
+        // whichever order the journals were configured in.
         var at = new DateTimeOffset(2026, 8, 12, 3, 2, 24, 117, TimeSpan.Zero);
 
         await CreateWriter("watchdog", at: at).AppendAsync("instance_ports_opened", Payload("""{"InstanceName":"K"}"""));
@@ -367,9 +370,20 @@ public sealed class EventJournalFederationTests : IDisposable
         EventHistoryPage first = await CreateFederated("kgsm", "watchdog").QueryAsync(new EventHistoryQuery());
         EventHistoryPage second = await CreateFederated("watchdog", "kgsm").QueryAsync(new EventHistoryQuery());
 
-        // Same order regardless of the order the journals were configured in.
-        Assert.Equal(first.Events.Select(e => e.Id), second.Events.Select(e => e.Id));
-        Assert.Equal(["watchdog", "kgsm"], first.Events.Select(e => e.Producer));
+        // Producer alongside id: the two orderings carry the same pair of ids either way, so ids
+        // alone cannot tell them apart.
+        Assert.Equal(
+            first.Events.Select(e => (e.Producer, e.Id)),
+            second.Events.Select(e => (e.Producer, e.Id)));
+
+        // Both producers are on the page, and it descends by id — the rule that gives the two
+        // readers the one order.
+        Assert.Equal(
+            ["kgsm", "watchdog"],
+            first.Events.Select(e => e.Producer).Order(StringComparer.Ordinal));
+        Assert.Equal(
+            [.. first.Events.Select(e => e.Id).OrderDescending(StringComparer.Ordinal)],
+            first.Events.Select(e => e.Id));
     }
 
     [Fact]
