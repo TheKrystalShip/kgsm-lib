@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — an instance carries what it announces before a scheduled restart (`Lib` 6.3.0)
+
+Binds kgsm 3.18.0-rc9. Read by `kgsm-scheduler`; inert for a game whose blueprint declares no
+`broadcast_command`.
+
+- `Instance.AnnounceLeadMinutes` — comma-separated minutes, e.g. `15,5,1`. Null or empty announces
+  nothing, which is the default.
+- `Instance.AnnounceRestartMessage` — `{minutes}` and `{instance}` are substituted. The result is then
+  substituted into the game's own broadcast template, so these are two separate steps with different
+  placeholders and different owners.
+- `Instance.AnnounceRestartCancelledMessage` — what is said when an announced restart is abandoned.
+
+
 ### Added — a server announces to the people playing on it (`Lib` 6.2.0)
 
 Binds kgsm 3.18.0-rc7, which owns the console write. This is the single C# entry point to it.

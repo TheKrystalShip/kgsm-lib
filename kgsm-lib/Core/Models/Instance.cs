@@ -229,6 +229,38 @@ public record class Instance
     public string? ScheduledRestart { get; set; }
 
     /// <summary>
+    /// Gets or sets the lead times, in minutes, at which this instance announces an
+    /// upcoming scheduled restart — comma-separated, e.g. <c>"15,5,1"</c>.
+    /// </summary>
+    /// <remarks>
+    /// Null or empty announces nothing, which is the default: a server addressing the
+    /// people on it is opt-in. Read by kgsm-scheduler, and inert for a game whose
+    /// blueprint declares no <see cref="BroadcastCommand"/>.
+    /// </remarks>
+    [JsonPropertyName("announce_lead_minutes")]
+    public string? AnnounceLeadMinutes { get; set; }
+
+    /// <summary>
+    /// Gets or sets what each lead-time announcement says. <c>{minutes}</c> is the lead
+    /// being announced and <c>{instance}</c> is the display name; anything else is sent
+    /// verbatim.
+    /// </summary>
+    /// <remarks>
+    /// The result of this substitution is then substituted into the game's own broadcast
+    /// template — two separate steps with different placeholders and different owners, so
+    /// a message carrying <c>{message}</c> is not special here.
+    /// </remarks>
+    [JsonPropertyName("announce_restart_message")]
+    public string? AnnounceRestartMessage { get; set; }
+
+    /// <summary>
+    /// Gets or sets what is said when an announced restart is abandoned. Players were
+    /// told a restart was coming, so they are told it is not.
+    /// </summary>
+    [JsonPropertyName("announce_restart_cancelled_message")]
+    public string? AnnounceRestartCancelledMessage { get; set; }
+
+    /// <summary>
     /// Gets or sets the time-of-day for the scheduled restart.
     /// Null when KGSM omits <c>restart_time</c> — honest unknown, never fabricated.
     /// </summary>
