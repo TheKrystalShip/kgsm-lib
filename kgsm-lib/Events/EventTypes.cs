@@ -911,6 +911,27 @@ public class InstanceInputSentData : EventDataBase
 }
 
 /// <summary>
+/// Event data for a message broadcast to everyone connected to an instance.
+/// </summary>
+/// <remarks>
+/// Both halves are carried. <see cref="Message"/> is what a person wrote and what a
+/// surface shows; <see cref="Command"/> is the console command it resolved to, which
+/// names the blueprint template that ran and is what makes a broadcast that reached
+/// nobody diagnosable.
+/// <para>
+/// This records that the engine wrote to the console, never that anybody read it.
+/// </para>
+/// </remarks>
+public class InstanceAnnouncementSentData : EventDataBase
+{
+    /// <summary>The announcement text as it was given.</summary>
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>The resolved console command the game received.</summary>
+    public string Command { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// Event data for when a player joined a running instance. For our kgsm-containers
 /// images these are forwarded by the kgsm-watchdog — it tails the in-container event
 /// channel and re-emits via kgsm-lib — stamped <c>Actor == "system"</c> /

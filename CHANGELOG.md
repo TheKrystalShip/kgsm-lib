@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — a server announces to the people playing on it (`Lib` 6.2.0)
+
+Binds kgsm 3.18.0-rc7, which owns the console write. This is the single C# entry point to it.
+
+- `IInstanceService.Announce(instanceName, message, actor, origin)` runs `instances announce`. The
+  engine substitutes the message into the game's blueprint-declared template and sends the result;
+  nothing here builds the console command, so there is one implementation of that substitution and it
+  is the one that actually runs.
+- `Instance.BroadcastCommand` carries the engine's `broadcast_command`. Empty means the game declares
+  none on the STDIN console — which is not the same as "this game cannot be announced to", since a
+  game whose broadcast lives on RCON or an in-game admin console also declares none here.
+- `BroadcastCommand.IsSupported(template)` answers whether the action is available, so a surface can
+  gate a button without shelling anything. A template carrying no `{message}` placeholder reads as
+  unsupported: the engine would send its bare verb and drop the text, so reporting it as usable would
+  promise a send that never carries the message.
+- A message containing a line break throws at the call site. A console reads one command per line, so
+  a second line would deliver a command nobody issued — the engine refuses it too, and failing here
+  means no malformed argument is spawned at all. Prose punctuation is passed through untouched.
+- `InstanceAnnouncementSentData` deserializes `instance_announcement_sent`, carrying both the message
+  as written and the console command it resolved to.
+
+⚠ **A successful result means the engine wrote to the console, never that a person read it.** Nothing
+above this layer can observe delivery, so no surface may report the message as seen.
+
+
 ### Added — an instance's id and the name a person reads it by are two things (`Lib` 6.1.0) — BREAKING
 
 The id is auto-generated at install, path-safe and immutable; the display name is decoration that

@@ -420,6 +420,31 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
+    public KgsmResult Announce(string instanceName, string message, string? actor = null, string? origin = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+        ArgumentException.ThrowIfNullOrWhiteSpace(message, nameof(message));
+
+        // A console reads one command per line, so a line break in the message would
+        // deliver a second command nobody issued. The engine refuses this too; failing
+        // here as well means a caller finds out at the call site rather than through a
+        // process exit code, and no malformed argument is spawned in the first place.
+        if (message.Contains('\n') || message.Contains('\r'))
+        {
+            throw new ArgumentException(
+                "Announcement message must not contain a line break.", nameof(message));
+        }
+
+        // announce is a quick command, so the default-timeout env overload carries
+        // provenance onto the instance_announcement_sent event kgsm emits (same pattern
+        // as SendInput and Moderate).
+        IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
+        return provenance is null
+            ? _commandExecutor.Execute("instances", "announce", instanceName, message)
+            : _commandExecutor.Execute(provenance, "instances", "announce", instanceName, message);
+    }
+
+    /// <inheritdoc/>
     public KgsmResult Kick(string instanceName, string target, string? actor = null, string? origin = null)
         => Moderate("kick", instanceName, target, actor, origin);
 

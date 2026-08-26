@@ -428,6 +428,43 @@ public interface IInstanceService
     KgsmResult SendInput(string instanceName, string command, string? actor = null, string? origin = null);
 
     /// <summary>
+    /// Announces a message to everyone connected to a running instance.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The engine substitutes <paramref name="message"/> into the game's
+    /// blueprint-declared <c>broadcast_command</c> template and sends the result to
+    /// the console; this method never builds the console command itself. Check
+    /// <see cref="BroadcastCommand.IsSupported"/> against the instance's
+    /// <see cref="Instance.BroadcastCommand"/> to know whether the action is available
+    /// before offering it — a game that declares no template refuses rather than
+    /// sending a different command, and so does an instance that is not running (a
+    /// write into a stopped instance's console reaches nobody).
+    /// </para>
+    /// <para>
+    /// <b>The message is prose and carries punctuation freely.</b> The one thing it may
+    /// not contain is a line break: a console reads one command per line, so a second
+    /// line would deliver a command nobody issued.
+    /// </para>
+    /// <para>
+    /// <b>Success means the engine wrote to the console, not that a person read it.</b>
+    /// Nothing above this can observe delivery, so a caller must not report the message
+    /// as seen.
+    /// </para>
+    /// </remarks>
+    /// <param name="instanceName">The instance to announce on.</param>
+    /// <param name="message">The text to show players.</param>
+    /// <param name="actor">Optional audit principal (who) to stamp on the emitted
+    /// <c>instance_announcement_sent</c> event via <c>KGSM_EVENT_ACTOR</c>; null omits it
+    /// so kgsm applies its OS-user fallback (never a fabricated identity).</param>
+    /// <param name="origin">Optional driving surface (through which) to stamp via
+    /// <c>KGSM_EVENT_ORIGIN</c>; null omits it (no surface — never fabricated).</param>
+    /// <returns>Result of the announce operation.</returns>
+    /// <exception cref="ArgumentException">Thrown when instanceName or message is null or
+    /// whitespace, or when message contains a line break.</exception>
+    KgsmResult Announce(string instanceName, string message, string? actor = null, string? origin = null);
+
+    /// <summary>
     /// Disconnects a player from a running instance.
     /// </summary>
     /// <remarks>

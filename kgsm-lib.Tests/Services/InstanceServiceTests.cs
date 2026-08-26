@@ -734,6 +734,93 @@ public class InstanceServiceTests
         Assert.Equal(1, result.ExitCode);
     }
 
+    // --- Announce : Execute("instances", "announce", name, message) ---
+
+    [Fact]
+    public void Announce_NullInstanceName_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _instanceService.Announce(null!, "back in 5"));
+    }
+
+    [Fact]
+    public void Announce_NullMessage_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentNullException>(() => _instanceService.Announce("my-instance", null!));
+    }
+
+    [Theory]
+    [InlineData("first\nsecond")]
+    [InlineData("first\rsecond")]
+    [InlineData("trailing\n")]
+    public void Announce_MessageWithALineBreak_ThrowsArgumentException(string message)
+    {
+        // A console reads one command per line, so a second line would deliver a
+        // command nobody issued. Failing at the call site means no malformed argument
+        // is spawned at all.
+        Assert.Throws<ArgumentException>(() => _instanceService.Announce("my-instance", message));
+    }
+
+    [Fact]
+    public void Announce_MessageWithProsePunctuation_IsPassedThroughUntouched()
+    {
+        // The engine's free-form input path rejects ! ? ( ), which is most of ordinary
+        // prose. An announcement is prose, and the only character it may not carry is a
+        // line break — everything else reaches the console verbatim.
+        const string message = "Restarting in 5 minutes! (save first?)";
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", "announce", "my-instance", message))))
+            .Returns(Ok);
+
+        KgsmResult result = _instanceService.Announce("my-instance", message);
+
+        Assert.True(result.IsSuccess);
+    }
+
+    [Fact]
+    public void Announce_ExecutionFails_ReturnsFailureResult()
+    {
+        // A game declaring no template, or an instance that is not running, is refused
+        // by the engine — surfaced as a failed result, never as a silent success.
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", "announce", "my-instance", "back in 5"))))
+            .Returns(new KgsmResult(new ProcessResult(1, string.Empty, "does not support announcements")));
+
+        KgsmResult result = _instanceService.Announce("my-instance", "back in 5");
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(1, result.ExitCode);
+    }
+
+    [Fact]
+    public void Announce_WithProvenance_UsesTheDefaultTimeoutEnvOverload()
+    {
+        // announce is quick → the env overload WITHOUT an explicit timeout, so the
+        // instance_announcement_sent event kgsm emits is attributable.
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.IsAny<IReadOnlyDictionary<string, string>>(), It.IsAny<string[]>()))
+            .Returns(Ok);
+
+        _instanceService.Announce("my-instance", "back in 5", actor: "system:scheduler", origin: "system");
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.Is<IReadOnlyDictionary<string, string>>(e =>
+                e["KGSM_EVENT_ACTOR"] == "system:scheduler" && e["KGSM_EVENT_ORIGIN"] == "system"),
+            It.Is<string[]>(a => ArgsAre(a, "instances", "announce", "my-instance", "back in 5"))), Times.Once);
+    }
+
+    [Fact]
+    public void Announce_NoProvenance_TakesThePlainNoEnvPath()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a, "instances", "announce", "my-instance", "back in 5"))))
+            .Returns(Ok);
+
+        _instanceService.Announce("my-instance", "back in 5");
+
+        _mockCommandExecutor.Verify(x => x.Execute(
+            It.Is<string[]>(a => ArgsAre(a, "instances", "announce", "my-instance", "back in 5"))), Times.Once);
+    }
+
     // --- SendInput : Execute("instances", "input", name, command) ---
 
     [Fact]

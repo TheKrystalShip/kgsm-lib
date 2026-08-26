@@ -505,6 +505,25 @@ public record class Instance
     public string UnbanCommand { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the template for announcing a message to everyone connected.
+    /// Empty when the game declares no broadcast command, in which case the
+    /// announcement is refused rather than approximated with a different one.
+    /// </summary>
+    /// <remarks>
+    /// The template carries exactly one <c>{message}</c> placeholder, and may consist
+    /// of nothing else — a console that treats any bare line as chat needs no verb in
+    /// front of the text. See <see cref="Models.BroadcastCommand"/> for reading whether
+    /// the action is supported at all.
+    /// <para>
+    /// This is the STDIN console template. A game whose broadcast exists only over RCON
+    /// or an in-game admin console declares none here, so an empty value means "not on
+    /// this channel" rather than "this game cannot be announced to".
+    /// </para>
+    /// </remarks>
+    [JsonPropertyName("broadcast_command")]
+    public string BroadcastCommand { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the save command timeout in seconds for the instance.
     /// </summary>
     [JsonPropertyName("save_command_timeout_seconds")]

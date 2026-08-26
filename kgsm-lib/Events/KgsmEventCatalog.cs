@@ -233,6 +233,12 @@ public static class KgsmEventCatalog
 
             Instance<InstanceInputSentData>("instance_input_sent", EventWeight.Fact, EventOutcome.Neutral, [Command]),
 
+            // The message and the command it resolved to. Its own type rather than an
+            // input-sent row because its subject is the players, so "what were people told
+            // on this server" is a filter rather than a pattern-match over command text.
+            Instance<InstanceAnnouncementSentData>("instance_announcement_sent", EventWeight.Fact, EventOutcome.Neutral,
+                [Field("Message", FieldShape.Text), Command]),
+
             // -- blueprints --------------------------------------------------------------------
             BlueprintEvent<BlueprintCreatedData>("blueprint_created", [Tier, OverridesSystem, Runtime]),
             BlueprintEvent<BlueprintUpdatedData>("blueprint_updated", [Tier, OverridesSystem, Runtime]),
