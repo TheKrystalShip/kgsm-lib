@@ -62,8 +62,15 @@ public record class WatchdogInstanceState
 
     /// <summary>
     /// Supervision phase: <c>"running"</c>, <c>"restart-pending"</c>,
-    /// <c>"stopped"</c>, <c>"failed"</c>, or <c>"unknown"</c>.
+    /// <c>"stopped"</c>, <c>"maintenance"</c>, <c>"failed"</c>, or <c>"unknown"</c>.
     /// </summary>
+    /// <remarks>
+    /// <c>"maintenance"</c> is a server deliberately down while a leaf works on it:
+    /// <see cref="Desired"/> is still <c>"running"</c>, crash-restart is suppressed for as long as the
+    /// park holds, and <see cref="Restarts"/> is untouched. Rendering it as stopped or as failed says
+    /// something the daemon does not: nobody asked for this server to be down, and nothing about it
+    /// went wrong.
+    /// </remarks>
     [JsonPropertyName("phase")]
     public string Phase { get; set; } = string.Empty;
 

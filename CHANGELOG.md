@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — the supervision phase vocabulary states every phase the daemon reports (`Lib` 7.0.1)
+
+Documentation only; no behaviour changes.
+
+- `WatchdogInstanceState.Phase` names `maintenance` alongside `running`, `restart-pending`, `stopped`,
+  `failed` and `unknown`, and says what a reader should do with it: the server is deliberately down
+  while a leaf works on it, `Desired` is still `running`, crash-restart is suppressed for as long as the
+  park holds, and `Restarts` is untouched. Rendering it as stopped or as failed says something the
+  daemon does not — nobody asked for the server to be down, and nothing about it went wrong. The XML
+  docs ship inside the package, so this is the vocabulary a consumer reads.
+
+
 ### Changed — an instance states its maintenance in one grammar (`Lib` 7.0.0)
 
 **Breaking.** An instance states everything it does on a clock in one value, `Instance.MaintenanceWindows`
