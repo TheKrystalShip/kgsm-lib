@@ -38,11 +38,16 @@ public interface IWatchdogClient : IDisposable
     /// Requests the daemon spawn and supervise <paramref name="instanceName"/>
     /// (records desired-state = running). An already-running instance returns a
     /// result with <see cref="WatchdogActionResult.Ok"/> = false rather than
-    /// throwing.
+    /// throwing. Resets the crash-recovery streak and clears the give-up latch — this is
+    /// the operator-override path.
     /// </summary>
     /// <param name="instanceName">The instance to start.</param>
+    /// <param name="origin">The requesting leaf, e.g. <c>"scheduler"</c> (the default).</param>
     /// <param name="cancellationToken">Cancels the request.</param>
-    Task<WatchdogActionResult> StartAsync(string instanceName, CancellationToken cancellationToken = default);
+    Task<WatchdogActionResult> StartAsync(
+        string instanceName,
+        string origin = "scheduler",
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Requests the daemon stop <paramref name="instanceName"/> (records
@@ -50,8 +55,12 @@ public interface IWatchdogClient : IDisposable
     /// graceful drain → <c>cgroup.kill</c> teardown.
     /// </summary>
     /// <param name="instanceName">The instance to stop.</param>
+    /// <param name="origin">The requesting leaf, e.g. <c>"scheduler"</c> (the default).</param>
     /// <param name="cancellationToken">Cancels the request.</param>
-    Task<WatchdogActionResult> StopAsync(string instanceName, CancellationToken cancellationToken = default);
+    Task<WatchdogActionResult> StopAsync(
+        string instanceName,
+        string origin = "scheduler",
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Adds <paramref name="instanceName"/> to the watchdog's persisted boot-autostart set so the
@@ -109,6 +118,53 @@ public interface IWatchdogClient : IDisposable
     /// <param name="origin">The requesting leaf, e.g. <c>"scheduler"</c> (the default).</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     Task<WatchdogActionResult> RestartAsync(
+        string instanceName,
+        string origin = "scheduler",
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Parks <paramref name="instanceName"/>: the daemon performs the normal graceful drain, and the
+    /// instance stays parked until <see cref="EndMaintenanceAsync"/> releases it or the daemon's own
+    /// unpark timeout expires. This is the primitive a leaf runs a multi-minute disruptive sequence
+    /// behind — an update, or a backup that must run against a stopped server.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Parked is stopped, but still wanted running.</b> Desired-state stays <c>running</c>, so a
+    /// parked instance is not a stopped one: crash-restart is suppressed for as long as the park
+    /// holds rather than being switched off, the failure streak and the give-up latch are left
+    /// exactly as they were, and the phase is persisted like every other. A stop/start pair says
+    /// something different — it records that nobody wants the server up, and a leaf that dies between
+    /// the two leaves it down for good.
+    /// </para>
+    /// <para>
+    /// The work itself happens outside the park call, not inside the daemon: this returns as soon as
+    /// the instance is drained. The daemon unparks on its own once the unpark timeout expires, so a
+    /// leaf that dies mid-sequence costs a window, never a server.
+    /// </para>
+    /// </remarks>
+    /// <param name="instanceName">The instance to park.</param>
+    /// <param name="origin">The requesting leaf, e.g. <c>"scheduler"</c> (the default).</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    Task<WatchdogActionResult> BeginMaintenanceAsync(
+        string instanceName,
+        string origin = "scheduler",
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Releases <paramref name="instanceName"/> from a park and respawns it, without going through
+    /// the operator-override path — so the failure streak and the give-up latch come out of the park
+    /// as they went in. Idempotent: an instance that is not parked returns
+    /// <see cref="WatchdogActionResult.Ok"/> = false rather than throwing.
+    /// </summary>
+    /// <remarks>
+    /// A leaf calls this unconditionally, whatever the work it parked for did, which is what
+    /// guarantees a maintenance window never leaves a server down.
+    /// </remarks>
+    /// <param name="instanceName">The instance to release.</param>
+    /// <param name="origin">The requesting leaf, e.g. <c>"scheduler"</c> (the default).</param>
+    /// <param name="cancellationToken">Cancels the request.</param>
+    Task<WatchdogActionResult> EndMaintenanceAsync(
         string instanceName,
         string origin = "scheduler",
         CancellationToken cancellationToken = default);

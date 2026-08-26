@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — an instance states its maintenance in one grammar (`Lib` 7.0.0)
+
+**Breaking.** An instance states everything it does on a clock in one value, `Instance.MaintenanceWindows`
+(`maintenance_windows`):
+
+```
+daily@05:00/backup;weekly.sun@04:00/backup,update,restart
+```
+
+A window is a schedule, a `/`, and the tasks it runs; windows are separated by `;`. An instance holds a
+list of them. Tasks inside one window are ordered and dependent; windows are independent appointments
+that carry no state between them, so making window 2 rely on window 1 means merging them.
+
+- **`MaintenanceWindowParser`** (`TheKrystalShip.KGSM.Core.Scheduling`) is the ecosystem's one
+  implementation of the grammar and its one validator — `Parse` for an instance's whole value,
+  `ParseWindow` for a single expression, `Format` to pack windows back. It returns one
+  `MaintenanceWindow` per expression written, **each carrying its own validity and parse error**, so an
+  unreadable window disables itself and leaves the rest of the list firing — and it is returned invalid
+  rather than dropped. Nothing here throws for anything a person can type.
+- **Tasks run `backup` → `update` → `restart`**, whatever order they were written in, and duplicates
+  collapse. A backup taken after an update archives the new build instead of the rollback point.
+- **`ScheduleClock`** times a window. Appointments (`daily@HH:MM`, `weekly.<dow>@HH:MM`,
+  `monthly.<dom>@HH:MM`) are read in the instance's `Timezone`, comparing in UTC so a daylight-saving
+  transition moves a fire by the offset it changed and never by a day; a time the clock skips fires at
+  the jump, a time it reads twice fires the first time, and `monthly.31` fires on a shorter month's last
+  day. Intervals (`10m`–`30d`) are epoch-aligned to whole multiples from `1970-01-01T00:00Z`, so they
+  need no stored anchor and every host answers identically. `NextFire` and `NextFires` answer "strictly
+  after this instant"; an invalid window has no next fire.
+- **`Instance.AnnounceMaintenanceMessage`** / **`Instance.AnnounceMaintenanceCancelledMessage`**
+  (`announce_maintenance_message`, `announce_maintenance_cancelled_message`) — a window is announced,
+  not a task. `Instance.Timezone`, `BackupRetention` and `AnnounceLeadMinutes` are unchanged.
+
+### Added — the watchdog park primitive (`Lib` 7.0.0)
+
+- `IWatchdogClient.BeginMaintenanceAsync` / `EndMaintenanceAsync` park an instance: stopped, but
+  desired-state stays `running`, so crash-restart is suppressed for as long as the park holds rather
+  than switched off, and the failure streak and give-up latch come out of the park as they went in. The
+  daemon unparks on its own once its timeout expires, so a leaf that dies mid-sequence costs a window
+  and never a server.
+- `origin` on `StartAsync` and `StopAsync`, matching `RestartAsync` — a leaf-driven lifecycle call is
+  attributed to the leaf as `system:<origin>` instead of to whoever owns the process.
+
+
 ### Added — an instance carries what it announces before a scheduled restart (`Lib` 6.3.0)
 
 Binds kgsm 3.18.0-rc9. Read by `kgsm-scheduler`; inert for a game whose blueprint declares no

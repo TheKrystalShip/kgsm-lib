@@ -147,12 +147,18 @@ public sealed class WatchdogClient : IWatchdogClient
     }
 
     /// <inheritdoc/>
-    public async Task<WatchdogActionResult> StartAsync(string instanceName, CancellationToken cancellationToken = default)
-        => await PostActionAsync("start", instanceName, cancellationToken).ConfigureAwait(false);
+    public async Task<WatchdogActionResult> StartAsync(
+        string instanceName,
+        string origin = "scheduler",
+        CancellationToken cancellationToken = default)
+        => await PostActionAsync("start", instanceName, origin, cancellationToken).ConfigureAwait(false);
 
     /// <inheritdoc/>
-    public async Task<WatchdogActionResult> StopAsync(string instanceName, CancellationToken cancellationToken = default)
-        => await PostActionAsync("stop", instanceName, cancellationToken).ConfigureAwait(false);
+    public async Task<WatchdogActionResult> StopAsync(
+        string instanceName,
+        string origin = "scheduler",
+        CancellationToken cancellationToken = default)
+        => await PostActionAsync("stop", instanceName, origin, cancellationToken).ConfigureAwait(false);
 
     /// <inheritdoc/>
     public async Task<WatchdogActionResult> EnableAsync(string instanceName, CancellationToken cancellationToken = default)
@@ -199,6 +205,30 @@ public sealed class WatchdogClient : IWatchdogClient
         return await ReadJsonAsync(response, KgsmJsonContext.Default.WatchdogActionResult, cancellationToken)
                    .ConfigureAwait(false)
                ?? new WatchdogActionResult { Instance = instanceName, Ok = false, Message = "empty response" };
+    }
+
+    /// <inheritdoc/>
+    public async Task<WatchdogActionResult> BeginMaintenanceAsync(
+        string instanceName,
+        string origin = "scheduler",
+        CancellationToken cancellationToken = default)
+        => await PostMaintenanceAsync("begin", instanceName, origin, cancellationToken).ConfigureAwait(false);
+
+    /// <inheritdoc/>
+    public async Task<WatchdogActionResult> EndMaintenanceAsync(
+        string instanceName,
+        string origin = "scheduler",
+        CancellationToken cancellationToken = default)
+        => await PostMaintenanceAsync("end", instanceName, origin, cancellationToken).ConfigureAwait(false);
+
+    private async Task<WatchdogActionResult> PostMaintenanceAsync(
+        string verb, string instanceName, string origin, CancellationToken cancellationToken)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+
+        var path = $"/maintenance/{verb}/{Uri.EscapeDataString(instanceName)}?origin={Uri.EscapeDataString(origin)}";
+        return await PostPathAsync(path, instanceName, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -513,6 +543,16 @@ public sealed class WatchdogClient : IWatchdogClient
 
         return await PostPathAsync($"/{verb}/{Uri.EscapeDataString(instanceName)}", instanceName, cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    private async Task<WatchdogActionResult> PostActionAsync(
+        string verb, string instanceName, string origin, CancellationToken cancellationToken)
+    {
+        ThrowIfDisposed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+
+        var path = $"/{verb}/{Uri.EscapeDataString(instanceName)}?origin={Uri.EscapeDataString(origin)}";
+        return await PostPathAsync(path, instanceName, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<WatchdogActionResult> PostPathAsync(string path, string instanceName, CancellationToken cancellationToken)

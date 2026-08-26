@@ -221,16 +221,23 @@ public record class Instance
     public int? MemoryCapMb { get; set; }
 
     /// <summary>
-    /// Gets or sets whether a scheduled restart is configured for the instance.
-    /// Null when KGSM omits <c>scheduled_restart</c> — honest unknown, never fabricated.
-    /// Read by kgsm-scheduler to drive scheduled restarts.
+    /// Gets or sets the instance's maintenance windows, packed into one value:
+    /// <c>daily@05:00/backup;weekly.sun@04:00/backup,update,restart</c>. A window is a schedule, a
+    /// <c>/</c>, and the tasks it runs; windows are separated by <c>;</c>. Null or empty means no
+    /// maintenance — an absent window is off.
     /// </summary>
-    [JsonPropertyName("scheduled_restart")]
-    public string? ScheduledRestart { get; set; }
+    /// <remarks>
+    /// Read it with <see cref="Scheduling.MaintenanceWindowParser"/>, which is the grammar's one
+    /// implementation and its one validator. Each window carries its own validity, so a window that
+    /// cannot be read disables itself and leaves the instance's other windows firing. Written
+    /// wholesale: replacing the value is the only way to express deleting a window.
+    /// </remarks>
+    [JsonPropertyName("maintenance_windows")]
+    public string? MaintenanceWindows { get; set; }
 
     /// <summary>
     /// Gets or sets the lead times, in minutes, at which this instance announces an
-    /// upcoming scheduled restart — comma-separated, e.g. <c>"15,5,1"</c>.
+    /// upcoming maintenance window — comma-separated, e.g. <c>"15,5,1"</c>.
     /// </summary>
     /// <remarks>
     /// Null or empty announces nothing, which is the default: a server addressing the
@@ -250,61 +257,23 @@ public record class Instance
     /// template — two separate steps with different placeholders and different owners, so
     /// a message carrying <c>{message}</c> is not special here.
     /// </remarks>
-    [JsonPropertyName("announce_restart_message")]
-    public string? AnnounceRestartMessage { get; set; }
+    [JsonPropertyName("announce_maintenance_message")]
+    public string? AnnounceMaintenanceMessage { get; set; }
 
     /// <summary>
-    /// Gets or sets what is said when an announced restart is abandoned. Players were
-    /// told a restart was coming, so they are told it is not.
+    /// Gets or sets what is said when an announced maintenance window is abandoned. Players were
+    /// told it was coming, so they are told it is not.
     /// </summary>
-    [JsonPropertyName("announce_restart_cancelled_message")]
-    public string? AnnounceRestartCancelledMessage { get; set; }
+    [JsonPropertyName("announce_maintenance_cancelled_message")]
+    public string? AnnounceMaintenanceCancelledMessage { get; set; }
 
     /// <summary>
-    /// Gets or sets the time-of-day for the scheduled restart.
-    /// Null when KGSM omits <c>restart_time</c> — honest unknown, never fabricated.
-    /// </summary>
-    [JsonPropertyName("restart_time")]
-    public string? RestartTime { get; set; }
-
-    /// <summary>
-    /// Gets or sets the day for the scheduled restart.
-    /// Null when KGSM omits <c>restart_day</c> — honest unknown, never fabricated.
-    /// </summary>
-    [JsonPropertyName("restart_day")]
-    public string? RestartDay { get; set; }
-
-    /// <summary>
-    /// Gets or sets the timezone used to interpret both the scheduled restart time and the
-    /// scheduled backup time — one instance has one answer for what time it is.
+    /// Gets or sets the timezone the instance's maintenance appointments are read in — one instance
+    /// has one answer for what time it is. Interval windows ignore it by construction.
     /// Null when KGSM omits <c>timezone</c> — honest unknown, never fabricated.
     /// </summary>
     [JsonPropertyName("timezone")]
     public string? Timezone { get; set; }
-
-    /// <summary>
-    /// Gets or sets the scheduled backup cadence (<c>off</c>, <c>daily</c>, <c>weekly</c>,
-    /// <c>6h</c>). Null when KGSM omits <c>backup_schedule</c> — honest unknown, never
-    /// fabricated. Read by kgsm-scheduler. Independent of <see cref="ScheduledRestart"/>:
-    /// a backup is taken against the instance as it is, running or not.
-    /// </summary>
-    [JsonPropertyName("backup_schedule")]
-    public string? BackupSchedule { get; set; }
-
-    /// <summary>
-    /// Gets or sets the time-of-day for the scheduled backup, interpreted in
-    /// <see cref="Timezone"/>. Null when KGSM omits <c>backup_time</c> — honest unknown,
-    /// never fabricated.
-    /// </summary>
-    [JsonPropertyName("backup_time")]
-    public string? BackupTime { get; set; }
-
-    /// <summary>
-    /// Gets or sets the day for a weekly scheduled backup.
-    /// Null when KGSM omits <c>backup_day</c> — honest unknown, never fabricated.
-    /// </summary>
-    [JsonPropertyName("backup_day")]
-    public string? BackupDay { get; set; }
 
     /// <summary>
     /// Gets or sets the number of most-recent backups to retain when pruning.

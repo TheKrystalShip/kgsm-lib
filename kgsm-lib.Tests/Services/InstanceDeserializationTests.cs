@@ -388,4 +388,44 @@ public class InstanceDeserializationTests
         Assert.NotNull(result);
         Assert.Equal("factorio-42", result!.DisplayName);
     }
+
+    [Fact]
+    public void Maintenance_keys_bind_from_the_wire()
+    {
+        // The whole maintenance surface an instance carries: the packed windows, the timezone the
+        // appointments in them are read in, and what the server says before a window it announces.
+        StubProcessOutput("""
+            {"name":"factorio-42",
+             "maintenance_windows":"daily@05:00/backup;weekly.sun@04:00/backup,update,restart",
+             "timezone":"Europe/Madrid",
+             "backup_retention":"5",
+             "announce_lead_minutes":"15,5,1",
+             "announce_maintenance_message":"{instance} is {reason} in {minutes} minutes",
+             "announce_maintenance_cancelled_message":"{instance} is staying up"}
+            """);
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        Assert.Equal(
+            "daily@05:00/backup;weekly.sun@04:00/backup,update,restart",
+            result!.MaintenanceWindows);
+        Assert.Equal("Europe/Madrid", result.Timezone);
+        Assert.Equal(5, result.BackupRetention);
+        Assert.Equal("15,5,1", result.AnnounceLeadMinutes);
+        Assert.Equal("{instance} is {reason} in {minutes} minutes", result.AnnounceMaintenanceMessage);
+        Assert.Equal("{instance} is staying up", result.AnnounceMaintenanceCancelledMessage);
+    }
+
+    [Fact]
+    public void An_instance_with_no_maintenance_reports_null_rather_than_an_empty_schedule()
+    {
+        StubProcessOutput("""{"name":"factorio-42"}""");
+
+        Instance? result = Info();
+
+        Assert.NotNull(result);
+        Assert.Null(result!.MaintenanceWindows);
+        Assert.Empty(TheKrystalShip.KGSM.Core.Scheduling.MaintenanceWindowParser.Parse(result.MaintenanceWindows));
+    }
 }
