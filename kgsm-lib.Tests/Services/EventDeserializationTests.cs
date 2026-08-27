@@ -567,15 +567,15 @@ public class EventDeserializationTests
         return null;
     }
 
-    // Parses the kgsm event registry: resolves the EVENT_INSTANCE_* constants used as
-    // EVENT_CONFIGS keys to their underscore wire names (the form C# matches on).
+    // Parses the kgsm event registry: resolves the EVENT_* constants used as EVENT_CONFIGS keys to
+    // the names they hold, which is what the catalog on this side is keyed by.
     private static HashSet<string> ParseRegisteredBashEvents(string handlerPath)
     {
         string src = File.ReadAllText(handlerPath);
 
         var constToValue = new Dictionary<string, string>();
         foreach (System.Text.RegularExpressions.Match m in Regex.Matches(src,
-            @"(EVENT_[A-Z_]+)=""([a-z_]+)"""))
+            @"(EVENT_[A-Z_]+)=""([a-z._]+)"""))
         {
             constToValue[m.Groups[1].Value] = m.Groups[2].Value;
         }
