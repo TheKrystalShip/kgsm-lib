@@ -93,7 +93,7 @@ public sealed class JournalConformanceCheckerTests : IDisposable
     [Theory]
     [InlineData(""""{"EventType":"a_b","Data":{},"Timestamp":"2026-08-16T10:04:37.799Z"}"""")]
     [InlineData(""""{"V":"1","EventType":"a_b","Data":{},"Timestamp":"2026-08-16T10:04:37.799Z"}"""")]
-    [InlineData(""""{"V":2,"EventType":"a_b","Data":{},"Timestamp":"2026-08-16T10:04:37.799Z"}"""")]
+    [InlineData(""""{"V":99,"EventType":"a_b","Data":{},"Timestamp":"2026-08-16T10:04:37.799Z"}"""")]
     public void A_line_that_does_not_declare_this_contract_is_reported(string line)
     {
         AssertBreaks(ConformanceRule.SchemaVersion, line);
@@ -623,7 +623,7 @@ public sealed class JournalConformanceCheckerTests : IDisposable
             .Where(static f => f.IsLiteral && f.FieldType == typeof(string))
             .Select(static f => (string)f.GetRawConstantValue()!)];
 
-        Assert.Equal(14, declared.Length);
+        Assert.Equal(17, declared.Length);
         Assert.All(declared, rule => Assert.Contains(rule, ExercisedRules));
     }
 
@@ -637,6 +637,9 @@ public sealed class JournalConformanceCheckerTests : IDisposable
         ConformanceRule.AbsentSpelling,
         ConformanceRule.Actor,
         ConformanceRule.ProducerVersionShape,
+        ConformanceRule.Severity,
+        ConformanceRule.Outcome,
+        ConformanceRule.Summary,
         ConformanceRule.EventIdShape,
         ConformanceRule.UnknownField,
         ConformanceRule.ProducerMatchesDirectory,

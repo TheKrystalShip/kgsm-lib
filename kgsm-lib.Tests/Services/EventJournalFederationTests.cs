@@ -216,7 +216,7 @@ public sealed class EventJournalFederationTests : IDisposable
         EventWrapper? envelope = JsonSerializer.Deserialize(line, KgsmJsonContext.Default.EventWrapper);
 
         Assert.NotNull(envelope);
-        Assert.Equal(1, envelope!.SchemaVersion);
+        Assert.Equal(2, envelope!.SchemaVersion);
         Assert.Equal("instance_ready", envelope.EventType);
         Assert.Equal("1.8.2", envelope.ProducerVersion);
         Assert.Equal("1.8.2", envelope.EmittingVersion);
