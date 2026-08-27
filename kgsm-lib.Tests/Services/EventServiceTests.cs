@@ -58,7 +58,7 @@ public class EventServiceTests
         svc.Initialize(EventStartPosition.Oldest);
 
         await _mockClient.RaiseAsync(c => c.EventReceived += null,
-            Wire("instance_started", """{"InstanceName":"factorio"}"""), TestPosition);
+            Wire("server.started", """{"InstanceName":"factorio"}"""), TestPosition);
 
         Assert.Single(received);
         _mockClient.Verify(c => c.StartListeningAsync(It.IsAny<CancellationToken>()), Times.AtMostOnce());
@@ -120,7 +120,7 @@ public class EventServiceTests
         // The payload still carries a legacy `LifecycleManager` field; the lib must ignore it
         // (the property was removed) and still dispatch on InstanceName.
         _mockClient.Raise(c => c.EventReceived += null,
-            Wire("instance_started", """{"InstanceName":"7dtd","LifecycleManager":"standalone"}"""), TestPosition);
+            Wire("server.started", """{"InstanceName":"7dtd","LifecycleManager":"standalone"}"""), TestPosition);
 
         InstanceStartedData received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal("7dtd", received.InstanceName);
@@ -144,7 +144,7 @@ public class EventServiceTests
         // always-present non-null strings. The changed VALUE is never carried (secret
         // hygiene), so the payload only names the key.
         _mockClient.Raise(c => c.EventReceived += null,
-            Wire("instance_config_changed", """{"InstanceName":"factorio-test","Key":"rcon_password"}"""), TestPosition);
+            Wire("config.changed", """{"InstanceName":"factorio-test","Key":"rcon_password"}"""), TestPosition);
 
         InstanceConfigChangedData received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal("factorio-test", received.InstanceName);
@@ -169,7 +169,7 @@ public class EventServiceTests
         // id and a rename does not change it — it is what a consumer holding a stale label looks the
         // label up by. The labels ride in full, unlike the config event's key-only payload.
         _mockClient.Raise(c => c.EventReceived += null,
-            Wire("instance_display_name_changed",
+            Wire("server.renamed",
                  """{"InstanceName":"factorio-42","OldDisplayName":"factorio-42","NewDisplayName":"Ana's \"Best\" Server 🎮"}"""),
             TestPosition);
 
@@ -194,7 +194,7 @@ public class EventServiceTests
         svc.Initialize();
 
         _mockClient.Raise(c => c.EventReceived += null,
-            Wire("instance_download_failed", """{"InstanceName":"7dtd"}"""), TestPosition);
+            Wire("server.download.failed", """{"InstanceName":"7dtd"}"""), TestPosition);
 
         InstanceDownloadFailedData received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal("7dtd", received.InstanceName);
@@ -217,7 +217,7 @@ public class EventServiceTests
         // Actor/Timestamp live at the top level of the envelope, not inside Data; the
         // service must copy them onto the data object so the handler sees who+when.
         const string wire = """
-            {"EventType":"instance_started","Data":{"InstanceName":"7dtd"},"Timestamp":"2026-06-14T15:39:58Z","Actor":"discord:tester","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+            {"EventType":"server.started","Data":{"InstanceName":"7dtd"},"Timestamp":"2026-06-14T15:39:58Z","Actor":"discord:tester","Hostname":"hotrod","KGSMVersion":"3.0.0"}
             """;
         _mockClient.Raise(c => c.EventReceived += null, wire, TestPosition);
 
@@ -246,7 +246,7 @@ public class EventServiceTests
         // Wire() carries Timestamp but no Actor — the absent actor stays null (never
         // a fabricated identity), while the present timestamp is still copied through.
         _mockClient.Raise(c => c.EventReceived += null,
-            Wire("instance_started", """{"InstanceName":"7dtd"}"""), TestPosition);
+            Wire("server.started", """{"InstanceName":"7dtd"}"""), TestPosition);
 
         InstanceStartedData received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Null(received.Actor);
@@ -271,7 +271,7 @@ public class EventServiceTests
         // Actor; the service must copy it onto the data object so a handler sees
         // through-which-surface, not just who.
         const string wire = """
-            {"EventType":"instance_started","Data":{"InstanceName":"7dtd"},"Actor":"discord:tester","Origin":"assistant","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+            {"EventType":"server.started","Data":{"InstanceName":"7dtd"},"Actor":"discord:tester","Origin":"assistant","Hostname":"hotrod","KGSMVersion":"3.0.0"}
             """;
         _mockClient.Raise(c => c.EventReceived += null, wire, TestPosition);
 
@@ -297,7 +297,7 @@ public class EventServiceTests
         // A bare CLI invocation declares no surface — the absent origin stays null,
         // never a fabricated surface (mirrors the absent-actor contract above).
         _mockClient.Raise(c => c.EventReceived += null,
-            Wire("instance_started", """{"InstanceName":"7dtd"}"""), TestPosition);
+            Wire("server.started", """{"InstanceName":"7dtd"}"""), TestPosition);
 
         InstanceStartedData received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Null(received.Origin);
@@ -326,7 +326,7 @@ public class EventServiceTests
 
         // Known event type, but nobody subscribed — must be a no-op, not an error.
         Exception? ex = Record.Exception(() => _mockClient.Raise(c => c.EventReceived += null,
-            Wire("instance_started", """{"InstanceName":"7dtd","LifecycleManager":"standalone"}"""), TestPosition));
+            Wire("server.started", """{"InstanceName":"7dtd","LifecycleManager":"standalone"}"""), TestPosition));
 
         Assert.Null(ex);
     }
@@ -340,7 +340,7 @@ public class EventServiceTests
 
         // A faulty handler must not bring down the receive loop.
         Exception? ex = Record.Exception(() => _mockClient.Raise(c => c.EventReceived += null,
-            Wire("instance_started", """{"InstanceName":"7dtd","LifecycleManager":"standalone"}"""), TestPosition));
+            Wire("server.started", """{"InstanceName":"7dtd","LifecycleManager":"standalone"}"""), TestPosition));
 
         Assert.Null(ex);
     }
@@ -360,10 +360,10 @@ public class EventServiceTests
         svc.Initialize();
 
         _mockClient.Raise(c => c.EventReceived += null,
-            Wire("instance_started", """{"InstanceName":"7dtd"}"""), TestPosition);
+            Wire("server.started", """{"InstanceName":"7dtd"}"""), TestPosition);
 
         EventWrapper received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal("instance_started", received.EventType);
+        Assert.Equal("server.started", received.EventType);
         Assert.Equal("hotrod", received.Hostname);
     }
 
@@ -387,7 +387,7 @@ public class EventServiceTests
         svc.Initialize();
 
         _mockClient.Raise(c => c.EventReceived += null,
-            Wire("instance_started", """{"InstanceName":"7dtd"}"""), TestPosition);
+            Wire("server.started", """{"InstanceName":"7dtd"}"""), TestPosition);
 
         EventPosition received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(TestPosition, received);
@@ -421,7 +421,7 @@ public class EventServiceTests
         svc.Initialize();
 
         _mockClient.Raise(c => c.EventReceived += null,
-            Wire("instance_started", """{"InstanceName":"7dtd"}""", id), TestPosition);
+            Wire("server.started", """{"InstanceName":"7dtd"}""", id), TestPosition);
 
         (EventWrapper wrapper, EventPosition position) = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
@@ -456,7 +456,7 @@ public class EventServiceTests
         svc.Initialize();
 
         _mockClient.Raise(c => c.EventReceived += null,
-            Wire("instance_started", """{"InstanceName":"7dtd"}"""), TestPosition);
+            Wire("server.started", """{"InstanceName":"7dtd"}"""), TestPosition);
 
         (EventWrapper wrapper, EventPosition position) = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
@@ -514,11 +514,11 @@ public class EventServiceTests
         svc.Initialize();
 
         Exception? ex = Record.Exception(() => _mockClient.Raise(c => c.EventReceived += null,
-            Wire("instance_started", """{"InstanceName":"7dtd"}"""), TestPosition));
+            Wire("server.started", """{"InstanceName":"7dtd"}"""), TestPosition));
 
         Assert.Null(ex);
         EventWrapper secondRaw = await secondRawTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal("instance_started", secondRaw.EventType);
+        Assert.Equal("server.started", secondRaw.EventType);
         InstanceStartedData typed = await typedTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal("7dtd", typed.InstanceName);
     }
@@ -576,7 +576,7 @@ public class EventServiceTests
         svc.Initialize();
 
         _mockClient.Raise(c => c.EventReceived += null,
-            Wire("blueprint_updated",
+            Wire("blueprint.updated",
                 """{"BlueprintName":"terraria","Tier":"user","OverridesSystem":true,"Runtime":"native"}"""), TestPosition);
 
         BlueprintUpdatedData received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -603,7 +603,7 @@ public class EventServiceTests
 
         _mockClient.Raise(c => c.EventReceived += null,
             """
-            {"EventType":"blueprint_removed","Data":{"BlueprintName":"palworld","Tier":"user","RevertedToSystem":true},"Timestamp":"2026-07-27T18:46:51Z","Actor":"user:heisen","Origin":"api","Hostname":"hotrod","KGSMVersion":"3.1.2-rc9"}
+            {"EventType":"blueprint.removed","Data":{"BlueprintName":"palworld","Tier":"user","RevertedToSystem":true},"Timestamp":"2026-07-27T18:46:51Z","Actor":"user:heisen","Origin":"api","Hostname":"hotrod","KGSMVersion":"3.1.2-rc9"}
             """, TestPosition);
 
         BlueprintRemovedData received = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));

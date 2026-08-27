@@ -59,14 +59,38 @@ public static class KgsmEventCatalog
     /// </remarks>
     private static EventDescriptor Unrecognized(string type) => new(
         Type: type,
-        Subject: type.StartsWith("blueprint_", StringComparison.Ordinal)
-            ? EventSubject.Blueprint
-            : EventSubject.Instance,
+        Subject: SubjectOf(type),
         Weight: EventWeight.Fact,
         Outcome: EventOutcome.Neutral,
         Fields: [],
         PayloadType: null,
         Known: false);
+
+    /// <summary>
+    /// What an unclassified event is about, read off its own namespace.
+    /// </summary>
+    /// <remarks>
+    /// A name is dot-separated and its leading segment says what the event concerns, so a subject can
+    /// be read from an event nothing has classified rather than guessed at. An unfamiliar namespace
+    /// answers <see cref="EventSubject.Instance"/>: nearly everything on this host is about a server,
+    /// and a subject is a routing hint rather than a permission — no consumer is allowed to render an
+    /// unclassified payload whatever this says (see <see cref="Describe"/>'s empty field list).
+    /// </remarks>
+    private static EventSubject SubjectOf(string type)
+    {
+        int dot = type.IndexOf('.', StringComparison.Ordinal);
+        ReadOnlySpan<char> head = dot < 0 ? type : type.AsSpan(0, dot);
+
+        return head switch
+        {
+            "blueprint" => EventSubject.Blueprint,
+            "library" => EventSubject.Library,
+            "host" => EventSubject.Host,
+            "leaf" or "service" => EventSubject.Service,
+            "user" or "identity" or "auth" => EventSubject.Account,
+            _ => EventSubject.Instance,
+        };
+    }
 
     // ---- the classification -------------------------------------------------------------------
     //
@@ -88,109 +112,109 @@ public static class KgsmEventCatalog
         var all = new List<EventDescriptor>
         {
             // -- install -----------------------------------------------------------------------
-            Instance<InstanceCreatedData>("instance_created", EventWeight.Phase, fields: [Blueprint]),
-            Instance<InstanceDirectoriesCreatedData>("instance_directories_created", EventWeight.Phase),
-            Instance<InstanceFilesCreatedData>("instance_files_created", EventWeight.Phase),
-            Instance<InstanceDownloadStartedData>("instance_download_started", EventWeight.Phase),
-            Instance<InstanceDownloadFinishedData>("instance_download_finished", EventWeight.Phase),
-            Instance<InstanceDownloadFailedData>("instance_download_failed", EventWeight.Fact, EventOutcome.Failure, severity: EventSeverity.Danger),
-            Instance<InstanceDownloadedData>("instance_downloaded", EventWeight.Phase),
-            Instance<InstanceDeployStartedData>("instance_deploy_started", EventWeight.Phase),
-            Instance<InstanceDeployFinishedData>("instance_deploy_finished", EventWeight.Phase),
-            Instance<InstanceDeployFailedData>("instance_deploy_failed", EventWeight.Fact, EventOutcome.Failure, severity: EventSeverity.Danger),
-            Instance<InstanceDeployedData>("instance_deployed", EventWeight.Phase),
-            Instance<InstanceInstallationStartedData>("instance_installation_started", EventWeight.Phase, fields: [Blueprint]),
-            Instance<InstanceInstallationFinishedData>("instance_installation_finished", EventWeight.Phase, fields: [Blueprint]),
-            Instance<InstanceInstalledData>("instance_installed", EventWeight.Fact, EventOutcome.Success, [Blueprint, LibraryName]),
+            Instance<InstanceCreatedData>("server.install.created", EventWeight.Phase, fields: [Blueprint]),
+            Instance<InstanceDirectoriesCreatedData>("server.install.directories_created", EventWeight.Phase),
+            Instance<InstanceFilesCreatedData>("server.install.files_created", EventWeight.Phase),
+            Instance<InstanceDownloadStartedData>("server.download.started", EventWeight.Phase),
+            Instance<InstanceDownloadFinishedData>("server.download.finished", EventWeight.Phase),
+            Instance<InstanceDownloadFailedData>("server.download.failed", EventWeight.Fact, EventOutcome.Failure, severity: EventSeverity.Danger),
+            Instance<InstanceDownloadedData>("server.download.completed", EventWeight.Phase),
+            Instance<InstanceDeployStartedData>("server.deploy.started", EventWeight.Phase),
+            Instance<InstanceDeployFinishedData>("server.deploy.finished", EventWeight.Phase),
+            Instance<InstanceDeployFailedData>("server.deploy.failed", EventWeight.Fact, EventOutcome.Failure, severity: EventSeverity.Danger),
+            Instance<InstanceDeployedData>("server.deploy.completed", EventWeight.Phase),
+            Instance<InstanceInstallationStartedData>("server.install.started", EventWeight.Phase, fields: [Blueprint]),
+            Instance<InstanceInstallationFinishedData>("server.install.finished", EventWeight.Phase, fields: [Blueprint]),
+            Instance<InstanceInstalledData>("server.installed", EventWeight.Fact, EventOutcome.Success, [Blueprint, LibraryName]),
 
             // -- placement ---------------------------------------------------------------------
             // Which disk an instance's files are on. Neutral: moving a server between two roots on
             // the same host changes nothing about the server, and the news is which library gave up
             // the space and which took it.
-            Instance<InstanceMovedData>("instance_moved", EventWeight.Fact, EventOutcome.Neutral,
+            Instance<InstanceMovedData>("server.moved", EventWeight.Fact, EventOutcome.Neutral,
                 [Field("FromLibrary", FieldShape.Text), Field("ToLibrary", FieldShape.Text)]),
 
             // -- uninstall ---------------------------------------------------------------------
-            Instance<InstanceUninstallStartedData>("instance_uninstall_started", EventWeight.Phase),
-            Instance<InstanceUninstallFinishedData>("instance_uninstall_finished", EventWeight.Phase),
-            Instance<InstanceUninstallFailedData>("instance_uninstall_failed", EventWeight.Fact, EventOutcome.Failure, severity: EventSeverity.Danger),
-            Instance<InstanceUninstalledData>("instance_uninstalled", EventWeight.Fact, EventOutcome.Success, severity: EventSeverity.Danger),
-            Instance<InstanceFilesRemovedData>("instance_files_removed", EventWeight.Phase),
-            Instance<InstanceDirectoriesRemovedData>("instance_directories_removed", EventWeight.Phase),
-            Instance<InstanceRemovedData>("instance_removed", EventWeight.Phase),
+            Instance<InstanceUninstallStartedData>("server.uninstall.started", EventWeight.Phase),
+            Instance<InstanceUninstallFinishedData>("server.uninstall.finished", EventWeight.Phase),
+            Instance<InstanceUninstallFailedData>("server.uninstall.failed", EventWeight.Fact, EventOutcome.Failure, severity: EventSeverity.Danger),
+            Instance<InstanceUninstalledData>("server.uninstalled", EventWeight.Fact, EventOutcome.Success, severity: EventSeverity.Danger),
+            Instance<InstanceFilesRemovedData>("server.uninstall.files_removed", EventWeight.Phase),
+            Instance<InstanceDirectoriesRemovedData>("server.uninstall.directories_removed", EventWeight.Phase),
+            Instance<InstanceRemovedData>("server.uninstall.removed", EventWeight.Phase),
 
             // -- run state ---------------------------------------------------------------------
-            Instance<InstanceStartedData>("instance_started", EventWeight.Fact),
+            Instance<InstanceStartedData>("server.started", EventWeight.Fact),
 
             // The moment players can actually connect, which is not what instance_started reports —
             // that one says the process launched. Two facts about two different moments.
-            Instance<InstanceReadyData>("instance_ready", EventWeight.Fact, EventOutcome.Success),
+            Instance<InstanceReadyData>("server.ready", EventWeight.Fact, EventOutcome.Success),
 
-            Instance<InstanceStoppedData>("instance_stopped", EventWeight.Fact, severity: EventSeverity.Warn),
-            Instance<InstanceStopStartedData>("instance_stop_started", EventWeight.Phase),
-            Instance<InstanceStopFinishedData>("instance_stop_finished", EventWeight.Phase),
-            Instance<InstanceRestartedData>("instance_restarted", EventWeight.Fact),
-            Instance<InstanceRestartStartedData>("instance_restart_started", EventWeight.Phase),
-            Instance<InstanceRestartStoppedData>("instance_restart_stopped", EventWeight.Phase),
-            Instance<InstanceRestartFinishedData>("instance_restart_finished", EventWeight.Phase),
-            Instance<InstanceCrashedData>("instance_crashed", EventWeight.Fact, EventOutcome.Failure, [ExitCode, Restarts], severity: EventSeverity.Warn),
-            Instance<InstanceFailedData>("instance_failed", EventWeight.Fact, EventOutcome.Failure, [ExitCode, Restarts], severity: EventSeverity.Danger),
+            Instance<InstanceStoppedData>("server.stopped", EventWeight.Fact, severity: EventSeverity.Warn),
+            Instance<InstanceStopStartedData>("server.stop.started", EventWeight.Phase),
+            Instance<InstanceStopFinishedData>("server.stop.finished", EventWeight.Phase),
+            Instance<InstanceRestartedData>("server.restarted", EventWeight.Fact),
+            Instance<InstanceRestartStartedData>("server.restart.started", EventWeight.Phase),
+            Instance<InstanceRestartStoppedData>("server.restart.stopped", EventWeight.Phase),
+            Instance<InstanceRestartFinishedData>("server.restart.finished", EventWeight.Phase),
+            Instance<InstanceCrashedData>("server.crashed", EventWeight.Fact, EventOutcome.Failure, [ExitCode, Restarts], severity: EventSeverity.Warn),
+            Instance<InstanceFailedData>("server.crash.exhausted", EventWeight.Fact, EventOutcome.Failure, [ExitCode, Restarts], severity: EventSeverity.Danger),
 
             // -- versions ----------------------------------------------------------------------
-            Instance<InstanceUpdateStartedData>("instance_update_started", EventWeight.Phase),
-            Instance<InstanceUpdateFinishedData>("instance_update_finished", EventWeight.Phase),
+            Instance<InstanceUpdateStartedData>("server.update.started", EventWeight.Phase),
+            Instance<InstanceUpdateFinishedData>("server.update.finished", EventWeight.Phase),
 
             // The update run ended; whether the version moved is instance_version_updated's to say.
-            Instance<InstanceUpdatedData>("instance_updated", EventWeight.Phase),
+            Instance<InstanceUpdatedData>("server.update.completed", EventWeight.Phase),
 
             // The run ended WITHOUT the version moving, for a reason. Without it, a failed update and
             // a successful one that found nothing to do are the same two bracket lines — and since the
             // bracket alone is what a consumer settles a run on, a refused update reads as a completed
             // one. A Fact, like every other failure: a step that did not happen is exactly what
             // somebody reading back needs to find.
-            Instance<InstanceUpdateFailedData>("instance_update_failed", EventWeight.Fact, EventOutcome.Failure, severity: EventSeverity.Danger),
+            Instance<InstanceUpdateFailedData>("server.update.failed", EventWeight.Fact, EventOutcome.Failure, severity: EventSeverity.Danger),
 
-            Instance<InstanceUpdateAvailableData>("instance_update_available", EventWeight.Fact, EventOutcome.Neutral,
+            Instance<InstanceUpdateAvailableData>("server.update.available", EventWeight.Fact, EventOutcome.Neutral,
                 [Field("CurrentVersion", FieldShape.Version), Field("LatestVersion", FieldShape.Version)]),
-            Instance<InstanceVersionUpdatedData>("instance_version_updated", EventWeight.Fact, EventOutcome.Success,
+            Instance<InstanceVersionUpdatedData>("server.updated", EventWeight.Fact, EventOutcome.Success,
                 [Field("OldVersion", FieldShape.Version), Field("NewVersion", FieldShape.Version)]),
 
             // -- backups -----------------------------------------------------------------------
             // Both verbs are minutes of archiving on a large world, and a scheduler drives them
             // unattended — so each brackets its run the way the lifecycle verbs do, and a surface can
             // show the instance as busy for the whole of it rather than learning at the end.
-            Instance<InstanceBackupStartedData>("instance_backup_started", EventWeight.Phase),
-            Instance<InstanceBackupFinishedData>("instance_backup_finished", EventWeight.Phase),
-            Instance<InstanceRestoreStartedData>("instance_restore_started", EventWeight.Phase),
-            Instance<InstanceRestoreFinishedData>("instance_restore_finished", EventWeight.Phase),
-            Instance<InstanceBackupCreatedData>("instance_backup_created", EventWeight.Fact, EventOutcome.Success, [Source, Version]),
-            Instance<InstanceBackupRestoredData>("instance_backup_restored", EventWeight.Fact, EventOutcome.Success, [Source, Version], severity: EventSeverity.Warn),
-            Instance<InstanceBackupDeletedData>("instance_backup_deleted", EventWeight.Fact, EventOutcome.Neutral, [Source], severity: EventSeverity.Warn),
+            Instance<InstanceBackupStartedData>("backup.started", EventWeight.Phase),
+            Instance<InstanceBackupFinishedData>("backup.finished", EventWeight.Phase),
+            Instance<InstanceRestoreStartedData>("backup.restore.started", EventWeight.Phase),
+            Instance<InstanceRestoreFinishedData>("backup.restore.finished", EventWeight.Phase),
+            Instance<InstanceBackupCreatedData>("backup.created", EventWeight.Fact, EventOutcome.Success, [Source, Version]),
+            Instance<InstanceBackupRestoredData>("backup.restored", EventWeight.Fact, EventOutcome.Success, [Source, Version], severity: EventSeverity.Warn),
+            Instance<InstanceBackupDeletedData>("backup.deleted", EventWeight.Fact, EventOutcome.Neutral, [Source], severity: EventSeverity.Warn),
 
             // Retention is a policy an operator revises, and both directions are facts worth having:
             // pinning is why an archive outlived the rotation, unpinning is why one stopped doing so.
-            Instance<InstanceBackupPinnedData>("instance_backup_pinned", EventWeight.Fact, EventOutcome.Neutral, [Source]),
-            Instance<InstanceBackupUnpinnedData>("instance_backup_unpinned", EventWeight.Fact, EventOutcome.Neutral, [Source], severity: EventSeverity.Warn),
+            Instance<InstanceBackupPinnedData>("backup.pinned", EventWeight.Fact, EventOutcome.Neutral, [Source]),
+            Instance<InstanceBackupUnpinnedData>("backup.unpinned", EventWeight.Fact, EventOutcome.Neutral, [Source], severity: EventSeverity.Warn),
 
-            Instance<InstanceBackupsPrunedData>("instance_backups_pruned", EventWeight.Fact, EventOutcome.Neutral,
+            Instance<InstanceBackupsPrunedData>("backup.pruned", EventWeight.Fact, EventOutcome.Neutral,
                 [Field("Deleted", FieldShape.Number), Field("Kept", FieldShape.Number),
                  Field("Pinned", FieldShape.Number)]),
 
             // -- the doors ---------------------------------------------------------------------
             // A host firewall rule and a router NAT forward are different facts about different
             // machines, and both bracket a run rather than stepping through one — so both are facts.
-            Instance<InstancePortsOpenedData>("instance_ports_opened", EventWeight.Fact, EventOutcome.Neutral, [Ports]),
-            Instance<InstancePortsClosedData>("instance_ports_closed", EventWeight.Fact, EventOutcome.Neutral, [Ports], severity: EventSeverity.Warn),
-            Instance<InstanceUpnpOpenedData>("instance_upnp_opened", EventWeight.Fact, EventOutcome.Neutral, [Ports]),
-            Instance<InstanceUpnpClosedData>("instance_upnp_closed", EventWeight.Fact, EventOutcome.Neutral, [Ports], severity: EventSeverity.Warn),
-            Instance<InstanceUpnpReassertedData>("instance_upnp_reasserted", EventWeight.Fact, EventOutcome.Neutral, [Ports], severity: EventSeverity.Warn),
+            Instance<InstancePortsOpenedData>("network.ports.opened", EventWeight.Fact, EventOutcome.Neutral, [Ports]),
+            Instance<InstancePortsClosedData>("network.ports.closed", EventWeight.Fact, EventOutcome.Neutral, [Ports], severity: EventSeverity.Warn),
+            Instance<InstanceUpnpOpenedData>("network.upnp.opened", EventWeight.Fact, EventOutcome.Neutral, [Ports]),
+            Instance<InstanceUpnpClosedData>("network.upnp.closed", EventWeight.Fact, EventOutcome.Neutral, [Ports], severity: EventSeverity.Warn),
+            Instance<InstanceUpnpReassertedData>("network.upnp.reasserted", EventWeight.Fact, EventOutcome.Neutral, [Ports], severity: EventSeverity.Warn),
 
             // -- host monitoring ---------------------------------------------------------------
             // A breach and a recovery are two immutable facts, not one row that changes: the journal is
             // append-only, and the live view of the same condition is the alert feed, which answers a
             // different question. Neither is a Failure — a value crossing a line is a measurement, and
             // how loudly to say so is the reading surface's business.
-            Host<HostThresholdBreachedData>("host_threshold_breached", EventOutcome.Neutral,
+            Host<HostThresholdBreachedData>("host.threshold.breached", EventOutcome.Neutral,
                 [Field("EpisodeId", FieldShape.Opaque), Field("RuleKey", FieldShape.Text),
                  Field("Metric", FieldShape.Text), Field("Scope", FieldShape.Text),
                  Field("Ref", FieldShape.Text), Field("ServerId", FieldShape.Text),
@@ -198,7 +222,7 @@ public static class KgsmEventCatalog
                  Field("PeakBand", FieldShape.Text), Field("OpenedTs", FieldShape.Number),
                  Field("OpenValue", FieldShape.Number), Field("Band", FieldShape.Text)]),
 
-            Host<HostThresholdClearedData>("host_threshold_cleared", EventOutcome.Neutral,
+            Host<HostThresholdClearedData>("host.threshold.cleared", EventOutcome.Neutral,
                 [Field("EpisodeId", FieldShape.Opaque), Field("RuleKey", FieldShape.Text),
                  Field("Metric", FieldShape.Text), Field("Scope", FieldShape.Text),
                  Field("Ref", FieldShape.Text), Field("ServerId", FieldShape.Text),
@@ -210,86 +234,86 @@ public static class KgsmEventCatalog
                  Field("CloseReason", FieldShape.Text)]),
 
             // -- players -----------------------------------------------------------------------
-            Instance<InstancePlayerJoinedData>("instance_player_joined", EventWeight.Fact, EventOutcome.Neutral,
+            Instance<InstancePlayerJoinedData>("player.joined", EventWeight.Fact, EventOutcome.Neutral,
                 [PlayerId, PlayerName, PlayerAddr, SessionKey]),
-            Instance<InstancePlayerLeftData>("instance_player_left", EventWeight.Fact, EventOutcome.Neutral,
+            Instance<InstancePlayerLeftData>("player.left", EventWeight.Fact, EventOutcome.Neutral,
                 [PlayerId, PlayerName, PlayerAddr, SessionKey, Field("Reason", FieldShape.Text)]),
 
-            Instance<InstancePlayerKickedData>("instance_player_kicked", EventWeight.Fact, EventOutcome.Neutral, [Target, Command], severity: EventSeverity.Warn),
-            Instance<InstancePlayerBannedData>("instance_player_banned", EventWeight.Fact, EventOutcome.Neutral, [Target, Command], severity: EventSeverity.Danger),
-            Instance<InstancePlayerUnbannedData>("instance_player_unbanned", EventWeight.Fact, EventOutcome.Neutral, [Target, Command]),
+            Instance<InstancePlayerKickedData>("player.kicked", EventWeight.Fact, EventOutcome.Neutral, [Target, Command], severity: EventSeverity.Warn),
+            Instance<InstancePlayerBannedData>("player.banned", EventWeight.Fact, EventOutcome.Neutral, [Target, Command], severity: EventSeverity.Danger),
+            Instance<InstancePlayerUnbannedData>("player.unbanned", EventWeight.Fact, EventOutcome.Neutral, [Target, Command]),
 
             // -- operator actions --------------------------------------------------------------
             // The key only: kgsm deliberately never puts the value on the event, because a config
             // value can be an rcon password.
-            Instance<InstanceConfigChangedData>("instance_config_changed", EventWeight.Fact, EventOutcome.Neutral,
+            Instance<InstanceConfigChangedData>("config.changed", EventWeight.Fact, EventOutcome.Neutral,
                 [Field("Key", FieldShape.Text)]),
 
             // Both labels, unlike the config event above: a display name is text a person chose to be
             // read, so there is no value to withhold, and a consumer re-labelling a row would
             // otherwise have to go back to the engine to learn what to re-label it to.
-            Instance<InstanceDisplayNameChangedData>("instance_display_name_changed", EventWeight.Fact, EventOutcome.Neutral,
+            Instance<InstanceDisplayNameChangedData>("server.renamed", EventWeight.Fact, EventOutcome.Neutral,
                 [Field("OldDisplayName", FieldShape.Text), Field("NewDisplayName", FieldShape.Text)]),
 
-            Instance<InstanceInputSentData>("instance_input_sent", EventWeight.Fact, EventOutcome.Neutral, [Command]),
+            Instance<InstanceInputSentData>("console.input.sent", EventWeight.Fact, EventOutcome.Neutral, [Command]),
 
             // The message and the command it resolved to. Its own type rather than an
             // input-sent row because its subject is the players, so "what were people told
             // on this server" is a filter rather than a pattern-match over command text.
-            Instance<InstanceAnnouncementSentData>("instance_announcement_sent", EventWeight.Fact, EventOutcome.Neutral,
+            Instance<InstanceAnnouncementSentData>("announcement.sent", EventWeight.Fact, EventOutcome.Neutral,
                 [Field("Message", FieldShape.Text), Command]),
 
             // -- blueprints --------------------------------------------------------------------
-            BlueprintEvent<BlueprintCreatedData>("blueprint_created", [Tier, OverridesSystem, Runtime]),
-            BlueprintEvent<BlueprintUpdatedData>("blueprint_updated", [Tier, OverridesSystem, Runtime]),
-            BlueprintEvent<BlueprintRemovedData>("blueprint_removed", [Tier, Field("RevertedToSystem", FieldShape.Text)]),
+            BlueprintEvent<BlueprintCreatedData>("blueprint.created", [Tier, OverridesSystem, Runtime]),
+            BlueprintEvent<BlueprintUpdatedData>("blueprint.updated", [Tier, OverridesSystem, Runtime]),
+            BlueprintEvent<BlueprintRemovedData>("blueprint.removed", [Tier, Field("RevertedToSystem", FieldShape.Text)]),
 
             // -- libraries ---------------------------------------------------------------------
             // Where instances can be placed, which is a property of the host rather than of anything
             // installed on it. Neutral: registering a disk and letting one go are both ordinary
             // administration, and an instance whose library was deregistered is still on disk.
-            LibraryEvent<LibraryAddedData>("library_added"),
-            LibraryEvent<LibraryRemovedData>("library_removed"),
+            LibraryEvent<LibraryAddedData>("library.added"),
+            LibraryEvent<LibraryRemovedData>("library.removed"),
 
             // -- accounts ----------------------------------------------------------------------
             // Signing in and authority changing. The Control Panel performs these itself — no engine
             // command runs — so it authors them, and they are classified here because a payload field
             // nobody has classified renders nowhere and these carry the values most worth care.
-            Account<AuthSessionEventData>("auth_login", EventOutcome.Success, SessionFields),
-            Account<AuthSessionEventData>("auth_logout", EventOutcome.Neutral, SessionFields),
+            Account<AuthSessionEventData>("auth.signed_in", EventOutcome.Success, SessionFields),
+            Account<AuthSessionEventData>("auth.signed_out", EventOutcome.Neutral, SessionFields),
 
             // A peer node asserting an already-authenticated identity, which this host then mints its
             // own session for. Same shape as a login because that is what it is; PeerNode is what says
             // the proof was somebody else's.
-            Account<AuthSessionEventData>("auth_cluster_session", EventOutcome.Success, SessionFields),
+            Account<AuthSessionEventData>("auth.cluster.vouched", EventOutcome.Success, SessionFields),
 
-            Account<AuthSessionRevokedData>("auth_session_revoked", EventOutcome.Neutral,
+            Account<AuthSessionRevokedData>("auth.session.revoked", EventOutcome.Neutral,
                 [UserId, Username, Field("Scope", FieldShape.Text), Sid, Field("Count", FieldShape.Number)]),
 
             // An account's authority is only ever changed here — the store is the sole authority on
             // this host — so these six are the whole record of anybody's permissions moving.
-            Account<UserAccountEventData>("user_provisioned", EventOutcome.Neutral, AccountChangeFields),
-            Account<UserAccountEventData>("user_approved", EventOutcome.Success, AccountChangeFields),
-            Account<UserAccountEventData>("user_disabled", EventOutcome.Neutral, AccountChangeFields),
-            Account<UserAccountEventData>("user_tier_changed", EventOutcome.Neutral, AccountChangeFields),
-            Account<UserAccountEventData>("user_deleted", EventOutcome.Neutral, AccountChangeFields),
+            Account<UserAccountEventData>("user.provisioned", EventOutcome.Neutral, AccountChangeFields),
+            Account<UserAccountEventData>("user.approved", EventOutcome.Success, AccountChangeFields),
+            Account<UserAccountEventData>("user.disabled", EventOutcome.Neutral, AccountChangeFields),
+            Account<UserAccountEventData>("user.tier_changed", EventOutcome.Neutral, AccountChangeFields),
+            Account<UserAccountEventData>("user.deleted", EventOutcome.Neutral, AccountChangeFields),
 
             // ⚠ Records that a credential was set and by whom. Never the credential.
-            Account<UserAccountEventData>("user_password_changed", EventOutcome.Neutral, AccountChangeFields),
+            Account<UserAccountEventData>("user.password_changed", EventOutcome.Neutral, AccountChangeFields),
 
-            Account<IdentityLinkEventData>("identity_linked", EventOutcome.Neutral, IdentityFields),
-            Account<IdentityLinkEventData>("identity_unlinked", EventOutcome.Neutral, IdentityFields),
+            Account<IdentityLinkEventData>("identity.linked", EventOutcome.Neutral, IdentityFields),
+            Account<IdentityLinkEventData>("identity.unlinked", EventOutcome.Neutral, IdentityFields),
 
             // -- leaf services -----------------------------------------------------------------
-            Service<ServiceProvisioningEventData>("service_connected", EventOutcome.Success, [Leaf, DisplayName]),
-            Service<ServiceProvisioningEventData>("service_disconnected", EventOutcome.Neutral, [Leaf, DisplayName]),
+            Service<ServiceProvisioningEventData>("service.connected", EventOutcome.Success, [Leaf, DisplayName]),
+            Service<ServiceProvisioningEventData>("service.disconnected", EventOutcome.Neutral, [Leaf, DisplayName]),
 
             // Keys only. A leaf's configuration holds tokens and passwords, so the value a change set
             // is not part of the fact that it changed.
-            Service<ServiceConfigChangedEventData>("service_config_changed", EventOutcome.Neutral,
+            Service<ServiceConfigChangedEventData>("service.config_changed", EventOutcome.Neutral,
                 [Leaf, DisplayName, Field("Keys", FieldShape.Text), Field("Outcome", FieldShape.Text)]),
 
-            Service<ServiceRestartedEventData>("service_restarted", EventOutcome.Neutral,
+            Service<ServiceRestartedEventData>("service.restarted", EventOutcome.Neutral,
                 [Leaf, DisplayName, Field("Unit", FieldShape.Text), Ok]),
 
             // -- what a leaf says about ITSELF --------------------------------------------------
@@ -343,9 +367,9 @@ public static class KgsmEventCatalog
             // Instance-subject because that is what they are about, even though the Control Panel and
             // not the engine performed them. ⚠ Both carry an identity of the bytes and never the bytes:
             // an instance config file holds rcon passwords, and a world is somebody's data.
-            Instance<FileWrittenEventData>("file_written", EventWeight.Fact, EventOutcome.Neutral,
+            Instance<FileWrittenEventData>("file.written", EventWeight.Fact, EventOutcome.Neutral,
                 [Path, SizeBytes, Sha256]),
-            Instance<BackupDownloadedEventData>("backup_downloaded", EventWeight.Fact, EventOutcome.Neutral,
+            Instance<BackupDownloadedEventData>("backup.downloaded", EventWeight.Fact, EventOutcome.Neutral,
                 [Field("BackupId", FieldShape.Text), SizeBytes, Sha256]),
         };
 

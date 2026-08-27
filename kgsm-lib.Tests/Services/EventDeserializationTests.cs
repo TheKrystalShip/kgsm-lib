@@ -56,12 +56,12 @@ public class EventDeserializationTests
     // `LifecycleManager` field has since been removed from KGSM's payloads; it is retained here on
     // purpose to prove the lib tolerates (ignores) the legacy field rather than throwing on it.
     private const string RestartedWireJson = """
-        {"EventType":"instance_restarted","Data":{"InstanceName":"7dtd","LifecycleManager":"standalone"},"Timestamp":"2026-06-11T21:00:43Z","Hostname":"hotrod","KGSMVersion":"unknown"}
+        {"EventType":"server.restarted","Data":{"InstanceName":"7dtd","LifecycleManager":"standalone"},"Timestamp":"2026-06-11T21:00:43Z","Hostname":"hotrod","KGSMVersion":"unknown"}
         """;
 
     // Captured verbatim from kgsm `_build_event_payload instance_download_failed 7dtd`.
     private const string DownloadFailedWireJson = """
-        {"EventType":"instance_download_failed","Data":{"InstanceName":"7dtd"},"Timestamp":"2026-06-11T21:00:43Z","Hostname":"hotrod","KGSMVersion":"unknown"}
+        {"EventType":"server.download.failed","Data":{"InstanceName":"7dtd"},"Timestamp":"2026-06-11T21:00:43Z","Hostname":"hotrod","KGSMVersion":"unknown"}
         """;
 
     [Fact]
@@ -70,7 +70,7 @@ public class EventDeserializationTests
         (string eventType, EventDataBase? data) = Deserialize(
             RestartedWireJson, typeof(InstanceRestartedData));
 
-        Assert.Equal("instance_restarted", eventType);
+        Assert.Equal("server.restarted", eventType);
         var restarted = Assert.IsType<InstanceRestartedData>(data);
         Assert.Equal("7dtd", restarted.InstanceName);
         // The legacy `LifecycleManager` field in the payload is unmapped and silently ignored
@@ -83,7 +83,7 @@ public class EventDeserializationTests
         (string eventType, EventDataBase? data) = Deserialize(
             DownloadFailedWireJson, typeof(InstanceDownloadFailedData));
 
-        Assert.Equal("instance_download_failed", eventType);
+        Assert.Equal("server.download.failed", eventType);
         var failed = Assert.IsType<InstanceDownloadFailedData>(data);
         Assert.Equal("7dtd", failed.InstanceName);
     }
@@ -91,7 +91,7 @@ public class EventDeserializationTests
     // Captured verbatim from the journal after a live `kgsm instances check-update starbound --emit`.
     // Origin is null because a bare CLI call declares no surface — the scheduler's sweep stamps one.
     private const string UpdateAvailableWireJson = """
-        {"EventType":"instance_update_available","Data":{"InstanceName":"starbound","CurrentVersion":"16000000","LatestVersion":"16302742"},"Timestamp":"2026-08-10T11:17:48Z","Actor":"heisen","Origin":null,"Hostname":"hotrod","KGSMVersion":"3.12.0-rc5"}
+        {"EventType":"server.update.available","Data":{"InstanceName":"starbound","CurrentVersion":"16000000","LatestVersion":"16302742"},"Timestamp":"2026-08-10T11:17:48Z","Actor":"heisen","Origin":null,"Hostname":"hotrod","KGSMVersion":"3.12.0-rc5"}
         """;
 
     [Fact]
@@ -100,7 +100,7 @@ public class EventDeserializationTests
         (string eventType, EventDataBase? data) =
             Deserialize(UpdateAvailableWireJson, typeof(InstanceUpdateAvailableData));
 
-        Assert.Equal("instance_update_available", eventType);
+        Assert.Equal("server.update.available", eventType);
         var available = Assert.IsType<InstanceUpdateAvailableData>(data);
         Assert.Equal("starbound", available.InstanceName);
 
@@ -116,13 +116,13 @@ public class EventDeserializationTests
     // form). Reconstructed from the payload builder; the BashEventRegistry conformance test
     // pins the event name against the real sibling kgsm.
     private const string CrashedWireJson = """
-        {"EventType":"instance_crashed","Data":{"InstanceName":"7dtd","ExitCode":"139","Restarts":"2"},"Timestamp":"2026-06-15T08:00:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"unknown"}
+        {"EventType":"server.crashed","Data":{"InstanceName":"7dtd","ExitCode":"139","Restarts":"2"},"Timestamp":"2026-06-15T08:00:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"unknown"}
         """;
 
     // The give-up event: the supervisor exhausted its retries. ExitCode is the literal
     // "unknown" here — the respawn could not read a code — never a fabricated 0.
     private const string FailedWireJson = """
-        {"EventType":"instance_failed","Data":{"InstanceName":"7dtd","ExitCode":"unknown","Restarts":"5"},"Timestamp":"2026-06-15T08:00:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"unknown"}
+        {"EventType":"server.crash.exhausted","Data":{"InstanceName":"7dtd","ExitCode":"unknown","Restarts":"5"},"Timestamp":"2026-06-15T08:00:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"unknown"}
         """;
 
     [Fact]
@@ -138,7 +138,7 @@ public class EventDeserializationTests
         (string eventType, EventDataBase? data) =
             Deserialize(CrashedWireJson, typeof(InstanceCrashedData));
 
-        Assert.Equal("instance_crashed", eventType);
+        Assert.Equal("server.crashed", eventType);
         var crashed = Assert.IsType<InstanceCrashedData>(data);
         Assert.Equal("7dtd", crashed.InstanceName);
         Assert.Equal("139", crashed.ExitCode);
@@ -151,7 +151,7 @@ public class EventDeserializationTests
         (string eventType, EventDataBase? data) =
             Deserialize(FailedWireJson, typeof(InstanceFailedData));
 
-        Assert.Equal("instance_failed", eventType);
+        Assert.Equal("server.crash.exhausted", eventType);
         var failed = Assert.IsType<InstanceFailedData>(data);
         Assert.Equal("7dtd", failed.InstanceName);
         // Honest unknown — the unreadable exit code is "unknown", not a fabricated code.
@@ -166,12 +166,12 @@ public class EventDeserializationTests
     // same shape `instances info --json` emits), built via jq --argjson — never an
     // opaque UFW string. Stamped with the caller's actor/origin (here a kgsm-api emit).
     private const string PortsOpenedWireJson = """
-        {"EventType":"instance_ports_opened","Data":{"InstanceName":"factorio-01","Ports":[{"start":34197,"end":34197,"protocol":"udp"},{"start":27015,"end":27020,"protocol":"tcp"}]},"Timestamp":"2026-06-16T08:00:00Z","Actor":"discord:tester","Origin":"api","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+        {"EventType":"network.ports.opened","Data":{"InstanceName":"factorio-01","Ports":[{"start":34197,"end":34197,"protocol":"udp"},{"start":27015,"end":27020,"protocol":"tcp"}]},"Timestamp":"2026-06-16T08:00:00Z","Actor":"discord:tester","Origin":"api","Hostname":"hotrod","KGSMVersion":"3.0.0"}
         """;
 
     // The close event with a single proto-less-expanded port (one entry here for variety).
     private const string PortsClosedWireJson = """
-        {"EventType":"instance_ports_closed","Data":{"InstanceName":"factorio-01","Ports":[{"start":7777,"end":7777,"protocol":"tcp"}]},"Timestamp":"2026-06-16T08:00:00Z","Actor":"system","Origin":"api","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+        {"EventType":"network.ports.closed","Data":{"InstanceName":"factorio-01","Ports":[{"start":7777,"end":7777,"protocol":"tcp"}]},"Timestamp":"2026-06-16T08:00:00Z","Actor":"system","Origin":"api","Hostname":"hotrod","KGSMVersion":"3.0.0"}
         """;
 
     [Fact]
@@ -180,7 +180,7 @@ public class EventDeserializationTests
         (string eventType, EventDataBase? data) =
             Deserialize(PortsOpenedWireJson, typeof(InstancePortsOpenedData));
 
-        Assert.Equal("instance_ports_opened", eventType);
+        Assert.Equal("network.ports.opened", eventType);
         var opened = Assert.IsType<InstancePortsOpenedData>(data);
         Assert.Equal("factorio-01", opened.InstanceName);
 
@@ -197,7 +197,7 @@ public class EventDeserializationTests
         (string eventType, EventDataBase? data) =
             Deserialize(PortsClosedWireJson, typeof(InstancePortsClosedData));
 
-        Assert.Equal("instance_ports_closed", eventType);
+        Assert.Equal("network.ports.closed", eventType);
         var closed = Assert.IsType<InstancePortsClosedData>(data);
         Assert.Equal("factorio-01", closed.InstanceName);
         Assert.Single(closed.Ports);
@@ -208,18 +208,18 @@ public class EventDeserializationTests
     // forward, not a ufw rule). Emitted by the resident supervisor after upnpc exits 0, stamped
     // Actor=system / Origin=system (an autonomous daemon action). Same structured Ports shape.
     private const string UpnpOpenedWireJson = """
-        {"EventType":"instance_upnp_opened","Data":{"InstanceName":"factorio-01","Ports":[{"start":34197,"end":34197,"protocol":"udp"},{"start":27015,"end":27020,"protocol":"tcp"}]},"Timestamp":"2026-06-20T08:00:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+        {"EventType":"network.upnp.opened","Data":{"InstanceName":"factorio-01","Ports":[{"start":34197,"end":34197,"protocol":"udp"},{"start":27015,"end":27020,"protocol":"tcp"}]},"Timestamp":"2026-06-20T08:00:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"3.0.0"}
         """;
 
     private const string UpnpClosedWireJson = """
-        {"EventType":"instance_upnp_closed","Data":{"InstanceName":"factorio-01","Ports":[{"start":7777,"end":7777,"protocol":"udp"}]},"Timestamp":"2026-06-20T08:00:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+        {"EventType":"network.upnp.closed","Data":{"InstanceName":"factorio-01","Ports":[{"start":7777,"end":7777,"protocol":"udp"}]},"Timestamp":"2026-06-20T08:00:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"3.0.0"}
         """;
 
     // The sweep's re-assert: the router dropped a forward while the instance kept running. Ports
     // carries only the subset that was missing, so a partial restoration deserializes as exactly
     // what was restored.
     private const string UpnpReassertedWireJson = """
-        {"EventType":"instance_upnp_reasserted","Data":{"InstanceName":"factorio-01","Ports":[{"start":27015,"end":27020,"protocol":"tcp"}]},"Timestamp":"2026-06-20T08:00:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+        {"EventType":"network.upnp.reasserted","Data":{"InstanceName":"factorio-01","Ports":[{"start":27015,"end":27020,"protocol":"tcp"}]},"Timestamp":"2026-06-20T08:00:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"3.0.0"}
         """;
 
     [Fact]
@@ -228,7 +228,7 @@ public class EventDeserializationTests
         (string eventType, EventDataBase? data) =
             Deserialize(UpnpOpenedWireJson, typeof(InstanceUpnpOpenedData));
 
-        Assert.Equal("instance_upnp_opened", eventType);
+        Assert.Equal("network.upnp.opened", eventType);
         var opened = Assert.IsType<InstanceUpnpOpenedData>(data);
         Assert.Equal("factorio-01", opened.InstanceName);
 
@@ -245,7 +245,7 @@ public class EventDeserializationTests
         (string eventType, EventDataBase? data) =
             Deserialize(UpnpClosedWireJson, typeof(InstanceUpnpClosedData));
 
-        Assert.Equal("instance_upnp_closed", eventType);
+        Assert.Equal("network.upnp.closed", eventType);
         var closed = Assert.IsType<InstanceUpnpClosedData>(data);
         Assert.Equal("factorio-01", closed.InstanceName);
         Assert.Single(closed.Ports);
@@ -258,7 +258,7 @@ public class EventDeserializationTests
         (string eventType, EventDataBase? data) =
             Deserialize(UpnpReassertedWireJson, typeof(InstanceUpnpReassertedData));
 
-        Assert.Equal("instance_upnp_reasserted", eventType);
+        Assert.Equal("network.upnp.reasserted", eventType);
         var reasserted = Assert.IsType<InstanceUpnpReassertedData>(data);
         Assert.Equal("factorio-01", reasserted.InstanceName);
 
@@ -273,13 +273,13 @@ public class EventDeserializationTests
     // null when empty by the builder — never an empty string). Forwarded by the watchdog from a
     // container's in-image shim → stamped Actor=system / Origin=system (an autonomous observation).
     private const string PlayerJoinedWireJson = """
-        {"EventType":"instance_player_joined","Data":{"InstanceName":"factorio-01","PlayerId":"76561198000000000","PlayerName":"haru"},"Timestamp":"2026-06-20T08:00:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+        {"EventType":"player.joined","Data":{"InstanceName":"factorio-01","PlayerId":"76561198000000000","PlayerName":"haru"},"Timestamp":"2026-06-20T08:00:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"3.0.0"}
         """;
 
     // The leave event with a NAME-ONLY source: PlayerId is JSON null (the source gave no stable id) —
     // surfaced honestly as null, never a fabricated id. The at-least-one-non-null rule is the shim's job.
     private const string PlayerLeftWireJson = """
-        {"EventType":"instance_player_left","Data":{"InstanceName":"factorio-01","PlayerId":null,"PlayerName":"haru"},"Timestamp":"2026-06-20T08:05:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+        {"EventType":"player.left","Data":{"InstanceName":"factorio-01","PlayerId":null,"PlayerName":"haru"},"Timestamp":"2026-06-20T08:05:00Z","Actor":"system","Origin":"system","Hostname":"hotrod","KGSMVersion":"3.0.0"}
         """;
 
     [Fact]
@@ -295,7 +295,7 @@ public class EventDeserializationTests
         (string eventType, EventDataBase? data) =
             Deserialize(PlayerJoinedWireJson, typeof(InstancePlayerJoinedData));
 
-        Assert.Equal("instance_player_joined", eventType);
+        Assert.Equal("player.joined", eventType);
         var joined = Assert.IsType<InstancePlayerJoinedData>(data);
         Assert.Equal("factorio-01", joined.InstanceName);
         Assert.Equal("76561198000000000", joined.PlayerId);
@@ -308,7 +308,7 @@ public class EventDeserializationTests
         (string eventType, EventDataBase? data) =
             Deserialize(PlayerLeftWireJson, typeof(InstancePlayerLeftData));
 
-        Assert.Equal("instance_player_left", eventType);
+        Assert.Equal("player.left", eventType);
         var left = Assert.IsType<InstancePlayerLeftData>(data);
         Assert.Equal("factorio-01", left.InstanceName);
         // Name-only source: the id is honestly null, not a fabricated value.
@@ -322,15 +322,15 @@ public class EventDeserializationTests
     // romestead's blueprint declares `kick {ip}`; Command is what the engine resolved
     // and actually delivered.
     private const string PlayerKickedWireJson = """
-        {"EventType":"instance_player_kicked","Data":{"InstanceName":"romestead","Target":"95.19.50.122","Command":"kick 95.19.50.122"},"Timestamp":"2026-08-04T20:31:00Z","Actor":"heisen","Origin":"cli","Hostname":"hotrod","KGSMVersion":"3.7.0-rc1"}
+        {"EventType":"player.kicked","Data":{"InstanceName":"romestead","Target":"95.19.50.122","Command":"kick 95.19.50.122"},"Timestamp":"2026-08-04T20:31:00Z","Actor":"heisen","Origin":"cli","Hostname":"hotrod","KGSMVersion":"3.7.0-rc1"}
         """;
 
     private const string PlayerBannedWireJson = """
-        {"EventType":"instance_player_banned","Data":{"InstanceName":"romestead","Target":"95.19.50.122","Command":"ban 95.19.50.122"},"Timestamp":"2026-08-04T20:31:02Z","Actor":"heisen","Origin":"cli","Hostname":"hotrod","KGSMVersion":"3.7.0-rc1"}
+        {"EventType":"player.banned","Data":{"InstanceName":"romestead","Target":"95.19.50.122","Command":"ban 95.19.50.122"},"Timestamp":"2026-08-04T20:31:02Z","Actor":"heisen","Origin":"cli","Hostname":"hotrod","KGSMVersion":"3.7.0-rc1"}
         """;
 
     private const string PlayerUnbannedWireJson = """
-        {"EventType":"instance_player_unbanned","Data":{"InstanceName":"romestead","Target":"95.19.50.122","Command":"unban 95.19.50.122"},"Timestamp":"2026-08-04T20:31:04Z","Actor":"heisen","Origin":"cli","Hostname":"hotrod","KGSMVersion":"3.7.0-rc1"}
+        {"EventType":"player.unbanned","Data":{"InstanceName":"romestead","Target":"95.19.50.122","Command":"unban 95.19.50.122"},"Timestamp":"2026-08-04T20:31:04Z","Actor":"heisen","Origin":"cli","Hostname":"hotrod","KGSMVersion":"3.7.0-rc1"}
         """;
 
     [Fact]
@@ -339,7 +339,7 @@ public class EventDeserializationTests
         (string eventType, EventDataBase? data) =
             Deserialize(PlayerKickedWireJson, typeof(InstancePlayerKickedData));
 
-        Assert.Equal("instance_player_kicked", eventType);
+        Assert.Equal("player.kicked", eventType);
         var kicked = Assert.IsType<InstancePlayerKickedData>(data);
         Assert.Equal("romestead", kicked.InstanceName);
         Assert.Equal("95.19.50.122", kicked.Target);
@@ -352,7 +352,7 @@ public class EventDeserializationTests
         (string eventType, EventDataBase? data) =
             Deserialize(PlayerBannedWireJson, typeof(InstancePlayerBannedData));
 
-        Assert.Equal("instance_player_banned", eventType);
+        Assert.Equal("player.banned", eventType);
         var banned = Assert.IsType<InstancePlayerBannedData>(data);
         Assert.Equal("95.19.50.122", banned.Target);
         Assert.Equal("ban 95.19.50.122", banned.Command);
@@ -364,7 +364,7 @@ public class EventDeserializationTests
         (string eventType, EventDataBase? data) =
             Deserialize(PlayerUnbannedWireJson, typeof(InstancePlayerUnbannedData));
 
-        Assert.Equal("instance_player_unbanned", eventType);
+        Assert.Equal("player.unbanned", eventType);
         var unbanned = Assert.IsType<InstancePlayerUnbannedData>(data);
         Assert.Equal("95.19.50.122", unbanned.Target);
         Assert.Equal("unban 95.19.50.122", unbanned.Command);
@@ -388,7 +388,7 @@ public class EventDeserializationTests
     // enrichment (reconstructed from a captured emit; JSON is whitespace/order-
     // insensitive): the envelope now carries a top-level Actor alongside Timestamp.
     private const string EnrichedWireJson = """
-        {"EventType":"instance_started","Data":{"InstanceName":"factorio-01"},"Timestamp":"2026-06-14T15:39:58Z","Actor":"discord:tester","Hostname":"hotrod","KGSMVersion":"3.0.0"}
+        {"EventType":"server.started","Data":{"InstanceName":"factorio-01"},"Timestamp":"2026-06-14T15:39:58Z","Actor":"discord:tester","Hostname":"hotrod","KGSMVersion":"3.0.0"}
         """;
 
     [Fact]
@@ -398,7 +398,7 @@ public class EventDeserializationTests
             JsonSerializer.Deserialize(EnrichedWireJson, KgsmJsonContext.Default.EventWrapper);
 
         Assert.NotNull(wrapper);
-        Assert.Equal("instance_started", wrapper!.EventType);
+        Assert.Equal("server.started", wrapper!.EventType);
         Assert.Equal("discord:tester", wrapper.Actor);
         Assert.Equal(
             new DateTimeOffset(2026, 6, 14, 15, 39, 58, TimeSpan.Zero),
@@ -414,7 +414,7 @@ public class EventDeserializationTests
         // A pre-enrichment / minimal payload: the new envelope fields are honestly
         // absent (null), never a fabricated default.
         const string minimalWire =
-            """{"EventType":"instance_started","Data":{"InstanceName":"x"}}""";
+            """{"EventType":"server.started","Data":{"InstanceName":"x"}}""";
 
         EventWrapper? wrapper =
             JsonSerializer.Deserialize(minimalWire, KgsmJsonContext.Default.EventWrapper);
@@ -457,11 +457,11 @@ public class EventDeserializationTests
 
     // Both captured verbatim from the host journal, written by the engine's own emitter.
     private const string InstalledWireJson = """
-        {"V":1,"Id":"01a02c76-c506-785f-a11d-5ecf54837ea7","EventType":"instance_installed","Data":{"InstanceName":"fac-move","Blueprint":"factorio","Library":"scratch-a"},"Timestamp":"2026-08-23T02:32:56.328Z","Actor":"heisen","Origin":null,"Hostname":"hotrod","ProducerVersion":"3.17.0-rc10"}
+        {"V":1,"Id":"01a02c76-c506-785f-a11d-5ecf54837ea7","EventType":"server.installed","Data":{"InstanceName":"fac-move","Blueprint":"factorio","Library":"scratch-a"},"Timestamp":"2026-08-23T02:32:56.328Z","Actor":"heisen","Origin":null,"Hostname":"hotrod","ProducerVersion":"3.17.0-rc10"}
         """;
 
     private const string MovedWireJson = """
-        {"V":1,"Id":"01a02c84-e4e4-7b57-b8ce-3483f2a6183e","EventType":"instance_moved","Data":{"InstanceName":"fac-move","FromLibrary":"scratch-a","ToLibrary":"scratch-b"},"Timestamp":"2026-08-23T02:48:21.990Z","Actor":"heisen","Origin":null,"Hostname":"hotrod","ProducerVersion":"3.17.0-rc10"}
+        {"V":1,"Id":"01a02c84-e4e4-7b57-b8ce-3483f2a6183e","EventType":"server.moved","Data":{"InstanceName":"fac-move","FromLibrary":"scratch-a","ToLibrary":"scratch-b"},"Timestamp":"2026-08-23T02:48:21.990Z","Actor":"heisen","Origin":null,"Hostname":"hotrod","ProducerVersion":"3.17.0-rc10"}
         """;
 
     [Fact]
@@ -470,7 +470,7 @@ public class EventDeserializationTests
         (string eventType, EventDataBase? data) = Deserialize(
             InstalledWireJson, typeof(InstanceInstalledData));
 
-        Assert.Equal("instance_installed", eventType);
+        Assert.Equal("server.installed", eventType);
         var installed = Assert.IsType<InstanceInstalledData>(data);
         Assert.Equal("fac-move", installed.InstanceName);
         Assert.Equal("factorio", installed.Blueprint);
@@ -485,7 +485,7 @@ public class EventDeserializationTests
         (string eventType, EventDataBase? data) = Deserialize(
             MovedWireJson, typeof(InstanceMovedData));
 
-        Assert.Equal("instance_moved", eventType);
+        Assert.Equal("server.moved", eventType);
         var moved = Assert.IsType<InstanceMovedData>(data);
         Assert.Equal("fac-move", moved.InstanceName);
         Assert.Equal("scratch-a", moved.FromLibrary);
@@ -495,7 +495,7 @@ public class EventDeserializationTests
     [Fact]
     public void MovedEvent_IsClassifiedAsAnInstanceFact()
     {
-        EventDescriptor descriptor = KgsmEventCatalog.Describe("instance_moved");
+        EventDescriptor descriptor = KgsmEventCatalog.Describe("server.moved");
 
         Assert.True(descriptor.Known);
         Assert.Equal(typeof(InstanceMovedData), descriptor.PayloadType);
@@ -594,17 +594,17 @@ public class EventDeserializationTests
 
     // All three captured verbatim from a live `kgsm events emit` through the socket transport.
     private const string BlueprintUpdatedWireJson = """
-        {"EventType":"blueprint_updated","Data":{"BlueprintName":"terraria","Tier":"user","OverridesSystem":true,"Runtime":"native"},"Timestamp":"2026-07-27T18:46:50Z","Actor":"discord:987654321","Origin":"ui","Hostname":"hotrod","KGSMVersion":"3.1.2-rc9"}
+        {"EventType":"blueprint.updated","Data":{"BlueprintName":"terraria","Tier":"user","OverridesSystem":true,"Runtime":"native"},"Timestamp":"2026-07-27T18:46:50Z","Actor":"discord:987654321","Origin":"ui","Hostname":"hotrod","KGSMVersion":"3.1.2-rc9"}
         """;
 
     private const string BlueprintRemovedWireJson = """
-        {"EventType":"blueprint_removed","Data":{"BlueprintName":"teamfortress2","Tier":"user","RevertedToSystem":false},"Timestamp":"2026-07-27T18:46:51Z","Actor":"user:heisen","Origin":"api","Hostname":"hotrod","KGSMVersion":"3.1.2-rc9"}
+        {"EventType":"blueprint.removed","Data":{"BlueprintName":"teamfortress2","Tier":"user","RevertedToSystem":false},"Timestamp":"2026-07-27T18:46:51Z","Actor":"user:heisen","Origin":"api","Hostname":"hotrod","KGSMVersion":"3.1.2-rc9"}
         """;
 
     // Emitted with no runtime argument and no provenance env vars: the engine renders the unknown
     // runtime and the undeclared origin as JSON null, and falls back to the invoking OS user for the actor.
     private const string BlueprintCreatedWireJson = """
-        {"EventType":"blueprint_created","Data":{"BlueprintName":"odd","Tier":"user","OverridesSystem":false,"Runtime":null},"Timestamp":"2026-07-27T18:46:51Z","Actor":"heisen","Origin":null,"Hostname":"hotrod","KGSMVersion":"3.1.2-rc9"}
+        {"EventType":"blueprint.created","Data":{"BlueprintName":"odd","Tier":"user","OverridesSystem":false,"Runtime":null},"Timestamp":"2026-07-27T18:46:51Z","Actor":"heisen","Origin":null,"Hostname":"hotrod","KGSMVersion":"3.1.2-rc9"}
         """;
 
     [Fact]
@@ -613,7 +613,7 @@ public class EventDeserializationTests
         (string eventType, KgsmEventDataBase? data) =
             DeserializeAny(BlueprintUpdatedWireJson, typeof(BlueprintUpdatedData));
 
-        Assert.Equal("blueprint_updated", eventType);
+        Assert.Equal("blueprint.updated", eventType);
         var updated = Assert.IsType<BlueprintUpdatedData>(data);
         Assert.Equal("terraria", updated.BlueprintName);
         Assert.Equal(BlueprintTier.User, updated.Tier);
@@ -630,7 +630,7 @@ public class EventDeserializationTests
         (string eventType, KgsmEventDataBase? data) =
             DeserializeAny(BlueprintRemovedWireJson, typeof(BlueprintRemovedData));
 
-        Assert.Equal("blueprint_removed", eventType);
+        Assert.Equal("blueprint.removed", eventType);
         var removed = Assert.IsType<BlueprintRemovedData>(data);
         Assert.Equal("teamfortress2", removed.BlueprintName);
         Assert.False(removed.RevertedToSystem); // nothing was restored — the blueprint is gone
@@ -642,7 +642,7 @@ public class EventDeserializationTests
         (string eventType, KgsmEventDataBase? data) =
             DeserializeAny(BlueprintCreatedWireJson, typeof(BlueprintCreatedData));
 
-        Assert.Equal("blueprint_created", eventType);
+        Assert.Equal("blueprint.created", eventType);
         var created = Assert.IsType<BlueprintCreatedData>(data);
         Assert.Equal("odd", created.BlueprintName);
         Assert.False(created.OverridesSystem);

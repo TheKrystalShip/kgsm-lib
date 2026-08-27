@@ -630,9 +630,12 @@ public sealed class JournalConformanceTests : IDisposable
     {
         var recorder = new TestRecorder(Writer("kgsm-watchdog"));
 
-        await recorder.RecordTypeAsync("instance-ready");
+        // Named for nothing in the vocabulary on purpose: this is about the spelling a call site may
+        // use, not about which events exist. Resolving a name that has been renamed is a separate
+        // thing that happens where a line is read.
+        await recorder.RecordTypeAsync("thing-happened");
 
-        Assert.Equal("instance_ready", ReadOnlyLine("kgsm-watchdog").GetProperty("EventType").GetString());
+        Assert.Equal("thing_happened", ReadOnlyLine("kgsm-watchdog").GetProperty("EventType").GetString());
     }
 
     [Fact]

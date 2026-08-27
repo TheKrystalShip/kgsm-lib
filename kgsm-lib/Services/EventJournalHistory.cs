@@ -494,6 +494,13 @@ public sealed class EventJournalHistory : IEventJournalHistory
         try
         {
             EventWrapper? wrapper = JsonSerializer.Deserialize(line, KgsmJsonContext.Default.EventWrapper);
+
+                // A journal holds what earlier builds wrote for as long as retention keeps it, so a
+                // line can carry a name that has since been renamed. Resolved here, once, so every
+                // consumer above works in the current vocabulary and none of them carries a second
+                // name for anything.
+            if (wrapper is not null)
+                wrapper.EventType = LegacyEventNames.Canonical(wrapper.EventType);
             if (wrapper is null || string.IsNullOrEmpty(wrapper.EventType))
             {
                 _logger.LogWarning("Event journal {Path}+{Offset} holds no readable event", path, offset);

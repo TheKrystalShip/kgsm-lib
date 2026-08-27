@@ -90,15 +90,15 @@ public sealed class LeafStateTests : IDisposable
     {
         Write(
             Degraded("hearing"),
-            """{"V":1,"EventType":"instance_started","Data":{"InstanceName":"a"},"Timestamp":"2026-08-16T10:00:00.000Z"}""");
+            """{"V":1,"EventType":"server.started","Data":{"InstanceName":"a"},"Timestamp":"2026-08-16T10:00:00.000Z"}""");
 
         Assert.Equal(["hearing"], LeafState.DegradedComponents(_directory));
     }
 
     [Theory]
     [InlineData("not json")]
-    [InlineData("""{"V":1,"EventType":"leaf_degraded","Data":{},"Timestamp":"2026-08-16T10:00:00.000Z"}""")]
-    [InlineData("""{"V":1,"EventType":"leaf_degraded","Data":"x","Timestamp":"2026-08-16T10:00:00.000Z"}""")]
+    [InlineData("""{"V":1,"EventType":"leaf.degraded","Data":{},"Timestamp":"2026-08-16T10:00:00.000Z"}""")]
+    [InlineData("""{"V":1,"EventType":"leaf.degraded","Data":"x","Timestamp":"2026-08-16T10:00:00.000Z"}""")]
     public void A_line_that_names_no_component_says_nothing_about_the_state(string line)
     {
         Write(line);
@@ -132,7 +132,7 @@ public sealed class LeafStateTests : IDisposable
     private static string Recovered(string component) => Line(LeafLifecycleEvents.Recovered, component);
 
     private static string Ready() =>
-        """{"V":1,"EventType":"leaf_ready","Data":{"StartupMs":5},"Timestamp":"2026-08-16T10:00:00.000Z"}""";
+        """{"V":1,"EventType":"leaf.ready","Data":{"StartupMs":5},"Timestamp":"2026-08-16T10:00:00.000Z"}""";
 
     private static string Line(string type, string component) => $$"""
         {"V":1,"EventType":"{{type}}","Data":{"Component":"{{component}}"},"Timestamp":"2026-08-16T10:00:00.000Z"}

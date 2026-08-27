@@ -33,7 +33,7 @@ public static class AssistantEvents
     /// scores the same checks against a fixed corpus, which is a different question from what the
     /// shipped prompt does with what people actually ask.
     /// </remarks>
-    public const string ClaimCorrected = "assistant_claim_corrected";
+    public const string ClaimCorrected = "assistant.claim.corrected";
 
     /// <summary>
     /// <c>assistant_action_declined</c> — somebody reached for an action their tier does not carry.
@@ -43,7 +43,7 @@ public static class AssistantEvents
     /// commands, too many searches, a repeated lookup — and those are loop guards firing on ordinary
     /// model over-eagerness, not somebody reaching past their permissions.
     /// </remarks>
-    public const string ActionDeclined = "assistant_action_declined";
+    public const string ActionDeclined = "assistant.action.declined";
 
     /// <summary>
     /// <c>assistant_action_proposed</c> — a mutation was staged and is waiting on a person.
@@ -52,17 +52,17 @@ public static class AssistantEvents
     /// Nothing has run: the engine has no record of a proposal until somebody confirms it, and one
     /// that expires unapproved is invisible everywhere else.
     /// </remarks>
-    public const string ActionProposed = "assistant_action_proposed";
+    public const string ActionProposed = "assistant.action.proposed";
 
     /// <summary>
     /// <c>assistant_blueprint_authoring_started</c> — a blueprint-authoring run began.
     /// </summary>
-    public const string BlueprintAuthoringStarted = "assistant_blueprint_authoring_started";
+    public const string BlueprintAuthoringStarted = "assistant.blueprint.authoring_started";
 
     /// <summary>
     /// <c>assistant_blueprint_authored</c> — a blueprint-authoring run concluded, however it ended.
     /// </summary>
-    public const string BlueprintAuthored = "assistant_blueprint_authored";
+    public const string BlueprintAuthored = "assistant.blueprint.authored";
 }
 
 /// <summary>

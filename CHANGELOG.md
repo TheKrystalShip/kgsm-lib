@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — one dotted vocabulary (`TheKrystalShip.KGSM.Journal` 2.1.0, `TheKrystalShip.KGSM.Lib` 8.3.0)
+
+Every event is named the way a reader groups it: domain first, past tense, an outcome as its own
+segment — `network.ports.opened`, `server.update.failed`, `backup.created`. The name's hierarchy is
+what a consumer keys its presentation off, so the vocabulary's own structure replaces the table that
+used to translate an engine name into a display one.
+
+`LegacyEventNames` resolves a name an earlier build wrote, applied where a line is read. Retention
+holds a segment for months, so both spellings are on disk for one retention period after a producer
+cuts over; resolving it once, at the read, is what keeps every consumer above working in a single
+vocabulary. ⚠ The table has an end date and goes with the last legacy line.
+
+An unclassified event's subject is read off its namespace rather than guessed from a prefix, so a
+`blueprint.*` nothing has described is still known to be about a blueprint.
+
 ### Added — the catalog declares how much each event matters (`TheKrystalShip.KGSM.Lib` 8.2.0)
 
 `EventDescriptor.Severity` sits beside `Outcome`, so the engine's vocabulary declares both in the one

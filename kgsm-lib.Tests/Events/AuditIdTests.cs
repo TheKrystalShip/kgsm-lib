@@ -12,7 +12,7 @@ namespace TheKrystalShip.KGSM.Tests.Events;
 public class AuditIdTests
 {
     private static EventWrapper Wrapper(
-        string eventType = "instance_started",
+        string eventType = "server.started",
         string dataJson = """{"InstanceName":"7dtd"}""",
         DateTimeOffset? timestamp = null,
         string? hostname = "hotrod") =>
@@ -71,8 +71,8 @@ public class AuditIdTests
     [Fact]
     public void ForEvent_DifferentEventType_ProducesDifferentId()
     {
-        string a = AuditId.ForEvent(Wrapper(eventType: "instance_started"));
-        string b = AuditId.ForEvent(Wrapper(eventType: "instance_stopped"));
+        string a = AuditId.ForEvent(Wrapper(eventType: "server.started"));
+        string b = AuditId.ForEvent(Wrapper(eventType: "server.stopped"));
 
         Assert.NotEqual(a, b);
     }
@@ -82,7 +82,7 @@ public class AuditIdTests
     {
         EventWrapper NullTimestampWrapper() => new()
         {
-            EventType = "instance_started",
+            EventType = "server.started",
             Data = JsonSerializer.Deserialize<JsonElement>("""{"InstanceName":"7dtd"}"""),
             Timestamp = null,
             Hostname = "hotrod",
@@ -106,7 +106,7 @@ public class AuditIdTests
     [Fact]
     public void ForEvent_UndefinedData_TreatsAsEmpty_Deterministic()
     {
-        var wrapper = new EventWrapper { EventType = "instance_started", Hostname = "hotrod" };
+        var wrapper = new EventWrapper { EventType = "server.started", Hostname = "hotrod" };
 
         string first = AuditId.ForEvent(wrapper);
         string second = AuditId.ForEvent(wrapper);

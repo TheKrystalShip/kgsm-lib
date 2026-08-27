@@ -299,6 +299,13 @@ public class EventService : IEventService, IAsyncDisposable
         {
             EventWrapper? eventWrapper = JsonSerializer.Deserialize(message, KgsmJsonContext.Default.EventWrapper);
 
+                // A journal holds what earlier builds wrote for as long as retention keeps it, so a
+                // line can carry a name that has since been renamed. Resolved here, once, so every
+                // consumer above works in the current vocabulary and none of them carries a second
+                // name for anything.
+            if (eventWrapper is not null)
+                eventWrapper.EventType = LegacyEventNames.Canonical(eventWrapper.EventType);
+
             if (eventWrapper == null || string.IsNullOrWhiteSpace(eventWrapper.EventType))
             {
                 _logger.LogError("Invalid event wrapper received: {Message}", message);

@@ -189,7 +189,7 @@ public class KgsmEventCatalogTests
     [Fact]
     public void AnUnrecognisedBlueprintEventIsNotReadAsBeingAboutAServer()
     {
-        Assert.Equal(EventSubject.Blueprint, KgsmEventCatalog.Describe("blueprint_reticulated").Subject);
+        Assert.Equal(EventSubject.Blueprint, KgsmEventCatalog.Describe("blueprint.reticulated").Subject);
     }
 
     /// <summary>
@@ -215,17 +215,17 @@ public class KgsmEventCatalogTests
     [Theory]
     // The moment players can actually connect — which instance_started does not report; that one says
     // the process launched. Two facts about two different moments.
-    [InlineData("instance_ready", EventWeight.Fact)]
+    [InlineData("server.ready", EventWeight.Fact)]
     // Brackets around an operation whose own event is the news.
-    [InlineData("instance_stop_started", EventWeight.Phase)]
-    [InlineData("instance_stop_finished", EventWeight.Phase)]
-    [InlineData("instance_stopped", EventWeight.Fact)]
+    [InlineData("server.stop.started", EventWeight.Phase)]
+    [InlineData("server.stop.finished", EventWeight.Phase)]
+    [InlineData("server.stopped", EventWeight.Fact)]
     // The middle of a restart is a step inside one operation, not a shutdown somebody asked for —
     // which is the whole reason it is not instance_stopped. Flipping it to Fact would put a "server
     // stopped" row and a "went offline" notification in the middle of every restart.
-    [InlineData("instance_restart_stopped", EventWeight.Phase)]
+    [InlineData("server.restart.stopped", EventWeight.Phase)]
     // A router forward and a host firewall rule are facts about different machines, not steps.
-    [InlineData("instance_upnp_reasserted", EventWeight.Fact)]
+    [InlineData("network.upnp.reasserted", EventWeight.Fact)]
     public void ContestedWeightsAreWhatTheyWereDecidedToBe(string type, EventWeight expected)
     {
         Assert.Equal(expected, KgsmEventCatalog.Describe(type).Weight);
@@ -242,18 +242,18 @@ public class KgsmEventCatalogTests
         // Where somebody connected from. It identifies a person rather than a player, and the game
         // shows it to nobody.
         Assert.Equal(FieldSensitivity.Personal,
-            KgsmEventCatalog.Describe("instance_player_joined").Field("PlayerAddr")!.Sensitivity);
+            KgsmEventCatalog.Describe("player.joined").Field("PlayerAddr")!.Sensitivity);
         Assert.Equal(FieldSensitivity.Personal,
-            KgsmEventCatalog.Describe("instance_player_left").Field("PlayerAddr")!.Sensitivity);
+            KgsmEventCatalog.Describe("player.left").Field("PlayerAddr")!.Sensitivity);
 
         // May be an address, a name or an id — the blueprint declares which, and the event does not
         // carry that. Nothing here may resolve it on a consumer's behalf.
         Assert.Equal(FieldSensitivity.Conditional,
-            KgsmEventCatalog.Describe("instance_player_banned").Field("Target")!.Sensitivity);
+            KgsmEventCatalog.Describe("player.banned").Field("Target")!.Sensitivity);
 
         // Admin-level by nature: a console command can create an operator or carry a token.
         Assert.Equal(FieldSensitivity.Privileged,
-            KgsmEventCatalog.Describe("instance_input_sent").Field("Command")!.Sensitivity);
+            KgsmEventCatalog.Describe("console.input.sent").Field("Command")!.Sensitivity);
     }
 
     /// <summary>
@@ -263,11 +263,11 @@ public class KgsmEventCatalogTests
     [Fact]
     public void StructuredAndMeaninglessFieldsAreMarkedByShape()
     {
-        Assert.Equal(FieldShape.Ports, KgsmEventCatalog.Describe("instance_ports_opened").Field("Ports")!.Shape);
+        Assert.Equal(FieldShape.Ports, KgsmEventCatalog.Describe("network.ports.opened").Field("Ports")!.Shape);
 
         // The supervisor's correlation token: public — it says nothing about anybody — but meaningless
         // to a reader, so nothing renders it for want of meaning rather than for privacy.
-        EventField session = KgsmEventCatalog.Describe("instance_player_joined").Field("SessionKey")!;
+        EventField session = KgsmEventCatalog.Describe("player.joined").Field("SessionKey")!;
         Assert.Equal(FieldShape.Opaque, session.Shape);
         Assert.Equal(FieldSensitivity.Public, session.Sensitivity);
     }
@@ -287,8 +287,8 @@ public class KgsmEventCatalogTests
     {
         // Host, not Instance: a threshold episode may name the server it is about, but it is the host's
         // monitoring that established it, and most episodes name no server at all.
-        EventDescriptor breach = KgsmEventCatalog.Describe("host_threshold_breached");
-        EventDescriptor cleared = KgsmEventCatalog.Describe("host_threshold_cleared");
+        EventDescriptor breach = KgsmEventCatalog.Describe("host.threshold.breached");
+        EventDescriptor cleared = KgsmEventCatalog.Describe("host.threshold.cleared");
 
         Assert.True(breach.Known);
         Assert.True(cleared.Known);
@@ -312,7 +312,7 @@ public class KgsmEventCatalogTests
         // Load-bearing: an episode that ended because its rule was retuned, disabled or removed did not
         // recover — the value was never observed to come down. A consumer that cannot see the reason
         // cannot avoid reporting a measurement nobody took.
-        EventDescriptor cleared = KgsmEventCatalog.Describe("host_threshold_cleared");
+        EventDescriptor cleared = KgsmEventCatalog.Describe("host.threshold.cleared");
 
         Assert.Contains(cleared.Fields, f => f.Name == "CloseReason");
         Assert.Contains(cleared.Fields, f => f.Name == "ClosedTs");
@@ -321,10 +321,10 @@ public class KgsmEventCatalogTests
     }
 
     [Theory]
-    [InlineData("auth_login", "Identity")]
-    [InlineData("auth_login", "UserAgent")]
-    [InlineData("identity_linked", "Handle")]
-    [InlineData("identity_unlinked", "Handle")]
+    [InlineData("auth.signed_in", "Identity")]
+    [InlineData("auth.signed_in", "UserAgent")]
+    [InlineData("identity.linked", "Handle")]
+    [InlineData("identity.unlinked", "Handle")]
     public void An_account_event_marks_what_identifies_a_person(string type, string field)
     {
         // These are the fields that link this host's account to somebody outside it, or describe the
@@ -341,7 +341,7 @@ public class KgsmEventCatalogTests
     {
         // The counterweight to the rule above: withholding the username too would leave a trail that
         // records privilege changing and names nobody, which is not a safer log — it is a useless one.
-        EventDescriptor login = KgsmEventCatalog.Describe("auth_login");
+        EventDescriptor login = KgsmEventCatalog.Describe("auth.signed_in");
 
         Assert.Equal(FieldSensitivity.Public, login.Field("Username")!.Sensitivity);
         Assert.Equal(FieldSensitivity.Public, login.Field("Tier")!.Sensitivity);
@@ -353,7 +353,7 @@ public class KgsmEventCatalogTests
         // The one classification that would leak a credential if it were wrong: a leaf's configuration
         // holds tokens and passwords, so the descriptor has somewhere to put the keys and deliberately
         // nowhere to put what they were set to.
-        EventDescriptor changed = KgsmEventCatalog.Describe("service_config_changed");
+        EventDescriptor changed = KgsmEventCatalog.Describe("service.config_changed");
 
         Assert.Contains(changed.Fields, f => f.Name == "Keys");
         Assert.DoesNotContain(changed.Fields, f =>
@@ -366,12 +366,12 @@ public class KgsmEventCatalogTests
         // A login is not an instance event. Before Account/Service existed, an unrecognised type fell
         // back to Instance by the engine's naming convention — which would have filed every sign-in
         // under whichever server the reader was looking at.
-        Assert.Equal(EventSubject.Account, KgsmEventCatalog.Describe("auth_login").Subject);
-        Assert.Equal(EventSubject.Account, KgsmEventCatalog.Describe("user_tier_changed").Subject);
-        Assert.Equal(EventSubject.Service, KgsmEventCatalog.Describe("service_restarted").Subject);
+        Assert.Equal(EventSubject.Account, KgsmEventCatalog.Describe("auth.signed_in").Subject);
+        Assert.Equal(EventSubject.Account, KgsmEventCatalog.Describe("user.tier_changed").Subject);
+        Assert.Equal(EventSubject.Service, KgsmEventCatalog.Describe("service.restarted").Subject);
 
         // These two genuinely are about one instance, and stay that way.
-        Assert.Equal(EventSubject.Instance, KgsmEventCatalog.Describe("file_written").Subject);
-        Assert.Equal(EventSubject.Instance, KgsmEventCatalog.Describe("backup_downloaded").Subject);
+        Assert.Equal(EventSubject.Instance, KgsmEventCatalog.Describe("file.written").Subject);
+        Assert.Equal(EventSubject.Instance, KgsmEventCatalog.Describe("backup.downloaded").Subject);
     }
 }

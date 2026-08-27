@@ -22,13 +22,13 @@ namespace TheKrystalShip.KGSM.Lifecycle;
 public static class LeafLifecycleEvents
 {
     /// <summary>The leaf is up and able to do its job.</summary>
-    public const string Ready = "leaf_ready";
+    public const string Ready = "leaf.ready";
 
     /// <summary>The leaf is up, and one part of its job is not working.</summary>
-    public const string Degraded = "leaf_degraded";
+    public const string Degraded = "leaf.degraded";
 
     /// <summary>A part that was not working is working again.</summary>
-    public const string Recovered = "leaf_recovered";
+    public const string Recovered = "leaf.recovered";
 
     /// <summary>
     /// The leaf is going away deliberately.
@@ -39,7 +39,7 @@ public static class LeafLifecycleEvents
     /// that needs to know reads the next <see cref="Ready"/> — one with no <see cref="Stopping"/>
     /// before it is an unclean exit, and the journal is already the record that says so.
     /// </remarks>
-    public const string Stopping = "leaf_stopping";
+    public const string Stopping = "leaf.stopping";
 
     /// <summary>
     /// The same four names, typed so the writer can take them.

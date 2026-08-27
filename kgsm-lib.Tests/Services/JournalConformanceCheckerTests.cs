@@ -58,10 +58,10 @@ public sealed class JournalConformanceCheckerTests : IDisposable
     // Every distinct envelope shape measured across the five journals on a live host: an unclaimed
     // engine action with an explicit null actor and origin, a leaf's derived system actor, a
     // surface-driven action, and a producer that omits the optional fields entirely.
-    [InlineData("""{"V":1,"EventType":"instance_created","Data":{"instance":"a"},"Timestamp":"2026-08-16T10:04:37.799Z","Actor":null,"Origin":null,"Hostname":"hotrod","ProducerVersion":"3.16.0-rc3"}""")]
-    [InlineData("""{"V":1,"EventType":"instance_player_left","Data":{"instance":"a"},"Timestamp":"2026-08-16T11:22:47.317Z","Actor":"system:watchdog","Origin":"system","Hostname":"hotrod","ProducerVersion":"1.30.2+f0b7744e2e06"}""")]
-    [InlineData("""{"V":1,"EventType":"instance_ports_opened","Data":{"instance":"a"},"Timestamp":"2026-08-16T09:42:43.417Z","Actor":"discord:heisen9386","Origin":"ui","Hostname":"hotrod","ProducerVersion":"1.7.1+39bf5a539021"}""")]
-    [InlineData("""{"V":1,"EventType":"auth_logout","Data":{},"Timestamp":"2026-08-15T22:41:51.402Z"}""")]
+    [InlineData("""{"V":1,"EventType":"server.install.created","Data":{"instance":"a"},"Timestamp":"2026-08-16T10:04:37.799Z","Actor":null,"Origin":null,"Hostname":"hotrod","ProducerVersion":"3.16.0-rc3"}""")]
+    [InlineData("""{"V":1,"EventType":"player.left","Data":{"instance":"a"},"Timestamp":"2026-08-16T11:22:47.317Z","Actor":"system:watchdog","Origin":"system","Hostname":"hotrod","ProducerVersion":"1.30.2+f0b7744e2e06"}""")]
+    [InlineData("""{"V":1,"EventType":"network.ports.opened","Data":{"instance":"a"},"Timestamp":"2026-08-16T09:42:43.417Z","Actor":"discord:heisen9386","Origin":"ui","Hostname":"hotrod","ProducerVersion":"1.7.1+39bf5a539021"}""")]
+    [InlineData("""{"V":1,"EventType":"auth.signed_out","Data":{},"Timestamp":"2026-08-15T22:41:51.402Z"}""")]
     public void The_shapes_a_live_host_writes_all_conform(string line)
     {
         IReadOnlyList<ConformanceFinding> findings = Check(line);
@@ -793,7 +793,7 @@ public sealed class JournalConformanceCheckerTests : IDisposable
 
     private static string Line(
         string version = "1",
-        string eventType = "instance_ready",
+        string eventType = "server.ready",
         string data = """{"instance":"minecraft-01"}""",
         string timestamp = "2026-08-16T10:04:37.799Z",
         string? actor = "system:monitor",

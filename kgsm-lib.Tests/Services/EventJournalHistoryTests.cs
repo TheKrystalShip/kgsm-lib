@@ -36,6 +36,37 @@ public sealed class EventJournalHistoryTests : IDisposable
 
     // ── Helpers ──────────────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// A line written under a name that has since been renamed reads back under the current one.
+    /// </summary>
+    /// <remarks>
+    /// Retention holds a segment for months, so a reader meets both spellings for a whole retention
+    /// period after a producer cuts over. Resolving it where the line is read is what keeps every
+    /// consumer above working in one vocabulary — the alternative is each of them carrying a second
+    /// name for the same event, which is the drift the single vocabulary exists to remove.
+    /// </remarks>
+    [Fact]
+    public async Task QueryAsync_ALineWrittenUnderTheOldNameReadsBackUnderTheCurrentOne()
+    {
+        Append("2026-08-16.ndjson", Named("instance_ready", "2026-08-16T10:00:00.000Z", "a", "Ketchup"));
+
+        EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery());
+
+        EventHistoryEntry entry = Assert.Single(page.Events);
+        Assert.Equal("server.ready", entry.Type);
+    }
+
+    /// <summary>A name nothing has renamed is read back exactly as it was written.</summary>
+    [Fact]
+    public async Task QueryAsync_ANameNothingHasRenamedIsUntouched()
+    {
+        Append("2026-08-16.ndjson", Named("server.ready", "2026-08-16T10:00:00.000Z", "a", "Ketchup"));
+
+        EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery());
+
+        Assert.Equal("server.ready", Assert.Single(page.Events).Type);
+    }
+
     private EventJournalHistory CreateHistory(long? budgetBytes = null)
         => new(
             new KgsmOptions
@@ -83,10 +114,10 @@ public sealed class EventJournalHistoryTests : IDisposable
     public async Task QueryAsync_NoFilters_ReturnsEverythingNewestFirst()
     {
         Append("2026-08-04.ndjson",
-            Envelope("instance_started", "2026-08-04T10:00:00Z", instance: "factorio"),
-            Envelope("instance_stopped", "2026-08-04T11:00:00Z", instance: "factorio"));
+            Envelope("server.started", "2026-08-04T10:00:00Z", instance: "factorio"),
+            Envelope("server.stopped", "2026-08-04T11:00:00Z", instance: "factorio"));
         Append("2026-08-05.ndjson",
-            Envelope("instance_started", "2026-08-05T09:00:00Z", instance: "terraria"));
+            Envelope("server.started", "2026-08-05T09:00:00Z", instance: "terraria"));
 
         EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery());
 
@@ -101,8 +132,8 @@ public sealed class EventJournalHistoryTests : IDisposable
     public async Task QueryAsync_InstanceFilter_ReturnsOnlyThatInstance()
     {
         Append("2026-08-04.ndjson",
-            Envelope("instance_started", "2026-08-04T10:00:00Z", instance: "factorio"),
-            Envelope("instance_started", "2026-08-04T10:05:00Z", instance: "terraria"));
+            Envelope("server.started", "2026-08-04T10:00:00Z", instance: "factorio"),
+            Envelope("server.started", "2026-08-04T10:05:00Z", instance: "terraria"));
 
         EventHistoryPage page = await CreateHistory()
             .QueryAsync(new EventHistoryQuery { Instance = "factorio" });
@@ -114,13 +145,13 @@ public sealed class EventJournalHistoryTests : IDisposable
     public async Task QueryAsync_TypeFilter_ReturnsOnlyThatType()
     {
         Append("2026-08-04.ndjson",
-            Envelope("instance_started", "2026-08-04T10:00:00Z", instance: "factorio"),
-            Envelope("instance_stopped", "2026-08-04T10:05:00Z", instance: "factorio"));
+            Envelope("server.started", "2026-08-04T10:00:00Z", instance: "factorio"),
+            Envelope("server.stopped", "2026-08-04T10:05:00Z", instance: "factorio"));
 
         EventHistoryPage page = await CreateHistory()
-            .QueryAsync(new EventHistoryQuery { Type = "instance_stopped" });
+            .QueryAsync(new EventHistoryQuery { Type = "server.stopped" });
 
-        Assert.Equal("instance_stopped", Assert.Single(page.Events).Type);
+        Assert.Equal("server.stopped", Assert.Single(page.Events).Type);
     }
 
     /// <summary>
@@ -132,7 +163,7 @@ public sealed class EventJournalHistoryTests : IDisposable
     public async Task QueryAsync_InstanceAndBlueprintOfTheSameName_NeverCrossOver()
     {
         Append("2026-08-04.ndjson",
-            Envelope("instance_started", "2026-08-04T10:00:00Z", instance: "factorio"),
+            Envelope("server.started", "2026-08-04T10:00:00Z", instance: "factorio"),
             Envelope("blueprint_written", "2026-08-04T10:05:00Z", blueprint: "factorio"));
 
         EventJournalHistory history = CreateHistory();
@@ -140,7 +171,7 @@ public sealed class EventJournalHistoryTests : IDisposable
         EventHistoryPage byInstance = await history.QueryAsync(new EventHistoryQuery { Instance = "factorio" });
         EventHistoryPage byBlueprint = await history.QueryAsync(new EventHistoryQuery { Blueprint = "factorio" });
 
-        Assert.Equal("instance_started", Assert.Single(byInstance.Events).Type);
+        Assert.Equal("server.started", Assert.Single(byInstance.Events).Type);
         Assert.Null(Assert.Single(byInstance.Events).Blueprint);
 
         Assert.Equal("blueprint_written", Assert.Single(byBlueprint.Events).Type);
@@ -151,9 +182,9 @@ public sealed class EventJournalHistoryTests : IDisposable
     public async Task QueryAsync_TimeWindow_ExcludesEventsOutsideIt()
     {
         Append("2026-08-04.ndjson",
-            Envelope("instance_started", "2026-08-04T09:00:00Z", instance: "factorio"),
-            Envelope("instance_started", "2026-08-04T12:00:00Z", instance: "factorio"),
-            Envelope("instance_started", "2026-08-04T15:00:00Z", instance: "factorio"));
+            Envelope("server.started", "2026-08-04T09:00:00Z", instance: "factorio"),
+            Envelope("server.started", "2026-08-04T12:00:00Z", instance: "factorio"),
+            Envelope("server.started", "2026-08-04T15:00:00Z", instance: "factorio"));
 
         long since = DateTimeOffset.Parse("2026-08-04T11:00:00Z").ToUnixTimeMilliseconds();
         long until = DateTimeOffset.Parse("2026-08-04T13:00:00Z").ToUnixTimeMilliseconds();
@@ -174,9 +205,9 @@ public sealed class EventJournalHistoryTests : IDisposable
     [Fact]
     public async Task QueryAsync_TimeWindow_SpanningSegments_ReadsOnlyWhatItShould()
     {
-        Append("2026-07-01.ndjson", Envelope("instance_started", "2026-07-01T10:00:00Z", instance: "old"));
-        Append("2026-08-04.ndjson", Envelope("instance_started", "2026-08-04T10:00:00Z", instance: "wanted"));
-        Append("2026-09-01.ndjson", Envelope("instance_started", "2026-09-01T10:00:00Z", instance: "new"));
+        Append("2026-07-01.ndjson", Envelope("server.started", "2026-07-01T10:00:00Z", instance: "old"));
+        Append("2026-08-04.ndjson", Envelope("server.started", "2026-08-04T10:00:00Z", instance: "wanted"));
+        Append("2026-09-01.ndjson", Envelope("server.started", "2026-09-01T10:00:00Z", instance: "new"));
 
         EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery
         {
@@ -197,7 +228,7 @@ public sealed class EventJournalHistoryTests : IDisposable
     [Fact]
     public async Task QueryAsync_IdenticalEventsInTheSameSecond_AreBothReturnedWithDistinctIds()
     {
-        string identical = Envelope("instance_player_joined", "2026-08-04T10:00:00Z", instance: "factorio");
+        string identical = Envelope("player.joined", "2026-08-04T10:00:00Z", instance: "factorio");
         Append("2026-08-04.ndjson", identical, identical, identical);
 
         EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery());
@@ -213,7 +244,7 @@ public sealed class EventJournalHistoryTests : IDisposable
         // and every id after it silently becomes the id of a DIFFERENT event — the row keeps its
         // identity here instead, and the rewrite shows up as a position that no longer resolves.
         Append("2026-08-04.ndjson",
-            Named("instance_started", "2026-08-04T10:00:00Z", Uuid7(1), instance: "factorio"));
+            Named("server.started", "2026-08-04T10:00:00Z", Uuid7(1), instance: "factorio"));
 
         EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery());
 
@@ -225,7 +256,7 @@ public sealed class EventJournalHistoryTests : IDisposable
     {
         // Every line written before the field existed is on disk for as long as retention holds it,
         // and each one still needs an id. Falling back is what keeps the back catalogue addressable.
-        Append("2026-08-04.ndjson", Envelope("instance_started", "2026-08-04T10:00:00Z", "factorio"));
+        Append("2026-08-04.ndjson", Envelope("server.started", "2026-08-04T10:00:00Z", "factorio"));
 
         EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery());
 
@@ -239,7 +270,7 @@ public sealed class EventJournalHistoryTests : IDisposable
         // id on one would put a duplicate or a mis-sort into the page. The shape is checked, not
         // trusted; envelope.event-id-shape is where the producer gets told.
         Append("2026-08-04.ndjson",
-            Named("instance_started", "2026-08-04T10:00:00Z", "NOT-A-UUID", instance: "factorio"));
+            Named("server.started", "2026-08-04T10:00:00Z", "NOT-A-UUID", instance: "factorio"));
 
         EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery());
 
@@ -263,10 +294,10 @@ public sealed class EventJournalHistoryTests : IDisposable
 
         // Four events sharing one millisecond — the tie-break's whole domain.
         Append("2026-08-04.ndjson",
-            Named("instance_started", ts, Uuid7(1), instance: "a"),
-            Named("instance_ready", ts, Uuid7(2), instance: "b"),
-            Named("instance_stopped", ts, Uuid7(3), instance: "c"),
-            Named("instance_started", ts, Uuid7(4), instance: "d"));
+            Named("server.started", ts, Uuid7(1), instance: "a"),
+            Named("server.ready", ts, Uuid7(2), instance: "b"),
+            Named("server.stopped", ts, Uuid7(3), instance: "c"),
+            Named("server.started", ts, Uuid7(4), instance: "d"));
 
         IEventJournalHistory history = CreateHistory();
 
@@ -276,7 +307,7 @@ public sealed class EventJournalHistoryTests : IDisposable
         // A cursor the PREVIOUS build would have handed out, naming the second line by its position.
         // Byte offsets are what that scheme encoded, and the second line starts after the first.
         long secondOffset = Encoding.UTF8.GetByteCount(
-            Named("instance_started", ts, Uuid7(1), instance: "a")) + 1;
+            Named("server.started", ts, Uuid7(1), instance: "a")) + 1;
 
         EventHistoryPage next = await history.QueryAsync(new EventHistoryQuery
         {
@@ -300,10 +331,10 @@ public sealed class EventJournalHistoryTests : IDisposable
         const string ts = "2026-08-04T10:00:00.000Z";
 
         Append("2026-08-04.ndjson",
-            Named("instance_started", ts, Uuid7(1), instance: "a"),
-            Envelope("instance_ready", ts, "b"),
-            Named("instance_stopped", ts, Uuid7(3), instance: "c"),
-            Envelope("instance_started", ts, "d"));
+            Named("server.started", ts, Uuid7(1), instance: "a"),
+            Envelope("server.ready", ts, "b"),
+            Named("server.stopped", ts, Uuid7(3), instance: "c"),
+            Envelope("server.started", ts, "d"));
 
         IEventJournalHistory history = CreateHistory();
 
@@ -336,7 +367,7 @@ public sealed class EventJournalHistoryTests : IDisposable
     [Fact]
     public async Task QueryAsync_Id_EncodesTheJournalPosition()
     {
-        Append("2026-08-04.ndjson", Envelope("instance_started", "2026-08-04T10:00:00Z", instance: "factorio"));
+        Append("2026-08-04.ndjson", Envelope("server.started", "2026-08-04T10:00:00Z", instance: "factorio"));
 
         EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery());
 
@@ -354,7 +385,7 @@ public sealed class EventJournalHistoryTests : IDisposable
     public async Task QueryAsync_Ids_SortInJournalOrderAsPlainStrings()
     {
         Append("2026-08-04.ndjson", Enumerable.Range(0, 12)
-            .Select(i => Envelope("instance_started", $"2026-08-04T10:00:{i:D2}Z", instance: "factorio"))
+            .Select(i => Envelope("server.started", $"2026-08-04T10:00:{i:D2}Z", instance: "factorio"))
             .ToArray());
 
         EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery());
@@ -370,7 +401,7 @@ public sealed class EventJournalHistoryTests : IDisposable
     public async Task QueryAsync_FullPage_ReturnsACursor_PartialPageDoesNot()
     {
         Append("2026-08-04.ndjson", Enumerable.Range(0, 5)
-            .Select(i => Envelope("instance_started", $"2026-08-04T10:00:{i:D2}Z", instance: "factorio"))
+            .Select(i => Envelope("server.started", $"2026-08-04T10:00:{i:D2}Z", instance: "factorio"))
             .ToArray());
 
         EventJournalHistory history = CreateHistory();
@@ -395,7 +426,7 @@ public sealed class EventJournalHistoryTests : IDisposable
         foreach (int day in new[] { 4, 5, 6 })
         {
             Append($"2026-08-{day:D2}.ndjson", Enumerable.Range(0, 7)
-                .Select(i => Envelope("instance_started", $"2026-08-{day:D2}T10:00:{i:D2}Z", instance: "factorio"))
+                .Select(i => Envelope("server.started", $"2026-08-{day:D2}T10:00:{i:D2}Z", instance: "factorio"))
                 .ToArray());
         }
 
@@ -426,7 +457,7 @@ public sealed class EventJournalHistoryTests : IDisposable
     [Fact]
     public async Task QueryAsync_PagingThroughEventsSharingATimestamp_LosesNone()
     {
-        string identical = Envelope("instance_player_joined", "2026-08-04T10:00:00Z", instance: "factorio");
+        string identical = Envelope("player.joined", "2026-08-04T10:00:00Z", instance: "factorio");
         Append("2026-08-04.ndjson", Enumerable.Repeat(identical, 9).ToArray());
 
         EventJournalHistory history = CreateHistory();
@@ -452,7 +483,7 @@ public sealed class EventJournalHistoryTests : IDisposable
     [Fact]
     public async Task QueryAsync_LimitAboveTheCap_IsClamped()
     {
-        Append("2026-08-04.ndjson", Envelope("instance_started", "2026-08-04T10:00:00Z", instance: "factorio"));
+        Append("2026-08-04.ndjson", Envelope("server.started", "2026-08-04T10:00:00Z", instance: "factorio"));
 
         EventHistoryPage page = await CreateHistory()
             .QueryAsync(new EventHistoryQuery { Limit = EventHistoryQuery.MaxLimit + 5_000 });
@@ -471,9 +502,9 @@ public sealed class EventJournalHistoryTests : IDisposable
     public async Task QueryAsync_CursorIdFromAnotherSource_StillBoundsThePage()
     {
         Append("2026-08-04.ndjson",
-            Envelope("instance_started", "2026-08-04T09:00:00Z", instance: "factorio"),
-            Envelope("instance_started", "2026-08-04T12:00:00Z", instance: "factorio"),
-            Envelope("instance_started", "2026-08-04T15:00:00Z", instance: "factorio"));
+            Envelope("server.started", "2026-08-04T09:00:00Z", instance: "factorio"),
+            Envelope("server.started", "2026-08-04T12:00:00Z", instance: "factorio"),
+            Envelope("server.started", "2026-08-04T15:00:00Z", instance: "factorio"));
 
         EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery
         {
@@ -497,8 +528,8 @@ public sealed class EventJournalHistoryTests : IDisposable
     public async Task QueryAsync_CursorTimestampWithNoId_BoundsInclusively()
     {
         Append("2026-08-04.ndjson",
-            Envelope("instance_started", "2026-08-04T09:00:00Z", instance: "factorio"),
-            Envelope("instance_started", "2026-08-04T15:00:00Z", instance: "factorio"));
+            Envelope("server.started", "2026-08-04T09:00:00Z", instance: "factorio"),
+            Envelope("server.started", "2026-08-04T15:00:00Z", instance: "factorio"));
 
         EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery
         {
@@ -513,8 +544,8 @@ public sealed class EventJournalHistoryTests : IDisposable
     [Fact]
     public async Task QueryAsync_CoverageFrom_IsTheOldestSurvivingEvent()
     {
-        Append("2026-08-04.ndjson", Envelope("instance_started", "2026-08-04T08:30:00Z", instance: "factorio"));
-        Append("2026-08-05.ndjson", Envelope("instance_started", "2026-08-05T09:00:00Z", instance: "factorio"));
+        Append("2026-08-04.ndjson", Envelope("server.started", "2026-08-04T08:30:00Z", instance: "factorio"));
+        Append("2026-08-05.ndjson", Envelope("server.started", "2026-08-05T09:00:00Z", instance: "factorio"));
 
         EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery());
 
@@ -531,7 +562,7 @@ public sealed class EventJournalHistoryTests : IDisposable
     [Fact]
     public async Task QueryAsync_WindowReachingBeforeRetention_StillReportsWhereCoverageBegins()
     {
-        Append("2026-08-04.ndjson", Envelope("instance_started", "2026-08-04T08:30:00Z", instance: "factorio"));
+        Append("2026-08-04.ndjson", Envelope("server.started", "2026-08-04T08:30:00Z", instance: "factorio"));
 
         EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery
         {
@@ -546,7 +577,7 @@ public sealed class EventJournalHistoryTests : IDisposable
     public async Task QueryAsync_ScanBudgetExhausted_ReportsTruncated()
     {
         Append("2026-08-04.ndjson", Enumerable.Range(0, 200)
-            .Select(i => Envelope("instance_started", "2026-08-04T10:00:00Z", instance: $"server{i}"))
+            .Select(i => Envelope("server.started", "2026-08-04T10:00:00Z", instance: $"server{i}"))
             .ToArray());
 
         // A budget far below the segment, with a filter that matches nothing, forces the scan to
@@ -560,7 +591,7 @@ public sealed class EventJournalHistoryTests : IDisposable
     [Fact]
     public async Task QueryAsync_WithinBudget_DoesNotReportTruncated()
     {
-        Append("2026-08-04.ndjson", Envelope("instance_started", "2026-08-04T10:00:00Z", instance: "factorio"));
+        Append("2026-08-04.ndjson", Envelope("server.started", "2026-08-04T10:00:00Z", instance: "factorio"));
 
         EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery());
 
@@ -589,7 +620,7 @@ public sealed class EventJournalHistoryTests : IDisposable
     [Fact]
     public async Task QueryAsync_ReadableJournalMatchingNothing_ReportsEmptyNotUnreadable()
     {
-        Append("2026-08-04.ndjson", Envelope("instance_started", "2026-08-04T10:00:00Z", instance: "factorio"));
+        Append("2026-08-04.ndjson", Envelope("server.started", "2026-08-04T10:00:00Z", instance: "factorio"));
 
         EventHistoryPage page = await CreateHistory()
             .QueryAsync(new EventHistoryQuery { Instance = "a-server-that-does-not-exist" });
@@ -602,9 +633,9 @@ public sealed class EventJournalHistoryTests : IDisposable
     public async Task QueryAsync_MalformedLine_IsSkippedAndTheRestSurvives()
     {
         Append("2026-08-04.ndjson",
-            Envelope("instance_started", "2026-08-04T10:00:00Z", instance: "factorio"),
+            Envelope("server.started", "2026-08-04T10:00:00Z", instance: "factorio"),
             "{ this is not json",
-            Envelope("instance_stopped", "2026-08-04T10:05:00Z", instance: "factorio"));
+            Envelope("server.stopped", "2026-08-04T10:05:00Z", instance: "factorio"));
 
         EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery());
 
@@ -619,12 +650,12 @@ public sealed class EventJournalHistoryTests : IDisposable
     public async Task QueryAsync_EventWithNoTimestamp_IsAbsentRatherThanGivenAFabricatedOne()
     {
         Append("2026-08-04.ndjson",
-            """{"EventType":"instance_started","Data":{"InstanceName":"factorio"}}""",
-            Envelope("instance_stopped", "2026-08-04T10:05:00Z", instance: "factorio"));
+            """{"EventType":"server.started","Data":{"InstanceName":"factorio"}}""",
+            Envelope("server.stopped", "2026-08-04T10:05:00Z", instance: "factorio"));
 
         EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery());
 
-        Assert.Equal("instance_stopped", Assert.Single(page.Events).Type);
+        Assert.Equal("server.stopped", Assert.Single(page.Events).Type);
     }
 
     /// <summary>
@@ -634,7 +665,7 @@ public sealed class EventJournalHistoryTests : IDisposable
     [Fact]
     public async Task QueryAsync_AbsentEnrichment_StaysNull()
     {
-        Append("2026-08-04.ndjson", Envelope("instance_started", "2026-08-04T10:00:00Z", instance: "factorio"));
+        Append("2026-08-04.ndjson", Envelope("server.started", "2026-08-04T10:00:00Z", instance: "factorio"));
 
         EventHistoryEntry entry = Assert.Single(
             (await CreateHistory().QueryAsync(new EventHistoryQuery())).Events);
@@ -647,7 +678,7 @@ public sealed class EventJournalHistoryTests : IDisposable
     [Fact]
     public async Task QueryAsync_PayloadIsRelayedVerbatim()
     {
-        Append("2026-08-04.ndjson", Envelope("instance_started", "2026-08-04T10:00:00Z", instance: "factorio", actor: "heisen"));
+        Append("2026-08-04.ndjson", Envelope("server.started", "2026-08-04T10:00:00Z", instance: "factorio", actor: "heisen"));
 
         EventHistoryEntry entry = Assert.Single(
             (await CreateHistory().QueryAsync(new EventHistoryQuery())).Events);
@@ -696,10 +727,10 @@ public sealed class EventJournalHistoryTests : IDisposable
         // Three events across two segments, so the agreement is proven over a segment roll and
         // not just at offset zero.
         Append("2026-08-04.ndjson",
-            Envelope("instance_started", "2026-08-04T10:00:00Z", instance: "factorio"),
-            Envelope("instance_stopped", "2026-08-04T10:05:00Z", instance: "factorio"));
+            Envelope("server.started", "2026-08-04T10:00:00Z", instance: "factorio"),
+            Envelope("server.stopped", "2026-08-04T10:05:00Z", instance: "factorio"));
         Append("2026-08-05.ndjson",
-            Envelope("instance_started", "2026-08-05T09:00:00Z", instance: "terraria"));
+            Envelope("server.started", "2026-08-05T09:00:00Z", instance: "terraria"));
 
         using var cts = new CancellationTokenSource();
         Task listening = reader.StartListeningAsync(cts.Token);

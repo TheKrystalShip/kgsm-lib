@@ -69,7 +69,7 @@ public sealed class EventJournalReaderTests : IDisposable
 
     /// <summary>One line of journal, shaped like a real envelope so the payload is representative.</summary>
     private static string Envelope(string instance) =>
-        $$"""{"EventType":"instance_started","Data":{"InstanceName":"{{instance}}"},"Timestamp":"2026-08-04T10:00:00Z","Actor":"heisen"}""";
+        $$"""{"EventType":"server.started","Data":{"InstanceName":"{{instance}}"},"Timestamp":"2026-08-04T10:00:00Z","Actor":"heisen"}""";
 
     private string SegmentPath(string segment) => Path.Combine(_directory, segment);
 
