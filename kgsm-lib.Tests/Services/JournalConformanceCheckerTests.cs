@@ -693,6 +693,101 @@ public sealed class JournalConformanceCheckerTests : IDisposable
     }
 
     /// <summary>One envelope, conforming unless a caller breaks a specific part of it.</summary>
+
+    // ── What a producer says about its own event ────────────────────────────────────────
+    //
+    // Spelling only. Whether a PARTICULAR event deserves a particular weight is the producer's
+    // judgement, and a rule asserting it here would put one producer's policy inside a package every
+    // other producer compiles against. Each rule therefore needs both halves: that it catches a
+    // spelling nothing defines, and that it stays quiet for every spelling that is defined.
+
+    [Theory]
+    [InlineData("info")]
+    [InlineData("warn")]
+    [InlineData("danger")]
+    public void Severity_DoesNotFire_ForADefinedSpelling(string spelling)
+    {
+        Assert.DoesNotContain(
+            Check(Line(version: "2", severity: spelling)),
+            f => f.Rule == ConformanceRule.Severity);
+    }
+
+    [Fact]
+    public void Severity_Fires_WhenTheSpellingIsNotOneTheScaleDefines()
+    {
+        // The live instance of this: one leaf writing "warning" where every other writes "warn".
+        ConformanceFinding finding = Assert.Single(
+            Check(Line(version: "2", severity: "warning")),
+            f => f.Rule == ConformanceRule.Severity);
+
+        Assert.Contains("warning", finding.Detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Severity_DoesNotFire_WhenAbsent()
+    {
+        // Absent is a producer that has not started saying, which is quiet rather than malformed.
+        Assert.DoesNotContain(Check(Line(version: "2")), f => f.Rule == ConformanceRule.Severity);
+    }
+
+    [Fact]
+    public void Severity_DoesNotFire_WhenExplicitlyNull()
+    {
+        Assert.DoesNotContain(
+            Check(Line(version: "2", severity: "null")), f => f.Rule == ConformanceRule.Severity);
+    }
+
+    [Theory]
+    [InlineData("neutral")]
+    [InlineData("success")]
+    [InlineData("failure")]
+    public void Outcome_DoesNotFire_ForADefinedSpelling(string spelling)
+    {
+        Assert.DoesNotContain(
+            Check(Line(version: "2", outcome: spelling)),
+            f => f.Rule == ConformanceRule.Outcome);
+    }
+
+    [Fact]
+    public void Outcome_Fires_WhenTheSpellingIsNotOneTheSetDefines()
+    {
+        Assert.Single(
+            Check(Line(version: "2", outcome: "ok")), f => f.Rule == ConformanceRule.Outcome);
+    }
+
+    [Fact]
+    public void Summary_DoesNotFire_ForALineOfProse()
+    {
+        Assert.DoesNotContain(
+            Check(Line(version: "2", summary: "uninstalled factorio")),
+            f => f.Rule == ConformanceRule.Summary);
+    }
+
+    [Fact]
+    public void Summary_Fires_WhenItIsNotText()
+    {
+        // The only thing a reader needs from this field is that it can be put on a screen. What it
+        // SAYS is content, and belongs to whoever raised the event.
+        string line = Line(version: "2").Replace("\"Data\"", "\"Summary\":42,\"Data\"", StringComparison.Ordinal);
+
+        Assert.Single(Check(line), f => f.Rule == ConformanceRule.Summary);
+    }
+
+    [Fact]
+    public void SchemaVersion_DoesNotFire_ForAnEarlierEnvelopeStillOnDisk()
+    {
+        // A line records what the build that wrote it produced, and retention holds it for months. A
+        // reader that understood only the newest version would report a host's whole history broken
+        // the day a field was added.
+        Assert.DoesNotContain(Check(Line(version: "1")), f => f.Rule == ConformanceRule.SchemaVersion);
+    }
+
+    [Fact]
+    public void SchemaVersion_Fires_ForAVersionNoReaderHereUnderstands()
+    {
+        Assert.Single(Check(Line(version: "99")), f => f.Rule == ConformanceRule.SchemaVersion);
+    }
+
     private static string Line(
         string version = "1",
         string eventType = "instance_ready",
@@ -701,7 +796,10 @@ public sealed class JournalConformanceCheckerTests : IDisposable
         string? actor = "system:monitor",
         string? hostname = "hotrod",
         string? producerVersion = "2.7.1",
-        string? id = null)
+        string? id = null,
+        string? severity = null,
+        string? outcome = null,
+        string? summary = null)
     {
         var fields = new List<string>
         {
@@ -722,6 +820,15 @@ public sealed class JournalConformanceCheckerTests : IDisposable
 
         if (id is not null)
             fields.Add($"\"Id\":\"{id}\"");
+
+        if (severity is not null)
+            fields.Add(severity == "null" ? "\"Severity\":null" : $"\"Severity\":\"{severity}\"");
+
+        if (outcome is not null)
+            fields.Add(outcome == "null" ? "\"Outcome\":null" : $"\"Outcome\":\"{outcome}\"");
+
+        if (summary is not null)
+            fields.Add(summary == "null" ? "\"Summary\":null" : $"\"Summary\":\"{summary}\"");
 
         return "{" + string.Join(",", fields) + "}";
     }

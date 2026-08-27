@@ -192,8 +192,8 @@ public sealed class EventJournalFederationTests : IDisposable
     {
         EventJournalWriter writer = CreateWriter("watchdog");
 
-        Assert.True(await writer.AppendAsync("instance_ready", Payload("""{"InstanceName":"Ketchup"}""")));
-        Assert.True(await writer.AppendAsync("instance_ready", Payload("""{"InstanceName":"Terra"}""")));
+        Assert.True(await writer.AppendAsync(EventName.Parse("instance_ready"), Payload("""{"InstanceName":"Ketchup"}""")));
+        Assert.True(await writer.AppendAsync(EventName.Parse("instance_ready"), Payload("""{"InstanceName":"Terra"}""")));
 
         string[] files = Directory.GetFiles(DirectoryFor("watchdog"), "*.ndjson");
         Assert.Single(files);
@@ -210,7 +210,7 @@ public sealed class EventJournalFederationTests : IDisposable
         var at = new DateTimeOffset(2026, 8, 12, 3, 2, 24, 117, TimeSpan.Zero);
         EventJournalWriter writer = CreateWriter("watchdog", version: "1.8.2", at: at);
 
-        await writer.AppendAsync("instance_ready", Payload("""{"InstanceName":"Ketchup"}"""));
+        await writer.AppendAsync(EventName.Parse("instance_ready"), Payload("""{"InstanceName":"Ketchup"}"""));
 
         string line = SoleLine(DirectoryFor("watchdog"));
         EventWrapper? envelope = JsonSerializer.Deserialize(line, KgsmJsonContext.Default.EventWrapper);
@@ -233,7 +233,7 @@ public sealed class EventJournalFederationTests : IDisposable
         // written as an explicit null — and never filled in with a plausible substitute.
         EventJournalWriter writer = CreateWriter("watchdog", hostname: null);
 
-        await writer.AppendAsync("instance_ready", Payload("""{"InstanceName":"Ketchup"}"""));
+        await writer.AppendAsync(EventName.Parse("instance_ready"), Payload("""{"InstanceName":"Ketchup"}"""));
 
         string line = SoleLine(DirectoryFor("watchdog"));
         Assert.DoesNotContain("Actor", line, StringComparison.Ordinal);
@@ -249,7 +249,7 @@ public sealed class EventJournalFederationTests : IDisposable
         // emitting an empty OpId would be the first producer to set a precedent by accident.
         EventJournalWriter writer = CreateWriter("watchdog");
 
-        await writer.AppendAsync("instance_ready", Payload("""{"InstanceName":"Ketchup"}"""));
+        await writer.AppendAsync(EventName.Parse("instance_ready"), Payload("""{"InstanceName":"Ketchup"}"""));
 
         string line = SoleLine(DirectoryFor("watchdog"));
         Assert.DoesNotContain("OpId", line, StringComparison.Ordinal);
@@ -265,7 +265,7 @@ public sealed class EventJournalFederationTests : IDisposable
         EventJournalWriter writer = CreateWriter("watchdog");
 
         await writer.AppendAsync(
-            "instance_ready",
+            EventName.Parse("instance_ready"),
             Payload("{\n  \"InstanceName\": \"Ket\\nchup\"\n}"));
 
         string[] lines = File.ReadAllLines(Directory.GetFiles(DirectoryFor("watchdog"), "*.ndjson")[0]);
@@ -278,7 +278,7 @@ public sealed class EventJournalFederationTests : IDisposable
         EventJournalWriter writer = CreateWriter("watchdog");
 
         await Assert.ThrowsAsync<ArgumentException>(
-            async () => await writer.AppendAsync("instance_ready", Payload("[1,2,3]")));
+            async () => await writer.AppendAsync(EventName.Parse("instance_ready"), Payload("[1,2,3]")));
     }
 
     [Fact]
@@ -299,7 +299,7 @@ public sealed class EventJournalFederationTests : IDisposable
     {
         EventJournalWriter writer = CreateWriter("watchdog", version: "1.8.2");
         await writer.AppendAsync(
-            "instance_ready", Payload("""{"InstanceName":"Ketchup"}"""),
+            EventName.Parse("instance_ready"), Payload("""{"InstanceName":"Ketchup"}"""),
             actor: "system:watchdog", origin: "system");
 
         FederatedEventJournalHistory history = CreateFederated("watchdog");
@@ -340,9 +340,9 @@ public sealed class EventJournalFederationTests : IDisposable
     {
         var t0 = new DateTimeOffset(2026, 8, 12, 3, 2, 23, 100, TimeSpan.Zero);
 
-        await CreateWriter("kgsm", at: t0).AppendAsync("instance_started", Payload("""{"InstanceName":"Ketchup"}"""));
-        await CreateWriter("watchdog", at: t0.AddSeconds(1)).AppendAsync("instance_ports_opened", Payload("""{"InstanceName":"Ketchup"}"""));
-        await CreateWriter("monitor", at: t0.AddSeconds(4)).AppendAsync("host_threshold_breach", Payload("""{"InstanceName":"Ketchup"}"""));
+        await CreateWriter("kgsm", at: t0).AppendAsync(EventName.Parse("instance_started"), Payload("""{"InstanceName":"Ketchup"}"""));
+        await CreateWriter("watchdog", at: t0.AddSeconds(1)).AppendAsync(EventName.Parse("instance_ports_opened"), Payload("""{"InstanceName":"Ketchup"}"""));
+        await CreateWriter("monitor", at: t0.AddSeconds(4)).AppendAsync(EventName.Parse("host_threshold_breach"), Payload("""{"InstanceName":"Ketchup"}"""));
 
         EventHistoryPage page = await CreateFederated("kgsm", "watchdog", "monitor")
             .QueryAsync(new EventHistoryQuery());
@@ -364,8 +364,8 @@ public sealed class EventJournalFederationTests : IDisposable
         // whichever order the journals were configured in.
         var at = new DateTimeOffset(2026, 8, 12, 3, 2, 24, 117, TimeSpan.Zero);
 
-        await CreateWriter("watchdog", at: at).AppendAsync("instance_ports_opened", Payload("""{"InstanceName":"K"}"""));
-        await CreateWriter("kgsm", at: at).AppendAsync("instance_started", Payload("""{"InstanceName":"K"}"""));
+        await CreateWriter("watchdog", at: at).AppendAsync(EventName.Parse("instance_ports_opened"), Payload("""{"InstanceName":"K"}"""));
+        await CreateWriter("kgsm", at: at).AppendAsync(EventName.Parse("instance_started"), Payload("""{"InstanceName":"K"}"""));
 
         EventHistoryPage first = await CreateFederated("kgsm", "watchdog").QueryAsync(new EventHistoryQuery());
         EventHistoryPage second = await CreateFederated("watchdog", "kgsm").QueryAsync(new EventHistoryQuery());
@@ -389,7 +389,7 @@ public sealed class EventJournalFederationTests : IDisposable
     [Fact]
     public async Task Federated_ReportsAnAbsentProducerWithoutEmptyingThePage()
     {
-        await CreateWriter("kgsm").AppendAsync("instance_started", Payload("""{"InstanceName":"Ketchup"}"""));
+        await CreateWriter("kgsm").AppendAsync(EventName.Parse("instance_started"), Payload("""{"InstanceName":"Ketchup"}"""));
 
         // "monitor" is configured but its journal was never created — the leaf is not installed.
         FederatedEventJournalHistory history = Federated(
@@ -417,8 +417,8 @@ public sealed class EventJournalFederationTests : IDisposable
         var older = new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero);
         var newer = new DateTimeOffset(2026, 8, 10, 0, 0, 0, TimeSpan.Zero);
 
-        await CreateWriter("kgsm", at: older).AppendAsync("instance_started", Payload("""{"InstanceName":"K"}"""));
-        await CreateWriter("monitor", at: newer).AppendAsync("host_threshold_breach", Payload("""{"InstanceName":"K"}"""));
+        await CreateWriter("kgsm", at: older).AppendAsync(EventName.Parse("instance_started"), Payload("""{"InstanceName":"K"}"""));
+        await CreateWriter("monitor", at: newer).AppendAsync(EventName.Parse("host_threshold_breach"), Payload("""{"InstanceName":"K"}"""));
 
         EventHistoryPage page = await CreateFederated("kgsm", "monitor").QueryAsync(new EventHistoryQuery());
 
@@ -435,9 +435,9 @@ public sealed class EventJournalFederationTests : IDisposable
         for (int i = 0; i < 3; i++)
         {
             await CreateWriter("kgsm", at: t0.AddSeconds(i * 2))
-                .AppendAsync("instance_started", Payload($$"""{"InstanceName":"k{{i}}"}"""));
+                .AppendAsync(EventName.Parse("instance_started"), Payload($$"""{"InstanceName":"k{{i}}"}"""));
             await CreateWriter("watchdog", at: t0.AddSeconds(i * 2 + 1))
-                .AppendAsync("instance_ready", Payload($$"""{"InstanceName":"k{{i}}"}"""));
+                .AppendAsync(EventName.Parse("instance_ready"), Payload($$"""{"InstanceName":"k{{i}}"}"""));
         }
 
         FederatedEventJournalHistory history = CreateFederated("kgsm", "watchdog");
@@ -618,8 +618,8 @@ public sealed class EventJournalFederationTests : IDisposable
     public async Task Tail_DeliversEveryProducersEventsStampedWithItsProducer()
     {
         // Pre-seed both journals, then tail from oldest so the whole of each replays.
-        await CreateWriter("kgsm").AppendAsync("instance_started", Payload("""{"InstanceName":"K"}"""));
-        await CreateWriter("watchdog").AppendAsync("instance_ready", Payload("""{"InstanceName":"K"}"""));
+        await CreateWriter("kgsm").AppendAsync(EventName.Parse("instance_started"), Payload("""{"InstanceName":"K"}"""));
+        await CreateWriter("watchdog").AppendAsync(EventName.Parse("instance_ready"), Payload("""{"InstanceName":"K"}"""));
 
         using FederatedEventSource source = CreateSource(Path.Combine(_root, "c.json"), "kgsm", "watchdog");
 
@@ -657,8 +657,8 @@ public sealed class EventJournalFederationTests : IDisposable
     {
         string cursorPath = Path.Combine(_root, "c.json");
 
-        await CreateWriter("kgsm").AppendAsync("instance_started", Payload("""{"InstanceName":"K"}"""));
-        await CreateWriter("watchdog").AppendAsync("instance_ready", Payload("""{"InstanceName":"K"}"""));
+        await CreateWriter("kgsm").AppendAsync(EventName.Parse("instance_started"), Payload("""{"InstanceName":"K"}"""));
+        await CreateWriter("watchdog").AppendAsync(EventName.Parse("instance_ready"), Payload("""{"InstanceName":"K"}"""));
 
         using (FederatedEventSource source = CreateSource(cursorPath, "kgsm", "watchdog"))
         {
@@ -730,11 +730,11 @@ public sealed class EventJournalFederationTests : IDisposable
 
         try
         {
-            await CreateWriter("kgsm").AppendAsync("instance_started", Payload("""{"InstanceName":"K"}"""));
+            await CreateWriter("kgsm").AppendAsync(EventName.Parse("instance_started"), Payload("""{"InstanceName":"K"}"""));
             await WaitFor(() => seen.Contains("kgsm"), "the existing journal to deliver");
 
             // Now the absent producer's journal appears.
-            await CreateWriter("monitor").AppendAsync("host_threshold_breach", Payload("""{"InstanceName":"K"}"""));
+            await CreateWriter("monitor").AppendAsync(EventName.Parse("host_threshold_breach"), Payload("""{"InstanceName":"K"}"""));
             await WaitFor(() => seen.Contains("monitor"), "the newly created journal to be picked up");
         }
         finally
@@ -883,9 +883,9 @@ public sealed class EventJournalFederationTests : IDisposable
 
         var t0 = new DateTimeOffset(2026, 8, 12, 3, 0, 0, TimeSpan.Zero);
         await CreateWriterAt(Path.Combine(root, "kgsm-watchdog", "events"), "kgsm-watchdog", t0.AddSeconds(3))
-            .AppendAsync("instance_ready", Payload("""{"InstanceName":"K"}"""));
+            .AppendAsync(EventName.Parse("instance_ready"), Payload("""{"InstanceName":"K"}"""));
         await CreateWriter("kgsm", at: t0)
-            .AppendAsync("instance_started", Payload("""{"InstanceName":"K"}"""));
+            .AppendAsync(EventName.Parse("instance_started"), Payload("""{"InstanceName":"K"}"""));
 
         IReadOnlyList<JournalSource> sources = Discovery(root).Discover();
         EventHistoryPage page = await Federated([.. sources]).QueryAsync(new EventHistoryQuery());

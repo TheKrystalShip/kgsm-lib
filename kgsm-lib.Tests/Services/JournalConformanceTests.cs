@@ -390,7 +390,7 @@ public sealed class JournalConformanceTests : IDisposable
             Options("kgsm-monitor", dir, clock: () => At("2026-08-16")),
             new Mock<ILogger<EventJournalWriter>>().Object);
 
-        await writer.AppendAsync("thing_happened", Payload());
+        await writer.AppendAsync(EventName.Parse("thing_happened"), Payload());
 
         string line = File.ReadAllLines(Path.Combine(dir, "2026-08-16.ndjson"))[^1];
         string id = System.Text.Json.JsonDocument.Parse(line).RootElement.GetProperty("Id").GetString()!;
@@ -411,8 +411,8 @@ public sealed class JournalConformanceTests : IDisposable
             Options("kgsm-monitor", dir, clock: () => At("2026-08-16")),
             new Mock<ILogger<EventJournalWriter>>().Object);
 
-        await writer.AppendAsync("thing_happened", Payload());
-        await writer.AppendAsync("thing_happened", Payload());
+        await writer.AppendAsync(EventName.Parse("thing_happened"), Payload());
+        await writer.AppendAsync(EventName.Parse("thing_happened"), Payload());
 
         string[] lines = File.ReadAllLines(Path.Combine(dir, "2026-08-16.ndjson"));
         string[] ids = [.. lines.Select(l =>
@@ -432,7 +432,7 @@ public sealed class JournalConformanceTests : IDisposable
             Options("kgsm-monitor", dir, clock: () => At("2026-08-16")),
             new Mock<ILogger<EventJournalWriter>>().Object);
 
-        await writer.AppendAsync("thing_happened", Payload(), actor: "system:monitor", origin: "system");
+        await writer.AppendAsync(EventName.Parse("thing_happened"), Payload(), actor: "system:monitor", origin: "system");
 
         string line = File.ReadAllLines(Path.Combine(dir, "2026-08-16.ndjson"))[^1];
 
@@ -552,14 +552,14 @@ public sealed class JournalConformanceTests : IDisposable
             Options("kgsm-monitor", dir, clock: () => now),
             new Mock<ILogger<EventJournalWriter>>().Object);
 
-        await writer.AppendAsync("thing_happened", Payload());
+        await writer.AppendAsync(EventName.Parse("thing_happened"), Payload());
 
         // A segment that ages past the window while the process is running.
         File.WriteAllText(Path.Combine(dir, "2026-05-01.ndjson"), "{}\n");
         Assert.True(File.Exists(Path.Combine(dir, "2026-05-01.ndjson")));
 
         now = At("2026-08-17");
-        await writer.AppendAsync("thing_happened", Payload());
+        await writer.AppendAsync(EventName.Parse("thing_happened"), Payload());
 
         Assert.False(File.Exists(Path.Combine(dir, "2026-05-01.ndjson")));
         Assert.True(File.Exists(Path.Combine(dir, "2026-08-17.ndjson")));
@@ -575,11 +575,11 @@ public sealed class JournalConformanceTests : IDisposable
             Options("kgsm-monitor", dir, clock: () => At("2026-08-16")),
             new Mock<ILogger<EventJournalWriter>>().Object);
 
-        await writer.AppendAsync("thing_happened", Payload());
+        await writer.AppendAsync(EventName.Parse("thing_happened"), Payload());
 
         // Dropped in after the first append; nothing else rolls the segment, so nothing rescans.
         File.WriteAllText(Path.Combine(dir, "2020-01-01.ndjson"), "{}\n");
-        await writer.AppendAsync("thing_happened", Payload());
+        await writer.AppendAsync(EventName.Parse("thing_happened"), Payload());
 
         Assert.True(File.Exists(Path.Combine(dir, "2020-01-01.ndjson")));
     }
@@ -644,7 +644,8 @@ public sealed class JournalConformanceTests : IDisposable
         writer.SetupGet(w => w.Producer).Returns("kgsm-monitor");
         writer
             .Setup(w => w.AppendAsync(
-                It.IsAny<string>(), It.IsAny<JsonElement>(), It.IsAny<string?>(), It.IsAny<string?>(),
+                It.IsAny<EventName>(), It.IsAny<JsonElement>(), It.IsAny<string?>(), It.IsAny<string?>(),
+                It.IsAny<EventSeverity?>(), It.IsAny<EventOutcome?>(), It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
             .ThrowsAsync(new IOException("disk gone"));
 
@@ -745,15 +746,15 @@ public sealed class JournalConformanceTests : IDisposable
         protected override string? DefaultActor => SuppressDefaultActor ? null : base.DefaultActor;
 
         public Task<bool> RecordDefaultsAsync() =>
-            RecordAsync("thing_happened", w => w.WriteString("Subject", "x"));
+            RecordAsync(EventName.Parse("thing_happened"), w => w.WriteString("Subject", "x"));
 
         public Task<bool> RecordAsAsync(string actor, string origin) =>
-            RecordAsync("thing_happened", w => w.WriteString("Subject", "x"), actor, origin);
+            RecordAsync(EventName.Parse("thing_happened"), w => w.WriteString("Subject", "x"), actor, origin);
 
         public Task<bool> RecordTypeAsync(string eventType) =>
-            RecordAsync(eventType, w => w.WriteString("Subject", "x"));
+            RecordAsync(EventName.Parse(eventType), w => w.WriteString("Subject", "x"));
 
         public bool RecordNullablePayload(string? reason) =>
-            Record("thing_happened", w => WriteNullable(w, "Reason", reason));
+            Record(EventName.Parse("thing_happened"), w => WriteNullable(w, "Reason", reason));
     }
 }
