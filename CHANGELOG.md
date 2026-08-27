@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — the catalog declares how much each event matters (`TheKrystalShip.KGSM.Lib` 8.2.0)
+
+`EventDescriptor.Severity` sits beside `Outcome`, so the engine's vocabulary declares both in the one
+registry that already says what an event is. A producer stamps an envelope from `Describe(type)`
+rather than hand-tagging each call site, which is what keeps the weight of an event in the same place
+as its payload type and its fields. Anything not named is `info`.
+
 ### Added — the read half sees what the producer said (`TheKrystalShip.KGSM.Lib` 8.1.0)
 
 `EventWrapper` and `EventHistoryEntry` carry `Severity`, `Outcome` and `Summary`, so a consumer
