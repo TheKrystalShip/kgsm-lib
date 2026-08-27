@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
+using TheKrystalShip.KGSM.Events;
 
 namespace TheKrystalShip.KGSM.Services;
 
@@ -41,7 +42,7 @@ public sealed class EventJournalWriter : IEventJournalWriter
     public const int AtomicWriteLimitBytes = 4096;
 
     /// <summary>The envelope schema version this writer produces.</summary>
-    public const int SchemaVersion = 1;
+    public const int SchemaVersion = 2;
 
     /// <summary>
     /// How a <c>Timestamp</c> is spelled: millisecond-precision UTC, <c>Z</c>-suffixed.
@@ -175,13 +176,17 @@ public sealed class EventJournalWriter : IEventJournalWriter
 
     /// <inheritdoc/>
     public ValueTask<bool> AppendAsync(
-        string eventType,
+        EventName eventType,
         JsonElement data,
         string? actor = null,
         string? origin = null,
+        EventSeverity? severity = null,
+        EventOutcome? outcome = null,
+        string? summary = null,
         CancellationToken token = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(eventType, nameof(eventType));
+        if (eventType.IsEmpty)
+            throw new ArgumentException("An event must be named.", nameof(eventType));
 
         if (data.ValueKind is not JsonValueKind.Object)
         {
@@ -190,7 +195,7 @@ public sealed class EventJournalWriter : IEventJournalWriter
         }
 
         DateTimeOffset now = _options.Clock?.Invoke() ?? DateTimeOffset.UtcNow;
-        byte[] line = Compose(eventType, data, actor, origin, now);
+        byte[] line = Compose(eventType, data, actor, origin, severity, outcome, summary, now);
 
         if (line.Length > AtomicWriteLimitBytes)
         {
@@ -200,7 +205,7 @@ public sealed class EventJournalWriter : IEventJournalWriter
                 eventType, line.Length, AtomicWriteLimitBytes);
         }
 
-        return new ValueTask<bool>(Append(line, now, eventType, token));
+        return new ValueTask<bool>(Append(line, now, eventType.Value, token));
     }
 
     /// <summary>
@@ -250,7 +255,8 @@ public sealed class EventJournalWriter : IEventJournalWriter
     /// Encodes one v1 envelope, compact, with a trailing newline. Null fields are omitted.
     /// </summary>
     private byte[] Compose(
-        string eventType, JsonElement data, string? actor, string? origin, DateTimeOffset now)
+        EventName eventType, JsonElement data, string? actor, string? origin,
+        EventSeverity? severity, EventOutcome? outcome, string? summary, DateTimeOffset now)
     {
         var buffer = new ArrayBufferWriter<byte>(512);
 
@@ -265,7 +271,7 @@ public sealed class EventJournalWriter : IEventJournalWriter
             // one. UUIDv7 rather than v4 so an id sorts the way the journal does.
             writer.WriteString("Id", Guid.CreateVersion7().ToString("d"));
 
-            writer.WriteString("EventType", eventType);
+            writer.WriteString("EventType", eventType.Value);
 
             writer.WritePropertyName("Data");
             data.WriteTo(writer);
@@ -287,6 +293,20 @@ public sealed class EventJournalWriter : IEventJournalWriter
 
             if (!string.IsNullOrEmpty(_options.ProducerVersion))
                 writer.WriteString("ProducerVersion", _options.ProducerVersion);
+
+            // What the producer says about its own event: how much it matters, how it went, and what
+            // happened in words. A reader renders an event it has never heard of from these three, so
+            // nothing downstream needs a list of event types. Omitted when the producer does not say —
+            // absent is unknown, and a default stamped here would be this writer's opinion rather than
+            // the producer's knowledge.
+            if (severity.HasValue)
+                writer.WriteString("Severity", severity.Value.ToWire());
+
+            if (outcome.HasValue)
+                writer.WriteString("Outcome", outcome.Value.ToWire());
+
+            if (!string.IsNullOrEmpty(summary))
+                writer.WriteString("Summary", summary);
 
             // OpId / RunId / During are reserved (the correlation work) and nothing populates them
             // yet, so no producer writes them and every reader sees them absent.

@@ -1,3 +1,5 @@
+using TheKrystalShip.KGSM.Events;
+
 namespace TheKrystalShip.KGSM.Lifecycle;
 
 /// <summary>
@@ -38,6 +40,29 @@ public static class LeafLifecycleEvents
     /// before it is an unclean exit, and the journal is already the record that says so.
     /// </remarks>
     public const string Stopping = "leaf_stopping";
+
+    /// <summary>
+    /// The same four names, typed so the writer can take them.
+    /// </summary>
+    /// <remarks>
+    /// Derived from the constants above rather than restated, so the name a leaf writes and the name a
+    /// reader compares against cannot become two different strings. Readers match the constants; the
+    /// emitter holds these.
+    /// </remarks>
+    public static class Names
+    {
+        /// <inheritdoc cref="LeafLifecycleEvents.Ready"/>
+        public static readonly EventName Ready = EventName.Parse(LeafLifecycleEvents.Ready);
+
+        /// <inheritdoc cref="LeafLifecycleEvents.Degraded"/>
+        public static readonly EventName Degraded = EventName.Parse(LeafLifecycleEvents.Degraded);
+
+        /// <inheritdoc cref="LeafLifecycleEvents.Recovered"/>
+        public static readonly EventName Recovered = EventName.Parse(LeafLifecycleEvents.Recovered);
+
+        /// <inheritdoc cref="LeafLifecycleEvents.Stopping"/>
+        public static readonly EventName Stopping = EventName.Parse(LeafLifecycleEvents.Stopping);
+    }
 }
 
 /// <summary>

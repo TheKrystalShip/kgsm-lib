@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TheKrystalShip.KGSM.Events;
 
 namespace TheKrystalShip.KGSM.Core.Interfaces;
 
@@ -19,6 +20,14 @@ namespace TheKrystalShip.KGSM.Core.Interfaces;
 /// do.
 /// </para>
 /// <para>
+/// <b>A line describes itself.</b> Beside the payload, a producer says how much the event matters
+/// (<see cref="EventSeverity"/>), how it went (<see cref="EventOutcome"/>) and what happened in one
+/// line of prose. Those three are what let a reader render an event it has never heard of, so no
+/// consumer holds a list of event types and none can be missing one. All three are optional: a
+/// producer that says nothing is quiet rather than malformed, and a reader treats absence as
+/// unknown.
+/// </para>
+/// <para>
 /// Writes are best-effort in the same sense the engine's are: a failure is reported to the caller
 /// and logged, never thrown into an operation that has already happened. An unrecorded action that
 /// looks recorded is the failure mode the journal exists to prevent, so the caller is told — and
@@ -34,8 +43,7 @@ public interface IEventJournalWriter
     /// Appends one event.
     /// </summary>
     /// <param name="eventType">
-    /// The event type, underscore-separated (<c>instance_ready</c>). A producer must not write a
-    /// type another producer owns.
+    /// The event's name. A producer must not write a name another producer owns.
     /// </param>
     /// <param name="data">
     /// The event-specific payload. Written verbatim and compact; a payload that is not a JSON object
@@ -43,17 +51,26 @@ public interface IEventJournalWriter
     /// </param>
     /// <param name="actor">Who triggered it (<c>provider:name</c>), or null when unknown.</param>
     /// <param name="origin">The surface that drove it, or null. Never fabricated.</param>
+    /// <param name="severity">How much it matters, or null when the producer does not say.</param>
+    /// <param name="outcome">How it went, or null when the producer does not say.</param>
+    /// <param name="summary">
+    /// What happened, in one line, for a person to read. Written at emit time, so it names things as
+    /// they were called when it happened rather than as they are called now.
+    /// </param>
     /// <param name="token">Cancellation token.</param>
     /// <returns>True when the line was appended; false when it could not be.</returns>
     /// <exception cref="ArgumentException">
-    /// Thrown when <paramref name="eventType"/> is blank or <paramref name="data"/> is not a JSON
-    /// object.
+    /// Thrown when <paramref name="eventType"/> names nothing or <paramref name="data"/> is not a
+    /// JSON object.
     /// </exception>
     ValueTask<bool> AppendAsync(
-        string eventType,
+        EventName eventType,
         JsonElement data,
         string? actor = null,
         string? origin = null,
+        EventSeverity? severity = null,
+        EventOutcome? outcome = null,
+        string? summary = null,
         CancellationToken token = default);
 
     /// <summary>
@@ -70,19 +87,25 @@ public interface IEventJournalWriter
     /// it writes properties only — no <c>WriteStartObject</c>/<c>WriteEndObject</c> of its own.
     /// </para>
     /// </remarks>
-    /// <param name="eventType">The event type, underscore-separated.</param>
+    /// <param name="eventType">The event's name.</param>
     /// <param name="writeData">Writes the payload's properties.</param>
     /// <param name="actor">Who triggered it (<c>provider:name</c>), or null when unknown.</param>
     /// <param name="origin">The surface that drove it, or null. Never fabricated.</param>
+    /// <param name="severity">How much it matters, or null when the producer does not say.</param>
+    /// <param name="outcome">How it went, or null when the producer does not say.</param>
+    /// <param name="summary">What happened, in one line, for a person to read.</param>
     /// <param name="token">Cancellation token.</param>
     /// <returns>True when the line was appended; false when it could not be.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="writeData"/> is null.</exception>
-    /// <exception cref="ArgumentException">Thrown when <paramref name="eventType"/> is blank.</exception>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="eventType"/> names nothing.</exception>
     ValueTask<bool> AppendAsync(
-        string eventType,
+        EventName eventType,
         Action<Utf8JsonWriter> writeData,
         string? actor = null,
         string? origin = null,
+        EventSeverity? severity = null,
+        EventOutcome? outcome = null,
+        string? summary = null,
         CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(writeData, nameof(writeData));
@@ -99,6 +122,7 @@ public interface IEventJournalWriter
         using JsonDocument document = JsonDocument.Parse(buffer.WrittenMemory);
 
         // Cloned because the document is disposed on return and a JsonElement does not own its buffer.
-        return AppendAsync(eventType, document.RootElement.Clone(), actor, origin, token);
+        return AppendAsync(
+            eventType, document.RootElement.Clone(), actor, origin, severity, outcome, summary, token);
     }
 }

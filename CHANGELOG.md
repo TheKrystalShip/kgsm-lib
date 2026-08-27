@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — an event says how much it matters, how it went, and what happened (`TheKrystalShip.KGSM.Journal` 2.0.0, `TheKrystalShip.KGSM.Lib` 8.0.0)
+
+The envelope carries three fields beside the payload: `Severity` (`info`/`warn`/`danger`), `Outcome`
+(`success`/`failure`/`neutral`) and `Summary`, one line of prose written at emit time. A reader renders
+an event it has never heard of from those three, so no consumer holds a list of event types and none
+can be missing one. All three are optional — a producer that says nothing is quiet rather than
+malformed, and absence is unknown.
+
+`EventName` is the type an event is named by, and it has no conversion from `string`: a raw literal
+cannot reach the writer, so a producer's names are declared once rather than spelled at each call
+site. It validates shape — dot-separated segments of lowercase letters, digits and underscores — and
+never membership, because a registry of valid names would mean every new leaf event needed a release
+of this package before it could be written.
+
+`EventSeverity` and `EventOutcome` are enums with one wire spelling each, defined here and consumed by
+every producer. A scale restated per repo is two vocabularies, and a reader that meets both is holding
+a translation table.
+
+Conformance checks the new fields' spelling and stops there: what a particular event deserves is the
+producer's judgement, and a rule asserting it would put one producer's policy inside a package every
+other producer compiles against. The reader understands envelope versions 1 and 2, because a journal
+holds what earlier builds wrote for as long as retention keeps it.
+
 ### Changed — an actor names a provider as well as a name (`Journal` 1.11.0, `Lib` 7.0.2)
 
 `envelope.actor` reports a bare name. An actor is `provider:name`, the form every reader splits it

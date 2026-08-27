@@ -145,7 +145,7 @@ public sealed class LeafLifecycle : JournalRecorder
                 ? (long)Math.Max(0, (_clock() - start).TotalMilliseconds)
                 : null;
 
-            return Record(LeafLifecycleEvents.Ready, w =>
+            return Record(LeafLifecycleEvents.Names.Ready, w =>
             {
                 WriteNullableNumber(w, LeafLifecycleFields.StartupMs, startupMs);
                 WriteNullable(w, LeafLifecycleFields.Detail, detail);
@@ -192,7 +192,7 @@ public sealed class LeafLifecycle : JournalRecorder
 
             _degradedSince[component] = _clock();
 
-            return Record(LeafLifecycleEvents.Degraded, w =>
+            return Record(LeafLifecycleEvents.Names.Degraded, w =>
             {
                 w.WriteString(LeafLifecycleFields.Component, component);
                 WriteNullable(w, LeafLifecycleFields.Detail, detail);
@@ -222,7 +222,7 @@ public sealed class LeafLifecycle : JournalRecorder
 
             long degradedForSec = (long)Math.Max(0, (_clock() - since).TotalSeconds);
 
-            return Record(LeafLifecycleEvents.Recovered, w =>
+            return Record(LeafLifecycleEvents.Names.Recovered, w =>
             {
                 w.WriteString(LeafLifecycleFields.Component, component);
                 w.WriteNumber(LeafLifecycleFields.DegradedForSec, degradedForSec);
@@ -255,7 +255,7 @@ public sealed class LeafLifecycle : JournalRecorder
                 ? (long)Math.Max(0, (_clock() - start).TotalSeconds)
                 : null;
 
-            return Record(LeafLifecycleEvents.Stopping, w =>
+            return Record(LeafLifecycleEvents.Names.Stopping, w =>
             {
                 w.WriteString(LeafLifecycleFields.Reason, reason);
                 WriteNullableNumber(w, LeafLifecycleFields.UptimeSec, uptimeSec);

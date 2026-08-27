@@ -49,7 +49,20 @@ public static class JournalConformance
     /// </para>
     /// </remarks>
     public static readonly IReadOnlyList<string> OptionalFields =
-        ["Actor", "Origin", "Hostname", "ProducerVersion", "Id", "OpId", "RunId", "During"];
+        [
+            "Actor", "Origin", "Hostname", "ProducerVersion", "Id", "OpId", "RunId", "During",
+            "Severity", "Outcome", "Summary",
+        ];
+
+    /// <summary>
+    /// The envelope versions this reader understands.
+    /// </summary>
+    /// <remarks>
+    /// More than one, because a journal holds what earlier builds wrote for as long as retention keeps
+    /// it, and a line that predates a field is not malformed — it is old. A reader that understood only
+    /// the newest version would report a host's whole history as broken the day a field was added.
+    /// </remarks>
+    public static readonly IReadOnlyList<int> SupportedSchemaVersions = [1, 2];
 
     /// <summary>How many lines of a journal a host check reads when the caller names no number.</summary>
     /// <remarks>
@@ -114,6 +127,9 @@ public static class JournalConformance
             CheckActor(root, Add);
             CheckProducerVersion(root, Add);
             CheckEventId(root, Add);
+            CheckSeverity(root, Add);
+            CheckOutcome(root, Add);
+            CheckSummary(root, Add);
             CheckUnknownFields(root, Add);
         }
 
@@ -252,10 +268,11 @@ public static class JournalConformance
             return;
         }
 
-        if (!version.TryGetInt32(out int value) || value != EventJournalWriter.SchemaVersion)
+        if (!version.TryGetInt32(out int value) || !SupportedSchemaVersions.Contains(value))
         {
             add(ConformanceRule.SchemaVersion,
-                $"V is {version} — this reader understands {EventJournalWriter.SchemaVersion}");
+                $"V is {version} — this reader understands "
+                + string.Join(" and ", SupportedSchemaVersions));
         }
     }
 
@@ -291,6 +308,56 @@ public static class JournalConformance
 
         if (value.Any(char.IsWhiteSpace))
             add(ConformanceRule.EventType, $"'{value}' contains whitespace");
+    }
+
+    /// <summary>
+    /// Checks the severity's spelling, never the judgement behind it.
+    /// </summary>
+    private static void CheckSeverity(JsonElement root, Action<string, string> add) =>
+        CheckEnumField(root, "Severity", ConformanceRule.Severity, EventSeverities.All, add);
+
+    /// <summary>Checks the outcome's spelling.</summary>
+    private static void CheckOutcome(JsonElement root, Action<string, string> add) =>
+        CheckEnumField(root, "Outcome", ConformanceRule.Outcome, EventOutcomes.All, add);
+
+    /// <summary>
+    /// Checks that a summary is a string, and stops there.
+    /// </summary>
+    /// <remarks>
+    /// Its wording is content and belongs to whoever raised the event. The only thing a reader needs
+    /// from this field is that it is text it can put on a screen.
+    /// </remarks>
+    private static void CheckSummary(JsonElement root, Action<string, string> add)
+    {
+        if (!root.TryGetProperty("Summary", out JsonElement summary)) return;
+        if (summary.ValueKind == JsonValueKind.Null) return;
+
+        if (summary.ValueKind != JsonValueKind.String)
+            add(ConformanceRule.Summary, $"Summary is {summary.ValueKind}, expected a string");
+    }
+
+    /// <summary>One closed-vocabulary envelope field, checked against the spellings it defines.</summary>
+    private static void CheckEnumField(
+        JsonElement root, string field, string rule, IReadOnlyList<string> allowed,
+        Action<string, string> add)
+    {
+        if (!root.TryGetProperty(field, out JsonElement value)) return;
+        if (value.ValueKind == JsonValueKind.Null) return;
+
+        if (value.ValueKind != JsonValueKind.String)
+        {
+            add(rule, $"{field} is {value.ValueKind}, expected a string");
+            return;
+        }
+
+        string spelling = value.GetString() ?? string.Empty;
+
+        if (!allowed.Contains(spelling, StringComparer.Ordinal))
+        {
+            add(rule,
+                $"{field} is '{spelling}' — the defined spellings are "
+                + string.Join(", ", allowed));
+        }
     }
 
     private static void CheckData(JsonElement root, Action<string, string> add)

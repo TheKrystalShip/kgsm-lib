@@ -704,25 +704,6 @@ public enum EventWeight
 }
 
 /// <summary>
-/// Whether an event reports something completing or failing.
-/// </summary>
-/// <remarks>
-/// <b>That</b> an event reports a failure is the engine's word; <b>how loudly</b> a surface says so is
-/// that surface's business. This is the first half only — there is deliberately no severity here.
-/// </remarks>
-public enum EventOutcome
-{
-    /// <summary>An observation or a state change; nothing completed or failed.</summary>
-    Neutral,
-
-    /// <summary>A multi-step operation reports it finished, and did what it set out to.</summary>
-    Success,
-
-    /// <summary>Something reports it did not happen, or stopped happening.</summary>
-    Failure,
-}
-
-/// <summary>
 /// What kind of data a field holds. A statement about the data, never about who may see it.
 /// </summary>
 public enum FieldSensitivity

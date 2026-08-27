@@ -68,31 +68,36 @@ public abstract class JournalRecorder(IEventJournalWriter writer, ILogger logger
     /// <summary>
     /// Appends one event.
     /// </summary>
-    /// <param name="eventType">
-    /// The event type. Dashes are normalised to underscores, so a call site may name an event the way
-    /// the engine's command line does.
-    /// </param>
+    /// <param name="eventType">The event's name, as this producer declares it.</param>
     /// <param name="payload">
     /// Writes the payload's properties. Called with the writer positioned inside the payload object,
     /// so it writes properties only.
     /// </param>
     /// <param name="actor">Who triggered it. Null uses <see cref="DefaultActor"/>.</param>
     /// <param name="origin">The surface that drove it. Null uses <see cref="DefaultOrigin"/>.</param>
+    /// <param name="severity">How much it matters. Null when this producer does not say.</param>
+    /// <param name="outcome">How it went. Null when this producer does not say.</param>
+    /// <param name="summary">What happened, in one line, for a person to read.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>True when the line was appended; false when it was not.</returns>
     protected async Task<bool> RecordAsync(
-        string eventType,
+        EventName eventType,
         Action<Utf8JsonWriter> payload,
         string? actor = null,
         string? origin = null,
+        EventSeverity? severity = null,
+        EventOutcome? outcome = null,
+        string? summary = null,
         CancellationToken ct = default)
     {
-        string type = NormalizeType(eventType);
+        string type = eventType.Value;
 
         try
         {
             bool written = await _writer
-                .AppendAsync(type, payload, Resolve(actor, DefaultActor), Resolve(origin, DefaultOrigin), ct)
+                .AppendAsync(
+                    eventType, payload, Resolve(actor, DefaultActor), Resolve(origin, DefaultOrigin),
+                    severity, outcome, NullIfBlank(summary), ct)
                 .ConfigureAwait(false);
 
             if (!written)
@@ -127,17 +132,24 @@ public abstract class JournalRecorder(IEventJournalWriter writer, ILogger logger
     /// records from an async context should await <see cref="RecordAsync"/> instead.
     /// </para>
     /// </remarks>
-    /// <param name="eventType">The event type; dashes normalised to underscores.</param>
+    /// <param name="eventType">The event's name, as this producer declares it.</param>
     /// <param name="payload">Writes the payload's properties.</param>
     /// <param name="actor">Who triggered it. Null uses <see cref="DefaultActor"/>.</param>
     /// <param name="origin">The surface that drove it. Null uses <see cref="DefaultOrigin"/>.</param>
+    /// <param name="severity">How much it matters. Null when this producer does not say.</param>
+    /// <param name="outcome">How it went. Null when this producer does not say.</param>
+    /// <param name="summary">What happened, in one line, for a person to read.</param>
     /// <returns>True when the line was appended; false when it was not.</returns>
     protected bool Record(
-        string eventType,
+        EventName eventType,
         Action<Utf8JsonWriter> payload,
         string? actor = null,
-        string? origin = null)
-        => RecordAsync(eventType, payload, actor, origin).GetAwaiter().GetResult();
+        string? origin = null,
+        EventSeverity? severity = null,
+        EventOutcome? outcome = null,
+        string? summary = null)
+        => RecordAsync(eventType, payload, actor, origin, severity, outcome, summary)
+            .GetAwaiter().GetResult();
 
     /// <summary>
     /// Writes a value, or a real JSON null when there is none — never an empty string.
@@ -166,20 +178,15 @@ public abstract class JournalRecorder(IEventJournalWriter writer, ILogger logger
         string.IsNullOrWhiteSpace(value) ? null : value;
 
     /// <summary>
-    /// The event type as the wire spells it.
+    /// The event's name as the wire spells it.
     /// </summary>
     /// <remarks>
-    /// Dash on a command line, underscore on the wire. Applied here so a call site naming an event the
-    /// engine's way cannot produce a type no consumer recognises. Exposed to a derived recorder so one
-    /// that mentions the type in its own logging says the same thing the journal does.
+    /// Exposed to a derived recorder so one that mentions the event in its own logging says the same
+    /// thing the journal does.
     /// </remarks>
-    /// <param name="eventType">The event type as the call site named it.</param>
-    /// <returns>The type as the wire spells it.</returns>
-    protected static string NormalizeType(string eventType)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(eventType, nameof(eventType));
-        return eventType.Replace('-', '_');
-    }
+    /// <param name="eventType">The event's name.</param>
+    /// <returns>The name as the wire spells it.</returns>
+    protected static string NormalizeType(EventName eventType) => eventType.Value;
 
     /// <summary>The caller's value, or the producer's default when the caller named none.</summary>
     private static string? Resolve(string? supplied, string? fallback) =>

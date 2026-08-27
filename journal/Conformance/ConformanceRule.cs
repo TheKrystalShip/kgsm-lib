@@ -55,6 +55,24 @@ public static class ConformanceRule
     /// </remarks>
     public const string EventIdShape = "envelope.event-id-shape";
 
+    /// <summary>The severity, when there is one, is a value the scale defines.</summary>
+    /// <remarks>
+    /// A spelling check and nothing more. Whether a <em>particular</em> event deserves a particular
+    /// weight is the producer's judgement, and a rule asserting that here would put one producer's
+    /// policy inside a package every other producer compiles against.
+    /// </remarks>
+    public const string Severity = "envelope.severity";
+
+    /// <summary>The outcome, when there is one, is a value the set defines.</summary>
+    public const string Outcome = "envelope.outcome";
+
+    /// <summary>The summary, when there is one, is a string.</summary>
+    /// <remarks>
+    /// What it <em>says</em> is never checked. It is one line of prose a person reads, and a rule
+    /// about its wording would be a rule about content.
+    /// </remarks>
+    public const string Summary = "envelope.summary";
+
     /// <summary>The envelope carries no field the contract does not define.</summary>
     public const string UnknownField = "envelope.unknown-field";
 
