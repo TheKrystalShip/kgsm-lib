@@ -34,7 +34,7 @@ public static class LeafLifecycleEvents
     /// The leaf is going away deliberately.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>There is deliberately no <c>leaf_stopped</c>.</b> The last thing a process can write is
+    /// ⚠ <b>There is deliberately no <c>leaf.stopped</c>.</b> The last thing a process can write is
     /// that it is stopping; whether it then stopped is not something it is around to say. A consumer
     /// that needs to know reads the next <see cref="Ready"/> — one with no <see cref="Stopping"/>
     /// before it is an unclean exit, and the journal is already the record that says so.

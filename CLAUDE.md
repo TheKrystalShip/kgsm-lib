@@ -74,7 +74,7 @@ Events flow: **an `IEventSource`** → **EventService** → **User handlers**
 _eventHandlers[typeof(InstanceInstalledData)] = handler;
 
 // Type mapping in EventService._eventTypeMapping
-{ "instance_installed", typeof(InstanceInstalledData) }
+{ "server.installed", typeof(InstanceInstalledData) }
 ```
 
 **Event lifecycle**: `EventService.Initialize()` starts the background transport, deserializes `EventWrapper`, matches type via `_eventTypeMapping`, invokes registered handlers.
@@ -178,7 +178,7 @@ check verifies. One definition each — a second copy is a second thing to bump.
 ### 4·a·ii. A leaf reporting on itself: `LeafLifecycle`
 
 `TheKrystalShip.KGSM.Lifecycle` (in the `journal/` package, so a leaf that cannot take kgsm-lib still
-gets it) is how a leaf says `leaf_ready`, `leaf_degraded`, `leaf_recovered`, `leaf_stopping`.
+gets it) is how a leaf says `leaf.ready`, `leaf.degraded`, `leaf.recovered`, `leaf.stopping`.
 
 **It reports transitions, not states.** A leaf calls these from a polling loop without tracking what it
 has already said; the emitter decides what changed. So most of its value is in what it declines to
