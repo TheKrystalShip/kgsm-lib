@@ -369,7 +369,11 @@ public sealed class EventJournalHistory : IEventJournalHistory
                         : wrapper.Data,
                     // Stamped from the journal this reader was pointed at, never from the line.
                     _producer,
-                    wrapper.OpId, wrapper.RunId, wrapper.During);
+                    wrapper.OpId, wrapper.RunId, wrapper.During,
+                    // What the producer said about its own event. Carried through untouched — a
+                    // reader that substituted a default here would be putting its own judgement on
+                    // the line under the producer's name.
+                    wrapper.Severity, wrapper.Outcome, wrapper.Summary);
 
                 // Its own priority: the comparator reads the fields, so there is nothing to keep in
                 // step between the two arguments.

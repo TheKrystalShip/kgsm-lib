@@ -176,4 +176,7 @@ public sealed record EventHistoryEntry(
     string? Producer = null,
     string? OpId = null,
     string? RunId = null,
-    IReadOnlyList<string>? During = null);
+    IReadOnlyList<string>? During = null,
+    string? Severity = null,
+    string? Outcome = null,
+    string? Summary = null);

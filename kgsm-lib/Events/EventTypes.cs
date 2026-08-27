@@ -125,6 +125,38 @@ public class EventWrapper
     public JsonElement Data { get; set; }
 
     /// <summary>
+    /// Gets or sets how much the producer says this event matters, or <see langword="null"/> when it
+    /// does not say.
+    /// </summary>
+    /// <remarks>
+    /// The producer's own judgement and the only honest source of one: the scheduler knows its
+    /// retention sweep is routine and the engine knows an uninstall is not, and neither fact exists
+    /// anywhere else. Absent is unknown — a reader treats it as such rather than substituting a
+    /// default, which would be the reader's opinion wearing the producer's name.
+    /// </remarks>
+    public string? Severity { get; set; }
+
+    /// <summary>
+    /// Gets or sets how the event went, or <see langword="null"/> when the producer does not say.
+    /// </summary>
+    /// <remarks>
+    /// Orthogonal to <see cref="Severity"/>: a backup created and a config key set are both routine
+    /// and differ here, where an uninstall that worked and one that failed differ in severity.
+    /// </remarks>
+    public string? Outcome { get; set; }
+
+    /// <summary>
+    /// Gets or sets what happened, in one line, or <see langword="null"/> when the producer does not
+    /// say.
+    /// </summary>
+    /// <remarks>
+    /// Written when the event was raised, so it names things as they were called at the time. A
+    /// rename afterwards leaves this line saying what the server was called when this happened, which
+    /// is what stops a feed rewriting its own history.
+    /// </remarks>
+    public string? Summary { get; set; }
+
+    /// <summary>
     /// Gets or sets when the event was emitted (UTC). <see langword="null"/> if the
     /// emitter did not include it.
     /// </summary>

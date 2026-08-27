@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — the read half sees what the producer said (`TheKrystalShip.KGSM.Lib` 8.1.0)
+
+`EventWrapper` and `EventHistoryEntry` carry `Severity`, `Outcome` and `Summary`, so a consumer
+reading the journal gets what the producer said about its own event rather than only the payload.
+Carried through untouched and null when the producer said nothing — a reader substituting a default
+would be putting its own judgement on the line under the producer's name.
+
 ### Changed — an event says how much it matters, how it went, and what happened (`TheKrystalShip.KGSM.Journal` 2.0.0, `TheKrystalShip.KGSM.Lib` 8.0.0)
 
 The envelope carries three fields beside the payload: `Severity` (`info`/`warn`/`danger`), `Outcome`
