@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — an unasked-for stop is danger (`TheKrystalShip.KGSM.Lib` 8.5.0)
+
+`server.crashed` carries `danger`, the same weight as the give-up it may lead to. A server going down
+unasked is the fleet losing a service, and the supervisor being on its way to bring it back does not
+make that routine. Which of the two a row is stays readable from its name, so nothing is lost by them
+sharing a colour.
+
 ### Added — a payload class names its own event (`TheKrystalShip.KGSM.Lib` 8.4.0)
 
 `KgsmEventCatalog.NameOf<TData>()` answers what the event carrying a payload class is called — the

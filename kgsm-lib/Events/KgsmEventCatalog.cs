@@ -210,7 +210,10 @@ public static class KgsmEventCatalog
             Instance<InstanceRestartStartedData>("server.restart.started", EventWeight.Phase),
             Instance<InstanceRestartStoppedData>("server.restart.stopped", EventWeight.Phase),
             Instance<InstanceRestartFinishedData>("server.restart.finished", EventWeight.Phase),
-            Instance<InstanceCrashedData>("server.crashed", EventWeight.Fact, EventOutcome.Failure, [ExitCode, Restarts], severity: EventSeverity.Warn),
+            // Danger, the same as the give-up. A server going down unasked is the fleet losing a
+            // service, and the supervisor being on its way to bring it back does not make that
+            // routine — the two are told apart by their names, which is what the split is for.
+            Instance<InstanceCrashedData>("server.crashed", EventWeight.Fact, EventOutcome.Failure, [ExitCode, Restarts], severity: EventSeverity.Danger),
             Instance<InstanceFailedData>("server.crash.exhausted", EventWeight.Fact, EventOutcome.Failure, [ExitCode, Restarts], severity: EventSeverity.Danger),
 
             // -- versions ----------------------------------------------------------------------

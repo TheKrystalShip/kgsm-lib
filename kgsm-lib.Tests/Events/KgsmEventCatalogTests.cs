@@ -418,5 +418,14 @@ public class KgsmEventCatalogTests
         Assert.Throws<InvalidOperationException>(() => KgsmEventCatalog.NameOf<UnclassifiedPayload>());
     }
 
+    [Fact]
+    public void A_server_going_down_unasked_is_danger_either_way()
+    {
+        // The supervisor still trying does not make the fact routine, and the two are told apart by
+        // their names rather than by their weight.
+        Assert.Equal(EventSeverity.Danger, KgsmEventCatalog.Describe("server.crashed").Severity);
+        Assert.Equal(EventSeverity.Danger, KgsmEventCatalog.Describe("server.crash.exhausted").Severity);
+    }
+
     private sealed class UnclassifiedPayload : EventDataBase;
 }
