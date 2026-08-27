@@ -374,4 +374,49 @@ public class KgsmEventCatalogTests
         Assert.Equal(EventSubject.Instance, KgsmEventCatalog.Describe("file.written").Subject);
         Assert.Equal(EventSubject.Instance, KgsmEventCatalog.Describe("backup.downloaded").Subject);
     }
+
+    [Fact]
+    public void A_payload_class_names_the_event_it_belongs_to()
+    {
+        // The derivation a typed consumer uses in place of writing the name beside its handler.
+        Assert.Equal("server.started", KgsmEventCatalog.NameOf<InstanceStartedData>());
+        Assert.Equal("server.crash.exhausted", KgsmEventCatalog.NameOf<InstanceFailedData>());
+        Assert.Equal("host.threshold.breached", KgsmEventCatalog.NameOf<HostThresholdBreachedData>());
+    }
+
+    [Fact]
+    public void Every_classified_payload_class_either_names_one_event_or_refuses()
+    {
+        // The property the derivation rests on: asking a class what it is called is never a guess.
+        // Either it is bound to exactly one event and answers, or it is bound to several and says so.
+        var byPayload = KgsmEventCatalog.All
+            .Where(d => d.PayloadType is not null)
+            .GroupBy(d => d.PayloadType!);
+
+        MethodInfo nameOf = typeof(KgsmEventCatalog).GetMethod(nameof(KgsmEventCatalog.NameOf))!;
+
+        foreach (var group in byPayload)
+        {
+            object? Ask() => nameOf.MakeGenericMethod(group.Key).Invoke(null, null);
+
+            if (group.Count() == 1)
+            {
+                Assert.Equal(group.Single().Type, Ask());
+                continue;
+            }
+
+            // Shared by several events: the producer's own constants name those, so this refuses
+            // rather than returning whichever happened to be registered first.
+            TargetInvocationException thrown = Assert.Throws<TargetInvocationException>(Ask);
+            Assert.IsType<InvalidOperationException>(thrown.InnerException);
+        }
+    }
+
+    [Fact]
+    public void A_class_the_catalog_does_not_classify_names_nothing()
+    {
+        Assert.Throws<InvalidOperationException>(() => KgsmEventCatalog.NameOf<UnclassifiedPayload>());
+    }
+
+    private sealed class UnclassifiedPayload : EventDataBase;
 }

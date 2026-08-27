@@ -47,6 +47,35 @@ public static class KgsmEventCatalog
     public static IReadOnlyCollection<EventDescriptor> All => Descriptors.Values;
 
     /// <summary>
+    /// What the event carrying <typeparamref name="TData"/> is called.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The inverse of the binding <see cref="Describe"/> reads forwards, and the reason a consumer
+    /// that dispatches on a payload class never has to spell the name beside it. A typed handler
+    /// already says which event it is for — the class is the identity — so asking here is a
+    /// derivation, where a literal next to the registration is a second declaration that can drift
+    /// from the first without anything noticing.
+    /// </para>
+    /// <para>
+    /// <b>Throws when the class does not name one event.</b> A payload shared by several events (one
+    /// shape carrying a from/to pair for every account move, say) names none of them on its own, and
+    /// its producer's own constants are what say which. A class this build does not classify names
+    /// nothing at all. Both are defects in the calling code rather than facts about a host, so they
+    /// fail loudly instead of answering with a guess.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// <typeparamref name="TData"/> is bound to no event, or to more than one.
+    /// </exception>
+    public static string NameOf<TData>() where TData : KgsmEventDataBase =>
+        ByPayload.TryGetValue(typeof(TData), out string? name)
+            ? name
+            : throw new InvalidOperationException(
+                $"{typeof(TData).Name} names no single event — it is either unclassified or shared by "
+                + "several, and the producer's own constants are what name those.");
+
+    /// <summary>
     /// A descriptor for a type nobody has classified.
     /// </summary>
     /// <remarks>
@@ -101,11 +130,35 @@ public static class KgsmEventCatalog
 
     private static readonly Dictionary<string, EventDescriptor> Descriptors;
 
+    // The payload-class inverse, holding only the classes that name exactly one event. A class bound
+    // to several is absent rather than pointing at whichever was registered first: answering with one
+    // of them would be a coin toss recorded as a fact.
+    private static readonly Dictionary<Type, string> ByPayload;
+
     // Built in a static constructor rather than a field initializer, and it has to be: the shared
     // field definitions below are static initializers themselves, and those run in textual order —
     // building the table from a field initializer would read every one of them before it was assigned.
     // A static constructor body runs after all of them, whatever order the file is in.
-    static KgsmEventCatalog() => Descriptors = Build();
+    static KgsmEventCatalog()
+    {
+        Descriptors = Build();
+        ByPayload = InvertByPayload(Descriptors.Values);
+    }
+
+    private static Dictionary<Type, string> InvertByPayload(IEnumerable<EventDescriptor> all)
+    {
+        var shared = new HashSet<Type>();
+        var byPayload = new Dictionary<Type, string>();
+
+        foreach (EventDescriptor descriptor in all)
+        {
+            if (descriptor.PayloadType is not { } payload) continue;
+            if (!byPayload.TryAdd(payload, descriptor.Type)) shared.Add(payload);
+        }
+
+        foreach (Type payload in shared) byPayload.Remove(payload);
+        return byPayload;
+    }
 
     private static Dictionary<string, EventDescriptor> Build()
     {

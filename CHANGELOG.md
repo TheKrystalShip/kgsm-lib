@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — a payload class names its own event (`TheKrystalShip.KGSM.Lib` 8.4.0)
+
+`KgsmEventCatalog.NameOf<TData>()` answers what the event carrying a payload class is called — the
+inverse of the binding `Describe` reads forwards. A consumer that dispatches on a typed handler
+already says which event it is for, so it derives the name instead of spelling a literal beside the
+registration, where the two could drift apart with nothing to notice. A class shared by several
+events names none of them and throws, since its producer's own constants are what say which.
+
 ### Changed — one dotted vocabulary (`TheKrystalShip.KGSM.Journal` 2.1.0, `TheKrystalShip.KGSM.Lib` 8.3.0)
 
 Every event is named the way a reader groups it: domain first, past tense, an outcome as its own
