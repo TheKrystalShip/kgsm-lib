@@ -89,8 +89,8 @@ public interface IBlueprintFiles
     /// resolved from the engine;
     /// <see cref="FileOpOutcome.IoError"/> for any other filesystem failure.
     /// </returns>
-    /// <param name="actor">The audit principal to stamp on the emitted event. Null leaves the engine to
-    /// apply its OS-user fallback.</param>
+    /// <param name="actor">The audit principal to stamp on the emitted event, written
+    /// <c>provider:name</c>. Null emits no actor — never a fabricated one.</param>
     /// <param name="origin">The surface that drove the write. Null emits no origin — never a fabricated one.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="draft"/> is null.</exception>
     /// <remarks>Emits <c>blueprint_created</c> or <c>blueprint_updated</c> on success, exactly as
@@ -216,8 +216,8 @@ public interface IBlueprintFiles
     /// </summary>
     /// <param name="name">The blueprint name (the same slug passed as <see cref="NativeBlueprintDraft.Name"/>
     /// to <see cref="Create"/>) to remove.</param>
-    /// <param name="actor">The audit principal to stamp on the emitted event. Null leaves the engine to
-    /// apply its OS-user fallback.</param>
+    /// <param name="actor">The audit principal to stamp on the emitted event, written
+    /// <c>provider:name</c>. Null emits no actor — never a fabricated one.</param>
     /// <param name="origin">The surface that drove the removal. Null emits no origin — never a
     /// fabricated one.</param>
     /// <returns>

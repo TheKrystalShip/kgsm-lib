@@ -51,8 +51,8 @@ public class LifecycleService : ILifecycleService
     /// <summary>
     /// Runs a lifecycle verb, propagating any supplied provenance (actor/origin) to KGSM
     /// as environment variables so the event it emits is attributable. When neither is
-    /// supplied, the plain (no-env) command path is used so KGSM applies its own honest
-    /// fallbacks (actor → OS user; origin → none).
+    /// supplied, the plain (no-env) command path is used and the event records with neither —
+    /// an unclaimed action, which is what it is.
     /// <para>
     /// Runs on the <see cref="KgsmTimeoutOptions.Lifecycle"/> tier, not the default one: a stop drains
     /// for the instance's full stop timeout before its supervisor hard-kills, which the 30s default

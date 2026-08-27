@@ -24,8 +24,8 @@ public abstract class KgsmEventDataBase
     /// <summary>
     /// Gets or sets who triggered the event (the audit principal). Populated from
     /// the envelope's top-level <c>Actor</c> by <c>EventService</c>. KGSM takes it
-    /// from <c>$KGSM_EVENT_ACTOR</c> (caller-supplied) or falls back to the invoking
-    /// OS user; <see langword="null"/> means the emitter did not supply one.
+    /// from <c>$KGSM_EVENT_ACTOR</c> (caller-supplied) as <c>provider:name</c>;
+    /// <see langword="null"/> means the emitter did not supply one.
     /// </summary>
     public string? Actor { get; set; }
 

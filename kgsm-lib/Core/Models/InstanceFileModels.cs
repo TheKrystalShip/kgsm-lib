@@ -298,8 +298,8 @@ public sealed record BlueprintWriteOptions
     /// default is safe, so this must be set deliberately by every caller.</summary>
     public long MaxBytes { get; init; }
 
-    /// <summary>The audit principal to stamp on the emitted event (<c>$KGSM_EVENT_ACTOR</c>). Null leaves
-    /// the engine to apply its OS-user fallback.</summary>
+    /// <summary>The audit principal to stamp on the emitted event (<c>$KGSM_EVENT_ACTOR</c>), written
+    /// <c>provider:name</c>. Null records the event with no actor.</summary>
     public string? Actor { get; init; }
 
     /// <summary>The surface that drove the write (<c>ui</c>/<c>assistant</c>/<c>discord</c>/<c>api</c>),

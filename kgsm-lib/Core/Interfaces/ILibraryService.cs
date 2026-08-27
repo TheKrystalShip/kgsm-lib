@@ -31,7 +31,7 @@ public interface ILibraryService
     /// name in an existing marker.
     /// </param>
     /// <param name="actor">Optional audit principal (who) propagated to KGSM as
-    /// <c>KGSM_EVENT_ACTOR</c>; null/empty = KGSM's OS-user fallback (never fabricated).</param>
+    /// <c>KGSM_EVENT_ACTOR</c>, written <c>provider:name</c>; null/empty = no actor emitted.</param>
     /// <param name="origin">Optional driving surface (through-what) propagated as
     /// <c>KGSM_EVENT_ORIGIN</c>; null/empty = no surface emitted.</param>
     /// <returns>Result of the add operation.</returns>

@@ -9,9 +9,13 @@ namespace TheKrystalShip.KGSM.Services;
 /// <remarks>
 /// Shared by every provenance-aware mutation (<see cref="LifecycleService"/> start/stop/restart and the
 /// <see cref="InstanceService"/> install/uninstall/update/backup/config verbs) so the rule lives in one
-/// place. Only non-empty values are set: a null/empty actor or origin is <em>omitted</em> so KGSM applies
-/// its own honest fallback (actor → the OS user; origin → none) — a surface is never fabricated. Returns
+/// place. Only non-empty values are set: a null/empty actor or origin is <em>omitted</em>, and the event
+/// records without it — neither a principal nor a surface is ever fabricated to fill the gap. Returns
 /// <see langword="null"/> when neither is supplied, so the caller takes the plain no-env command path.
+/// <para>
+/// An actor is written <c>provider:name</c> (see <c>KgsmActor</c>); the engine refuses anything else
+/// rather than writing a value no reader can resolve back into a principal.
+/// </para>
 /// </remarks>
 internal static class KgsmProvenance
 {

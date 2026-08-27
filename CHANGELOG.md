@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — an actor names a provider as well as a name (`Journal` 1.11.0, `Lib` 7.0.2)
+
+`envelope.actor` reports a bare name. An actor is `provider:name`, the form every reader splits it
+back into; a name with no provider in front of it is the shape an OS username takes, and the OS user
+owns the process rather than asking for the action — so it names the wrong principal on an audit
+record even when the string is a real login on that host. A provider the reader does not recognise
+is still conformant: which providers a host has is its own configuration, and keeping the name
+rather than coercing it is the never-fabricate rule applied to provenance.
+
+The provenance parameters across `IInstanceService`, `ILifecycleService`, `ILibraryService`,
+`IBlueprintFiles`, `IEventManagementService` and `KgsmProvenance` state what a null actor now means:
+the event records unclaimed. Documentation; the behaviour is the engine's.
+
 ### Fixed — the supervision phase vocabulary states every phase the daemon reports (`Lib` 7.0.1)
 
 Documentation only; no behaviour changes.

@@ -55,10 +55,10 @@ public sealed class JournalConformanceCheckerTests : IDisposable
     }
 
     [Theory]
-    // Every distinct envelope shape measured across the five journals on a live host: the engine's
-    // bare OS-user actor and explicit null origin, a leaf's derived system actor, a surface-driven
-    // action, and a producer that omits the optional fields entirely.
-    [InlineData("""{"V":1,"EventType":"instance_created","Data":{"instance":"a"},"Timestamp":"2026-08-16T10:04:37.799Z","Actor":"heisen","Origin":null,"Hostname":"hotrod","ProducerVersion":"3.16.0-rc3"}""")]
+    // Every distinct envelope shape measured across the five journals on a live host: an unclaimed
+    // engine action with an explicit null actor and origin, a leaf's derived system actor, a
+    // surface-driven action, and a producer that omits the optional fields entirely.
+    [InlineData("""{"V":1,"EventType":"instance_created","Data":{"instance":"a"},"Timestamp":"2026-08-16T10:04:37.799Z","Actor":null,"Origin":null,"Hostname":"hotrod","ProducerVersion":"3.16.0-rc3"}""")]
     [InlineData("""{"V":1,"EventType":"instance_player_left","Data":{"instance":"a"},"Timestamp":"2026-08-16T11:22:47.317Z","Actor":"system:watchdog","Origin":"system","Hostname":"hotrod","ProducerVersion":"1.30.2+f0b7744e2e06"}""")]
     [InlineData("""{"V":1,"EventType":"instance_ports_opened","Data":{"instance":"a"},"Timestamp":"2026-08-16T09:42:43.417Z","Actor":"discord:heisen9386","Origin":"ui","Hostname":"hotrod","ProducerVersion":"1.7.1+39bf5a539021"}""")]
     [InlineData("""{"V":1,"EventType":"auth_logout","Data":{},"Timestamp":"2026-08-15T22:41:51.402Z"}""")]
@@ -189,7 +189,7 @@ public sealed class JournalConformanceCheckerTests : IDisposable
 
     [Theory]
     [InlineData("null")]
-    [InlineData("\"a value\"")]
+    [InlineData("\"local:someone\"")]
     public void The_two_ways_the_contract_defines_are_both_accepted(string actor)
     {
         // Absent and null are the same thing to a reader, so a producer may spell absence either way
@@ -218,15 +218,28 @@ public sealed class JournalConformanceCheckerTests : IDisposable
     }
 
     [Theory]
-    [InlineData("heisen")]
     [InlineData("system:watchdog")]
     [InlineData("discord:Claude (agent)")]
     [InlineData("local:claude")]
+    [InlineData("github:octocat")]
     public void An_actor_a_producer_on_this_host_writes_is_accepted(string actor)
     {
-        // ⚠ A bare name is not drift. It reads as a local OS user, which is exactly what the engine
-        // means by it, and requiring a provider would report six hundred correct lines as broken.
+        // Which providers a host has is its own configuration, so an unrecognised one is not drift:
+        // the reader keeps the name rather than coercing it into a provider it happens to know.
         Assert.Empty(Check(Line(actor: actor)));
+    }
+
+    [Theory]
+    [InlineData("heisen")]
+    [InlineData("root")]
+    [InlineData("claude")]
+    public void A_bare_name_is_reported_as_an_actor_naming_no_provider(string actor)
+    {
+        // A name with no provider in front of it is the shape an OS username takes, and the OS user
+        // owns the process rather than asking for the action — so it names the wrong principal on an
+        // audit record even when the string is a real login on this host.
+        ConformanceFinding finding = Assert.Single(Check(Line(actor: actor)));
+        Assert.Equal(ConformanceRule.Actor, finding.Rule);
     }
 
     // ── envelope.producer-version-shape ──────────────────────────────────────────────────────────

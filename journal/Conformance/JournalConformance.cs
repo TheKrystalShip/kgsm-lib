@@ -358,12 +358,17 @@ public static class JournalConformance
         if (string.IsNullOrWhiteSpace(value))
             return;
 
-        // A bare name is a local OS user and is meant: the engine writes one. What cannot be read is a
-        // half-written qualified actor, where one side of the separator names nobody.
+        // An actor is `provider:name`, the form every reader splits it back into. A name with no
+        // provider in front of it is the shape an OS username takes, and an OS username is who owns
+        // the process rather than who asked for the action — so it names the wrong principal on an
+        // audit record even when the string itself is a real person's login.
         int separator = value.IndexOf(':', StringComparison.Ordinal);
 
         if (separator < 0)
+        {
+            add(ConformanceRule.Actor, $"'{value}' names somebody but no provider — an actor is 'provider:name'");
             return;
+        }
 
         if (separator == 0 || separator == value.Length - 1)
             add(ConformanceRule.Actor, $"'{value}' is qualified but one side of the ':' is empty");

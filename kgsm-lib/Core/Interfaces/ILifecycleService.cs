@@ -13,8 +13,8 @@ public interface ILifecycleService
     /// </summary>
     /// <param name="instanceName">The name of the instance to start.</param>
     /// <param name="actor">Optional audit principal (who) propagated to KGSM as
-    /// <c>$KGSM_EVENT_ACTOR</c> so the emitted event is attributable. When null/empty,
-    /// KGSM falls back to the invoking OS user.</param>
+    /// <c>$KGSM_EVENT_ACTOR</c> so the emitted event is attributable, written
+    /// <c>provider:name</c>. When null/empty the event records with no actor.</param>
     /// <param name="origin">Optional surface (through-what: <c>ui</c>/<c>assistant</c>/
     /// <c>discord</c>/<c>system</c>/<c>api</c>) propagated as <c>$KGSM_EVENT_ORIGIN</c>.
     /// When null/empty, KGSM emits no origin (no fabricated surface).</param>

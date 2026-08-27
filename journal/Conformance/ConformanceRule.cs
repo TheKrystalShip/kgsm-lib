@@ -41,7 +41,7 @@ public static class ConformanceRule
     /// </remarks>
     public const string AbsentSpelling = "envelope.absent-spelling";
 
-    /// <summary>An actor, when there is one, names somebody.</summary>
+    /// <summary>An actor, when there is one, is <c>provider:name</c> with both halves present.</summary>
     public const string Actor = "envelope.actor";
 
     /// <summary>The producer version is the number a release carries, not a four-part assembly version.</summary>

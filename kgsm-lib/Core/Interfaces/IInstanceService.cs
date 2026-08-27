@@ -91,7 +91,8 @@ public interface IInstanceService
     /// <c>--name</c>. Free text — it decorates, and never becomes part of a path or an identifier.
     /// Null leaves the label reading as the id.</param>
     /// <param name="actor">Optional audit principal (who) propagated to KGSM as <c>KGSM_EVENT_ACTOR</c>
-    /// so the emitted event is attributable; null/empty = KGSM's OS-user fallback (never fabricated).</param>
+    /// so the emitted event is attributable, written <c>provider:name</c>; null/empty = no actor
+    /// emitted (never a fabricated one).</param>
     /// <param name="origin">Optional driving surface (through-what) propagated as <c>KGSM_EVENT_ORIGIN</c>;
     /// null/empty = no surface emitted.</param>
     /// <param name="port">Optional override for the blueprint's primary game port (1-65535), passed to KGSM
@@ -255,8 +256,8 @@ public interface IInstanceService
     /// </param>
     /// <param name="actor">
     /// Optional audit principal — see <see cref="Install"/>. It stamps the <c>instance_update_available</c>
-    /// event <paramref name="emit"/> produces; without it the engine falls back to the OS user the sweep
-    /// happens to run as, which reads as a person having asked.
+    /// event <paramref name="emit"/> produces; without it the event records unclaimed, which is what a
+    /// sweep nobody asked for is.
     /// </param>
     /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result indicating if an update is available.</returns>
@@ -419,8 +420,8 @@ public interface IInstanceService
     /// <param name="instanceName">The instance to send the command to.</param>
     /// <param name="command">The console command to send.</param>
     /// <param name="actor">Optional audit principal (who) to stamp on the emitted
-    /// <c>instance_input_sent</c> event via <c>KGSM_EVENT_ACTOR</c>; null omits it so kgsm
-    /// applies its OS-user fallback (never a fabricated identity).</param>
+    /// <c>instance_input_sent</c> event via <c>KGSM_EVENT_ACTOR</c> as <c>provider:name</c>; null
+    /// omits it, and the event records with no actor (never a fabricated identity).</param>
     /// <param name="origin">Optional driving surface (through which) to stamp via
     /// <c>KGSM_EVENT_ORIGIN</c>; null omits it (no surface — never fabricated).</param>
     /// <returns>Result containing log output after command execution.</returns>
@@ -455,8 +456,8 @@ public interface IInstanceService
     /// <param name="instanceName">The instance to announce on.</param>
     /// <param name="message">The text to show players.</param>
     /// <param name="actor">Optional audit principal (who) to stamp on the emitted
-    /// <c>instance_announcement_sent</c> event via <c>KGSM_EVENT_ACTOR</c>; null omits it
-    /// so kgsm applies its OS-user fallback (never a fabricated identity).</param>
+    /// <c>instance_announcement_sent</c> event via <c>KGSM_EVENT_ACTOR</c> as <c>provider:name</c>;
+    /// null omits it, and the event records with no actor (never a fabricated identity).</param>
     /// <param name="origin">Optional driving surface (through which) to stamp via
     /// <c>KGSM_EVENT_ORIGIN</c>; null omits it (no surface — never fabricated).</param>
     /// <returns>Result of the announce operation.</returns>
@@ -480,8 +481,8 @@ public interface IInstanceService
     /// <param name="instanceName">The instance to moderate on.</param>
     /// <param name="target">The player identity the game addresses.</param>
     /// <param name="actor">Optional audit principal (who) to stamp on the emitted
-    /// <c>instance_player_kicked</c> event via <c>KGSM_EVENT_ACTOR</c>; null omits it so
-    /// kgsm applies its OS-user fallback (never a fabricated identity).</param>
+    /// <c>instance_player_kicked</c> event via <c>KGSM_EVENT_ACTOR</c> as <c>provider:name</c>; null
+    /// omits it, and the event records with no actor (never a fabricated identity).</param>
     /// <param name="origin">Optional driving surface (through which) to stamp via
     /// <c>KGSM_EVENT_ORIGIN</c>; null omits it (no surface — never fabricated).</param>
     /// <returns>Result of the kick operation.</returns>
