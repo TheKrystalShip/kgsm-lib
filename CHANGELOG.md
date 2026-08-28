@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — the reactor's judgments read back typed (`TheKrystalShip.KGSM.Lib` 8.6.0)
+
+`reactor.decided` and `reactor.acted` are classified, so a consumer that registers a handler for one
+gets a payload class instead of a `JsonElement`. `ReactorEvents` names them, `ReactorEventFields`
+names every field once, and `ReactorOutcomes` carries the six spellings a verdict can have.
+
+**Service-subject, not instance-subject**, for the same reason the assistant's own events are: a
+decision is something the host *noticed* about a server rather than something that happened to one,
+and its subject is not always a server at all — a threshold episode is about a sensor. A consumer
+routing on the subject would file a judgment in the same list as the events it was judging.
+
+`RuleAuthor` is who shaped the rule, as a stable `provider:name` username, classified as naming a
+natural person — the one personal field the reactor writes, and the reason a surface listing decisions
+to a room of players does not print the operator behind each rule beside it. ⚠ **Null is a real
+state**: a rule the build ships, or one hand-written over SSH, carries no identity, and there is no
+fallback to the OS user anywhere in this ecosystem.
+
+⚠ **Three of the six outcomes are not verdicts about the world.** `fired` and `settled` report what
+the rule decided; `suppressed`, `ceilinged` and `superseded` report that it decided *yes* and the gate
+held it back. A consumer counting how often a condition was true must count those; one counting how
+often anything happened must not.
+
+The binding is checked against **lines the leaf actually wrote**, including one written before
+`RuleAuthor` existed — the producer is a different repository writing from its own copy of the field
+names, so nothing in this solution would otherwise fail when the two spellings part company, and the
+failure is silent: a property that does not bind keeps its initialised value and reads as an ordinary
+empty answer.
+
 ### Changed — an unasked-for stop is danger (`TheKrystalShip.KGSM.Lib` 8.5.0)
 
 `server.crashed` carries `danger`, the same weight as the give-up it may lead to. A server going down

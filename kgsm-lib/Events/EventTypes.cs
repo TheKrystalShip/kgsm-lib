@@ -1776,3 +1776,177 @@ public class BackupDownloadedEventData : EventDataBase
     /// <summary>Gets or sets the archive hash as <c>sha256:&lt;hex&gt;</c>.</summary>
     public string? Sha256 { get; set; }
 }
+
+/// <summary>
+/// The base for what the reactor reports about what it judged.
+/// </summary>
+/// <remarks>
+/// <see cref="KgsmEventDataBase"/> rather than <see cref="ServiceEventData"/>, for the same reason
+/// <see cref="AssistantEventData"/> is: <b>no payload names the producer</b>. The journal directory a
+/// line was read from already answers that, and a field inside the payload would be a claim a reader
+/// cannot check — able, therefore, to disagree.
+/// </remarks>
+public abstract class ReactorEventData : KgsmEventDataBase
+{
+    /// <summary>Gets or sets the rule that decided.</summary>
+    /// <remarks>
+    /// The actor an audit row carries: <c>rule:&lt;id&gt;</c>. Nobody decided anything at three in the
+    /// morning — the rule did.
+    /// </remarks>
+    [JsonPropertyName(ReactorEventFields.Rule)]
+    public string Rule { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets what was judged — a server name, a sensor reference, a component.</summary>
+    [JsonPropertyName(ReactorEventFields.Subject)]
+    public string Subject { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets what the rule would do, as a stable name.</summary>
+    /// <remarks>
+    /// <c>none</c> for a rule that reports and proposes nothing, which is a real answer rather than a
+    /// missing one: the decision record is that rule's whole output.
+    /// </remarks>
+    [JsonPropertyName(ReactorEventFields.Action)]
+    public string Action { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the server the action operates on, or <see langword="null"/> when it operates on
+    /// none.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Distinct from <see cref="Subject"/>, which is what was judged.</b> They are the same
+    /// string for most rules and will not stay that way: a rule judging a host sensor can still
+    /// propose something about a server, and a consumer that routed on the subject would file that
+    /// under the sensor.
+    /// </remarks>
+    [JsonPropertyName(ReactorEventFields.ActionInstance)]
+    public string? ActionInstance { get; set; }
+
+    /// <summary>Gets or sets the decision's own identity.</summary>
+    [JsonPropertyName(ReactorEventFields.DecisionId)]
+    public string DecisionId { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Data for <c>reactor.decided</c> — a rule reached a verdict about a subject.
+/// </summary>
+/// <remarks>
+/// ⚠ <b>A verdict, not an action.</b> In observe mode — which is where every rule starts and the most
+/// the build honours today — nothing is staged and nothing is performed, so this reports what the host
+/// noticed. A consumer that rendered it as something having been done would be announcing work that
+/// did not happen.
+/// </remarks>
+public class ReactorDecidedEventData : ReactorEventData
+{
+    /// <summary>
+    /// Gets or sets what sort of thing the subject is: <c>instance</c>, <c>host</c>, <c>leaf</c>,
+    /// <c>unknown</c>.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Carried rather than derived.</b> A consumer that worked it out by looking the name up and
+    /// seeing what it found would be guessing — a host-scoped subject like <c>k10temp/Tctl</c> has no
+    /// server to resolve to, and a router needs to know that rather than discover it by failing.
+    /// </remarks>
+    [JsonPropertyName(ReactorEventFields.SubjectKind)]
+    public string SubjectKind { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets how loudly the rule speaks, in the ecosystem's severity spellings.</summary>
+    [JsonPropertyName(ReactorEventFields.Severity)]
+    public string Severity { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the authority it ran under: <c>observe</c>, <c>propose</c>, <c>act</c>.</summary>
+    /// <remarks>
+    /// What was actually in force, never what the rule asked for. A rule asking for an authority the
+    /// build does not honour observes, and this reports the observing.
+    /// </remarks>
+    [JsonPropertyName(ReactorEventFields.Mode)]
+    public string Mode { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets what was decided — see <see cref="ReactorOutcomes"/>.</summary>
+    [JsonPropertyName(ReactorEventFields.Outcome)]
+    public string Outcome { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets why, in one line.</summary>
+    /// <remarks>
+    /// <b>Always present, and the point of the whole event.</b> It carries the figures the decision
+    /// rests on, which is what lets a reader see how thin the evidence was without going to look.
+    /// </remarks>
+    [JsonPropertyName(ReactorEventFields.Reason)]
+    public string Reason { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets who had shaped the rule when it decided, as <c>provider:name</c>, or
+    /// <see langword="null"/> when nobody is known to have.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Provenance beside the actor, never instead of it.</b> The rule performed the act; a person
+    /// wrote the rule. A consumer renders <em>"stopped by rule <c>disk_pressure_stop</c>, written by
+    /// <c>discord:tanya</c>"</em>.
+    /// </remarks>
+    /// <remarks>
+    /// ⚠ <b>Null is a real state.</b> A rule the build ships, or one hand-written into the file over
+    /// SSH, carries no identity — and there is no fallback to the OS user anywhere in this ecosystem.
+    /// Render its absence rather than substituting the host, the daemon, or whoever is reading.
+    /// </remarks>
+    [JsonPropertyName(ReactorEventFields.RuleAuthor)]
+    public string? RuleAuthor { get; set; }
+
+    /// <summary>Gets or sets when the condition opened.</summary>
+    /// <remarks>The envelope's timestamp is when it was decided; these differ by the settle window.</remarks>
+    [JsonPropertyName(ReactorEventFields.OpenedAt)]
+    public DateTimeOffset OpenedAt { get; set; }
+
+    /// <summary>Gets or sets whose journal the originating line is in.</summary>
+    [JsonPropertyName(ReactorEventFields.SourceProducer)]
+    public string SourceProducer { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets which segment file of it.</summary>
+    [JsonPropertyName(ReactorEventFields.SourceSegment)]
+    public string SourceSegment { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the byte offset in that segment.</summary>
+    [JsonPropertyName(ReactorEventFields.SourceOffset)]
+    public long SourceOffset { get; set; }
+
+    /// <summary>
+    /// Gets or sets the id the originating line's producer minted for it, or <see langword="null"/>
+    /// when that line carries none.
+    /// </summary>
+    /// <remarks>
+    /// Beside the position rather than instead of it, and both are needed. The position <em>finds</em>
+    /// the line cheaply; the id <em>proves</em> it is the right one. A consumer that follows the
+    /// pointer and finds the two disagree has caught a rewritten segment, where following the position
+    /// alone would hand it a real, parseable event of the wrong kind with nothing to notice.
+    /// </remarks>
+    [JsonPropertyName(ReactorEventFields.SourceEventId)]
+    public string? SourceEventId { get; set; }
+}
+
+/// <summary>
+/// Data for <c>reactor.acted</c> — a decision was carried out, however it went.
+/// </summary>
+/// <remarks>
+/// ⚠ <b>The one reactor event that is an audit row.</b> Something was performed on this host with no
+/// person behind the request, which is exactly what an audit trail is for — and the actor is the rule,
+/// with <see cref="ReactorDecidedEventData.RuleAuthor"/> naming whoever shaped it.
+/// </remarks>
+public class ReactorActedEventData : ReactorEventData
+{
+    /// <summary>Gets or sets whether the action succeeded.</summary>
+    /// <remarks>
+    /// False is a complete fact and not an absence: the decision stands, the attempt happened, and it
+    /// did not work. <see cref="Detail"/> says what went wrong.
+    /// </remarks>
+    [JsonPropertyName(ReactorEventFields.Ok)]
+    public bool Ok { get; set; }
+
+    /// <summary>
+    /// Gets or sets what the action produced — a backup id — or <see langword="null"/> when it
+    /// produced nothing nameable.
+    /// </summary>
+    [JsonPropertyName(ReactorEventFields.Artifact)]
+    public string? Artifact { get; set; }
+
+    /// <summary>Gets or sets what went wrong, or what else is worth reading.</summary>
+    [JsonPropertyName(ReactorEventFields.Detail)]
+    public string? Detail { get; set; }
+}

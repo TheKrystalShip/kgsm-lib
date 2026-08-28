@@ -409,6 +409,27 @@ public static class KgsmEventCatalog
                 AssistantEvents.ActionProposed, EventOutcome.Neutral,
                 [Kind, Tool, ActionInstance, ExpiresInSec]),
 
+            // -- what the reactor judged -------------------------------------------------------
+            // Service-subject for the same reason the assistant's are: a decision is something this
+            // host NOTICED, not something that happened to the server it names. ⚠ Its severity is the
+            // RULE's, carried in the payload, so a consumer reads it from there rather than from the
+            // descriptor — which classifies the family and cannot know which rule spoke.
+            ReactorEvent<ReactorDecidedEventData>(
+                ReactorEvents.Decided, EventOutcome.Neutral, EventSeverity.Info,
+                [
+                    RuleField, RuleAuthor, ReactorSubject, ReactorSubjectKind, SeverityField,
+                    ReactorMode, ReactorOutcome, ReactorReason, ReactorAction, ReactorActionInstance,
+                    DecisionId, OpenedAt, .. SourceFields,
+                ]),
+
+            // The one reactor event that is an audit row: something was performed with no person
+            // behind the request. Its outcome is the ACTION's, which is why it is not neutral —
+            // `Ok` false is a complete fact and not an absence.
+            ReactorEvent<ReactorActedEventData>(
+                ReactorEvents.Acted, EventOutcome.Success, EventSeverity.Warn,
+                [RuleField, ReactorSubject, ReactorAction, ReactorActionInstance, DecisionId,
+                 OkField, Artifact, ReactorDetail]),
+
             // Blueprint-subject, and the only pair here that brackets rather than reports: the engine
             // records the probe install and uninstall in full, and these say the rows belong together.
             new(AssistantEvents.BlueprintAuthoringStarted, EventSubject.Blueprint, EventWeight.Phase,
@@ -519,6 +540,28 @@ public static class KgsmEventCatalog
         string type, EventOutcome outcome, IReadOnlyList<EventField> fields)
         where TData : AssistantEventData =>
         new(type, EventSubject.Service, EventWeight.Fact, outcome, fields, typeof(TData), Known: true);
+
+    /// <summary>
+    /// A descriptor for the reactor's report about what it judged.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Service-subject, and constrained to a payload that cannot name a leaf, for the same reason
+    /// <see cref="AssistantEvent{TData}"/> is: the journal directory already says who produced it.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>Not instance-subject, even though most decisions name a server.</b> A decision is
+    /// something this host <em>noticed</em> about a server rather than something that happened to one,
+    /// and the subject is not always a server at all — a threshold episode is about a sensor. A
+    /// consumer that filed these under the instance would put a judgment in the same list as the
+    /// events it was judging.
+    /// </para>
+    /// </remarks>
+    private static EventDescriptor ReactorEvent<TData>(
+        string type, EventOutcome outcome, EventSeverity severity, IReadOnlyList<EventField> fields)
+        where TData : ReactorEventData =>
+        new(type, EventSubject.Service, EventWeight.Fact, outcome, fields, typeof(TData), Known: true,
+            Severity: severity);
 
     private static EventField Field(
         string name, FieldShape shape, FieldSensitivity sensitivity = FieldSensitivity.Public) =>
@@ -687,6 +730,81 @@ public static class KgsmEventCatalog
     /// <summary>The fields both <c>identity_*</c> events carry.</summary>
     private static readonly EventField[] IdentityFields =
         [UserId, Username, Provider, Field("Handle", FieldShape.Identity, FieldSensitivity.Personal)];
+
+    // -- the reactor's judgments ------------------------------------------------------------------
+
+    private static readonly EventField RuleField =
+        Field(ReactorEventFields.Rule, FieldShape.Text);
+
+    /// <summary>
+    /// Who shaped the rule. A KGSM username, so it names a natural person rather than a player.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ The one personal field the reactor writes, and the reason it is classified rather than left
+    /// public: a surface listing decisions to a room of players would otherwise print the operator who
+    /// wrote each rule beside it.
+    /// </remarks>
+    private static readonly EventField RuleAuthor =
+        Field(ReactorEventFields.RuleAuthor, FieldShape.Identity, FieldSensitivity.Personal);
+
+    private static readonly EventField ReactorSubject =
+        Field(ReactorEventFields.Subject, FieldShape.Text);
+
+    private static readonly EventField ReactorSubjectKind =
+        Field(ReactorEventFields.SubjectKind, FieldShape.Text);
+
+    private static readonly EventField ReactorMode =
+        Field(ReactorEventFields.Mode, FieldShape.Text);
+
+    private static readonly EventField ReactorOutcome =
+        Field(ReactorEventFields.Outcome, FieldShape.Text);
+
+    /// <summary>Why the rule concluded what it did, carrying the figures it rests on.</summary>
+    private static readonly EventField ReactorReason =
+        Field(ReactorEventFields.Reason, FieldShape.Text);
+
+    private static readonly EventField ReactorAction =
+        Field(ReactorEventFields.Action, FieldShape.Text);
+
+    /// <summary>
+    /// The server the action operates on. Its own field rather than the assistant's, because the two
+    /// are spelled differently on the wire and a shared definition would classify a name nothing writes.
+    /// </summary>
+    private static readonly EventField ReactorActionInstance =
+        Field(ReactorEventFields.ActionInstance, FieldShape.Text);
+
+    /// <summary>How loudly the rule speaks. The RULE's, not the family's.</summary>
+    private static readonly EventField SeverityField =
+        Field(ReactorEventFields.Severity, FieldShape.Text);
+
+    private static readonly EventField OkField = Field(ReactorEventFields.Ok, FieldShape.Text);
+
+    /// <summary>What the action produced — a backup id. Identifies the artifact; is not the artifact.</summary>
+    private static readonly EventField Artifact = Field(ReactorEventFields.Artifact, FieldShape.Opaque);
+
+    /// <summary>What went wrong, or what else is worth reading.</summary>
+    /// <remarks>
+    /// Its own definition rather than the leaf-lifecycle one it shares a name with: the two are the
+    /// same string today and are separate contracts, and one field standing for both would classify a
+    /// name whichever producer moved first.
+    /// </remarks>
+    private static readonly EventField ReactorDetail =
+        Field(ReactorEventFields.Detail, FieldShape.Text);
+
+    private static readonly EventField DecisionId =
+        Field(ReactorEventFields.DecisionId, FieldShape.Opaque);
+
+    private static readonly EventField OpenedAt =
+        Field(ReactorEventFields.OpenedAt, FieldShape.Timestamp);
+
+    /// <summary>Where the line the decision was made from lives — a pointer, not a reading.</summary>
+    private static readonly EventField[] SourceFields =
+    [
+        Field(ReactorEventFields.SourceProducer, FieldShape.Text),
+        Field(ReactorEventFields.SourceSegment, FieldShape.Text),
+        Field(ReactorEventFields.SourceOffset, FieldShape.Number),
+        Field(ReactorEventFields.SourceEventId, FieldShape.Opaque),
+    ];
 }
 
 /// <summary>
