@@ -1950,3 +1950,120 @@ public class ReactorActedEventData : ReactorEventData
     [JsonPropertyName(ReactorEventFields.Detail)]
     public string? Detail { get; set; }
 }
+
+/// <summary>
+/// Data for <c>reactor.proposed</c> — a rule staged an action for a person to confirm.
+/// </summary>
+/// <remarks>
+/// ⚠ <b>Nothing has been done.</b> The action named here is held under <see cref="ProposalHandle"/> and will
+/// stay held until somebody redeems it or <see cref="ExpiresAt"/> passes. A consumer that rendered this
+/// as work performed would be announcing something that has not happened — and a consumer that renders
+/// it as work <em>about to</em> happen is wrong too, because the commonest ending is that the condition
+/// resolves itself and nobody ever answers.
+/// </remarks>
+public class ReactorProposedEventData : ReactorEventData
+{
+    /// <summary>Gets or sets the token this proposal is redeemed with.</summary>
+    /// <remarks>
+    /// ⚠ <b>It is a capability, not a name.</b> Anything that can present it can ask for the proposal
+    /// to be confirmed, subject to the same authority the action itself requires — so it belongs in a
+    /// panel and a push payload, and not in a channel a fleet reads.
+    /// </remarks>
+    [JsonPropertyName(ReactorEventFields.ProposalHandle)]
+    public string ProposalHandle { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets when an unanswered proposal stops being redeemable.</summary>
+    [JsonPropertyName(ReactorEventFields.ExpiresAt)]
+    public DateTimeOffset ExpiresAt { get; set; }
+
+    /// <summary>
+    /// Gets or sets what sort of thing the subject is: <c>instance</c>, <c>host</c>, <c>leaf</c>,
+    /// <c>unknown</c>.
+    /// </summary>
+    [JsonPropertyName(ReactorEventFields.SubjectKind)]
+    public string SubjectKind { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets how loudly the rule speaks, in the ecosystem's severity spellings.</summary>
+    [JsonPropertyName(ReactorEventFields.Severity)]
+    public string Severity { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets why the rule concluded this, in one line.</summary>
+    /// <remarks>
+    /// <b>The sentence a person decides on.</b> It carries the figures the decision rests on, and it is
+    /// what a confirm dialog shows — a proposal rendered without it asks somebody to authorise an
+    /// action on trust.
+    /// </remarks>
+    [JsonPropertyName(ReactorEventFields.Reason)]
+    public string Reason { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets who had shaped the rule when it staged this, as <c>provider:name</c>, or
+    /// <see langword="null"/> when nobody is known to have.
+    /// </summary>
+    [JsonPropertyName(ReactorEventFields.RuleAuthor)]
+    public string? RuleAuthor { get; set; }
+
+    /// <summary>Gets or sets when the condition opened.</summary>
+    [JsonPropertyName(ReactorEventFields.OpenedAt)]
+    public DateTimeOffset OpenedAt { get; set; }
+}
+
+/// <summary>
+/// Data for <c>reactor.resolved</c> — a staged proposal reached its end.
+/// </summary>
+/// <remarks>
+/// <para>
+/// ⚠ <b>Read <see cref="Resolution"/> and <see cref="Ok"/> as two separate answers.</b> The resolution
+/// is what the person did; <c>Ok</c> is what the action did, and it is <see langword="null"/> whenever
+/// nothing ran — which is three of the four resolutions. A consumer treating a null as a failure would
+/// report every dismissal as a broken action.
+/// </para>
+/// <para>
+/// <b>An audit row only when a person confirmed.</b> Something was performed on this host with a name
+/// behind it, and that name is <see cref="AnsweredBy"/>: the rule found the condition and offered, the
+/// person authorised it. The rule is provenance here, not the actor — which is the opposite way round
+/// from <c>reactor.acted</c>.
+/// </para>
+/// </remarks>
+public class ReactorResolvedEventData : ReactorEventData
+{
+    /// <summary>Gets or sets the handle of the proposal that ended.</summary>
+    [JsonPropertyName(ReactorEventFields.ProposalHandle)]
+    public string ProposalHandle { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets how it ended — see <see cref="ReactorResolutions"/>.</summary>
+    [JsonPropertyName(ReactorEventFields.Resolution)]
+    public string Resolution { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets who answered, as <c>provider:name</c>, or <see langword="null"/> when nobody did.
+    /// </summary>
+    /// <remarks>
+    /// Null is the whole content of a lapse: the offer was made, the window passed, and no person is
+    /// named because none was involved. There is no fallback to the OS user or to whoever is reading.
+    /// </remarks>
+    [JsonPropertyName(ReactorEventFields.AnsweredBy)]
+    public string? AnsweredBy { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether the action succeeded, or <see langword="null"/> when none was attempted.
+    /// </summary>
+    [JsonPropertyName(ReactorEventFields.Ok)]
+    public bool? Ok { get; set; }
+
+    /// <summary>
+    /// Gets or sets what the action produced — a backup id — or <see langword="null"/> when it
+    /// produced nothing nameable.
+    /// </summary>
+    [JsonPropertyName(ReactorEventFields.Artifact)]
+    public string? Artifact { get; set; }
+
+    /// <summary>Gets or sets what went wrong, or what else is worth reading.</summary>
+    /// <remarks>
+    /// For <see cref="ReactorResolutions.NoLongerApplicable"/> this carries the rule's fresh verdict —
+    /// the sentence explaining what the world says now, which is the only place a person finds out
+    /// <em>why</em> the thing they just authorised did not run.
+    /// </remarks>
+    [JsonPropertyName(ReactorEventFields.Detail)]
+    public string? Detail { get; set; }
+}

@@ -422,9 +422,28 @@ public static class KgsmEventCatalog
                     DecisionId, OpenedAt, .. SourceFields,
                 ]),
 
-            // The one reactor event that is an audit row: something was performed with no person
-            // behind the request. Its outcome is the ACTION's, which is why it is not neutral —
-            // `Ok` false is a complete fact and not an absence.
+            // An offer, and nothing has been done. Neutral for that reason: a proposal that is never
+            // answered is the ordinary case, not a failure, and an outcome here would make a surface
+            // colour a question as though it were a result.
+            ReactorEvent<ReactorProposedEventData>(
+                ReactorEvents.Proposed, EventOutcome.Neutral, EventSeverity.Info,
+                [
+                    RuleField, RuleAuthor, ReactorSubject, ReactorSubjectKind, SeverityField,
+                    ReactorReason, ReactorAction, ReactorActionInstance, DecisionId,
+                    ReactorHandle, ExpiresAt, OpenedAt,
+                ]),
+
+            // Neutral as a family, because the four resolutions are not one outcome: a dismissal is a
+            // person working as intended and a failed confirm is not, and the descriptor cannot know
+            // which line it is classifying. A consumer reads `Resolution` and `Ok`.
+            ReactorEvent<ReactorResolvedEventData>(
+                ReactorEvents.Resolved, EventOutcome.Neutral, EventSeverity.Info,
+                [RuleField, ReactorSubject, ReactorAction, ReactorActionInstance, DecisionId,
+                 ReactorHandle, ReactorResolution, AnsweredBy, OkField, Artifact, ReactorDetail]),
+
+            // The one reactor event that is an audit row with no person in it at all: something was
+            // performed on nobody's request. Its outcome is the ACTION's, which is why it is not
+            // neutral — `Ok` false is a complete fact and not an absence.
             ReactorEvent<ReactorActedEventData>(
                 ReactorEvents.Acted, EventOutcome.Success, EventSeverity.Warn,
                 [RuleField, ReactorSubject, ReactorAction, ReactorActionInstance, DecisionId,
@@ -790,6 +809,36 @@ public static class KgsmEventCatalog
     /// </remarks>
     private static readonly EventField ReactorDetail =
         Field(ReactorEventFields.Detail, FieldShape.Text);
+
+    /// <summary>
+    /// The token a staged proposal is redeemed with.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>Opaque because presenting it is how a proposal gets confirmed.</b> It carries no meaning to
+    /// render, and a surface that printed it into a channel a fleet reads would be publishing the one
+    /// string that lets somebody ask for the action.
+    /// </remarks>
+    private static readonly EventField ReactorHandle =
+        Field(ReactorEventFields.ProposalHandle, FieldShape.Opaque);
+
+    /// <summary>When an unanswered proposal stops being redeemable.</summary>
+    private static readonly EventField ExpiresAt =
+        Field(ReactorEventFields.ExpiresAt, FieldShape.Timestamp);
+
+    /// <summary>
+    /// How a proposal ended. Its own definition rather than the assistant's identically-named field,
+    /// for the reason <see cref="ReactorDetail"/> is: two contracts that agree on a spelling today are
+    /// still two contracts.
+    /// </summary>
+    private static readonly EventField ReactorResolution =
+        Field(ReactorEventFields.Resolution, FieldShape.Text);
+
+    /// <summary>
+    /// Who answered a proposal. A natural person, which is what separates a confirmed action from
+    /// <c>reactor.acted</c>'s autonomous one.
+    /// </summary>
+    private static readonly EventField AnsweredBy =
+        Field(ReactorEventFields.AnsweredBy, FieldShape.Identity, FieldSensitivity.Personal);
 
     private static readonly EventField DecisionId =
         Field(ReactorEventFields.DecisionId, FieldShape.Opaque);

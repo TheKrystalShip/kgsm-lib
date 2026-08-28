@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — an offer, and how it ended (`TheKrystalShip.KGSM.Lib` 8.7.0)
+
+`reactor.proposed` and `reactor.resolved` classify the two facts a reactor rule running in propose
+mode produces: an action staged for a person to confirm, and the end that offer reached.
+
+**Four events, because each is a separate immutable fact.** A rule decided; an offer was put to a
+person; that offer ended; the reactor performed something itself. Collapsing any pair makes a real
+case unrepresentable — *"it decided and the action failed"*, or *"it offered and nobody answered"*,
+which is the one an operator most needs when reviewing a week of decisions.
+
+`ReactorResolutions` carries the four ways out, and they are kept apart deliberately: a rule whose
+offers are mostly `confirmed` is a candidate for acting on its own, one whose offers are mostly
+`dismissed` has a wrong condition, one whose offers mostly `lapse` is unwanted, and one whose offers
+mostly go `no_longer_applicable` speaks too early. A consumer folding the last three into "not
+confirmed" throws away the only signal separating them.
+
+⚠ **The resolution says what the person did; `Ok` says what the action did.** `Ok` is nullable and
+absent whenever nothing ran, which is three resolutions out of four — reading a missing `Ok` as
+`false` reports every dismissal as a broken action.
+
+⚠ **A proposal's handle is spelled `ProposalHandle` on the wire.** A bare `Handle` already means a
+person's account handle, classified `Identity`/`Personal`; this is an opaque capability that names
+nobody. One field name cannot carry two classifications, and a consumer meeting both would treat
+whichever it saw first as the answer for both.
+
+`AnsweredBy` is classified `Personal` beside `RuleAuthor`, and for the same reason: it names a natural
+person, so a surface listing resolutions to a room of players has to be able to withhold it.
+
 ### Added — the reactor's judgments read back typed (`TheKrystalShip.KGSM.Lib` 8.6.0)
 
 `reactor.decided` and `reactor.acted` are classified, so a consumer that registers a handler for one

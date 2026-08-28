@@ -11,9 +11,10 @@ namespace TheKrystalShip.KGSM.Events;
 /// <em>only</em> output — so an event is the sole way anything downstream learns a rule spoke.
 /// </para>
 /// <para>
-/// <b>Two events, because a decision and an action are separate immutable facts.</b> Collapsing them
-/// makes <em>"it decided and the action failed"</em> unrepresentable, which is exactly the case
-/// somebody investigating an incident needs to see.
+/// <b>Four events, because each is a separate immutable fact.</b> A rule decided; an offer was put to
+/// a person; that offer reached an end; the reactor performed something itself. Collapsing any pair
+/// makes a real case unrepresentable — <em>"it decided and the action failed"</em>, or <em>"it offered
+/// and nobody answered"</em>, which is the one an operator most needs to see when reviewing a week.
 /// </para>
 /// <para>
 /// ⚠ <b>Written on a transition, never on an evaluation.</b> A state rule re-reads its condition on
@@ -35,12 +36,58 @@ public static class ReactorEvents
     public const string Decided = "reactor.decided";
 
     /// <summary>
-    /// <c>reactor.acted</c> — a decision was carried out, however it went.
+    /// <c>reactor.proposed</c> — a rule staged an action for a person to confirm.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// <b>An offer, and nothing has happened yet.</b> The rule decided, the mode was propose, and the
+    /// action is held under a handle until somebody redeems it or its lifetime runs out. A consumer
+    /// that rendered this as work performed would be announcing something that has not been done.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>Its expiry is not what makes it safe.</b> A proposal is addressed to whoever notices,
+    /// possibly in the morning, so the window is measured in hours rather than the seconds a
+    /// confirmation held in front of somebody who just asked gets. What makes the long window safe is
+    /// that the condition is re-derived at redemption: a server that came back up on its own resolves
+    /// the proposal instead of executing it.
+    /// </para>
+    /// </remarks>
+    public const string Proposed = "reactor.proposed";
+
+    /// <summary>
+    /// <c>reactor.resolved</c> — a staged proposal reached its end, whichever end that was.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every proposal gets exactly one of these, and the four ways out are the point:
+    /// <see cref="ReactorResolutions"/> separates a person saying yes from a person saying no, from
+    /// nobody answering at all, from the condition having gone away before anybody did. The third and
+    /// fourth are what a review of a week is actually looking for — a rule whose offers all lapse is
+    /// one nobody wants, and a rule whose offers all go stale is one whose settle window is too short.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>The resolution says what the person did; <c>Ok</c> says what the action did.</b> They
+    /// answer different questions and a confirmed proposal whose action then failed needs both.
+    /// <c>Ok</c> is absent whenever nothing ran.
+    /// </para>
+    /// </remarks>
+    public const string Resolved = "reactor.resolved";
+
+    /// <summary>
+    /// <c>reactor.acted</c> — the reactor carried an action out itself, however it went.
+    /// </summary>
+    /// <remarks>
+    /// <para>
     /// It repeats the rule, the subject and the action rather than making a reader join back to
     /// <see cref="Decided"/> on the decision id: a consumer has to be able to render this from the one
     /// event, and a join is a second read that can fail while the first succeeded.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>Autonomous, with nobody behind it.</b> An action a person confirmed is a
+    /// <see cref="Resolved"/> carrying their name; this is the one where the rule is the whole
+    /// authority. Keeping them apart is what lets a surface answer "what did this host do on its own"
+    /// without subtracting one set from another.
+    /// </para>
     /// </remarks>
     public const string Acted = "reactor.acted";
 
@@ -115,6 +162,31 @@ public static class ReactorEventFields
     /// <summary>The id the originating line's producer minted for it, or null when it carries none.</summary>
     public const string SourceEventId = "SourceEventId";
 
+    /// <summary>
+    /// The opaque token a staged proposal is redeemed with.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠ <b>Not guessable, and not a name.</b> Confirming is redeeming this handle, not re-issuing the
+    /// command it describes — which is what keeps the re-derivation of the condition on the path.
+    /// </para>
+    /// <para>
+    /// ⚠ <b>Spelled in full on the wire because a bare <c>Handle</c> already means a person.</b> An
+    /// account event carries one, and that is somebody's name; this is a capability. One field name
+    /// standing for both would leave every consumer classifying whichever it met first.
+    /// </para>
+    /// </remarks>
+    public const string ProposalHandle = "ProposalHandle";
+
+    /// <summary>When an unanswered proposal stops being redeemable.</summary>
+    public const string ExpiresAt = "ExpiresAt";
+
+    /// <summary>How a proposal ended — see <see cref="ReactorResolutions"/>.</summary>
+    public const string Resolution = "Resolution";
+
+    /// <summary>Who answered, as <c>provider:name</c>, or null when nobody did.</summary>
+    public const string AnsweredBy = "AnsweredBy";
+
     /// <summary>Whether the action succeeded.</summary>
     public const string Ok = "Ok";
 
@@ -166,4 +238,47 @@ public static class ReactorOutcomes
     /// silence as an all-clear.
     /// </remarks>
     public const string Unreadable = "unreadable";
+}
+
+/// <summary>
+/// The four ways a staged proposal ends.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Lower case, like every other enumerated value in every event payload on this host.
+/// </para>
+/// <para>
+/// <b>Exhaustive by construction, and each one is a different fact about the rule that staged it.</b>
+/// A rule whose offers are mostly confirmed is one that should be considered for acting on its own; a
+/// rule whose offers are mostly dismissed is one whose condition is wrong; a rule whose offers mostly
+/// lapse is one nobody wants; a rule whose offers mostly go stale is one that speaks too early. A
+/// consumer folding any of the last three into "not confirmed" throws away the only signal that
+/// separates them.
+/// </para>
+/// </remarks>
+public static class ReactorResolutions
+{
+    /// <summary>A person said yes, and the action was attempted. <c>Ok</c> says how it went.</summary>
+    public const string Confirmed = "confirmed";
+
+    /// <summary>A person said no. Nothing was attempted.</summary>
+    public const string Dismissed = "dismissed";
+
+    /// <summary>Nobody answered before the proposal's lifetime ran out.</summary>
+    public const string Lapsed = "lapsed";
+
+    /// <summary>
+    /// Somebody tried to confirm it, and by then the condition it rested on had gone.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>This is the safety property, observed working.</b> The rule is re-evaluated at redemption
+    /// rather than at staging, so a server that came back up on its own turns a confirmed restore into
+    /// this instead of overwriting a running world. A host where these are common is not a host with a
+    /// broken reactor — it is one where the settle windows are shorter than the conditions.
+    /// </remarks>
+    public const string NoLongerApplicable = "no_longer_applicable";
+
+    /// <summary>Every resolution the reactor writes.</summary>
+    public static readonly IReadOnlyList<string> All =
+        [Confirmed, Dismissed, Lapsed, NoLongerApplicable];
 }

@@ -34,6 +34,8 @@ public sealed class ReactorEventContractTests
     public static TheoryData<string, Type> Events => new()
     {
         { ReactorEvents.Decided, typeof(ReactorDecidedEventData) },
+        { ReactorEvents.Proposed, typeof(ReactorProposedEventData) },
+        { ReactorEvents.Resolved, typeof(ReactorResolvedEventData) },
         { ReactorEvents.Acted, typeof(ReactorActedEventData) },
     };
 
@@ -242,14 +244,129 @@ public sealed class ReactorEventContractTests
         Assert.Equal(FieldSensitivity.Personal, author.Sensitivity);
     }
 
-    /// <summary>Both events are recognised, and the family shares one prefix.</summary>
+    /// <summary>
+    /// Who answered a proposal is classified as naming a person; the handle they answered with is not.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>The two fields pull in opposite directions and sit on the same event.</b> An answer names a
+    /// natural person, so a surface has to be able to withhold it. A handle names nobody and is instead
+    /// the string that lets its holder ask for the action — classified opaque so nothing renders it for
+    /// want of meaning, which is also what keeps it out of a channel a fleet reads.
+    /// </remarks>
     [Fact]
-    public void BothEventsAreClassifiedUnderOnePrefix()
+    public void AnAnswerNamesAPersonAndAHandleNamesNobody()
+    {
+        EventField answered = Assert.Single(
+            KgsmEventCatalog.Describe(ReactorEvents.Resolved).Fields,
+            f => f.Name == ReactorEventFields.AnsweredBy);
+
+        Assert.Equal(FieldSensitivity.Personal, answered.Sensitivity);
+
+        foreach (string type in new[] { ReactorEvents.Proposed, ReactorEvents.Resolved })
+        {
+            EventField handle = Assert.Single(
+                KgsmEventCatalog.Describe(type).Fields,
+                f => f.Name == ReactorEventFields.ProposalHandle);
+
+            Assert.Equal(FieldShape.Opaque, handle.Shape);
+            Assert.Equal(FieldSensitivity.Public, handle.Sensitivity);
+        }
+    }
+
+    /// <summary>
+    /// A proposal's handle is spelled apart from the one an account carries.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b>A bare <c>Handle</c> already means a person on this host.</b> One field name cannot carry
+    /// two classifications, so a consumer meeting both would treat whichever it saw first as the answer
+    /// for both — reading a redemption token as somebody's name, or the reverse.
+    /// </remarks>
+    [Fact]
+    public void AProposalsHandleIsNotSpelledLikeAnAccountsHandle()
+    {
+        Assert.NotEqual("Handle", ReactorEventFields.ProposalHandle);
+
+        IEnumerable<EventField> elsewhere = KgsmEventCatalog.All
+            .Where(d => !d.Type.StartsWith(ReactorEvents.Prefix, StringComparison.Ordinal))
+            .SelectMany(d => d.Fields);
+
+        Assert.DoesNotContain(elsewhere, f => f.Name == ReactorEventFields.ProposalHandle);
+    }
+
+    /// <summary>
+    /// The four resolutions are spelled the way the leaf writes them, and exhaust the ways out.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Lower case with an underscore, matching the leaf's own conversion of its enum names — a
+    /// consumer comparing against a C# name would match nothing, and one folding the last three
+    /// together would lose the only signal separating a rule nobody wants from one that speaks too
+    /// early.
+    /// </remarks>
+    [Fact]
+    public void TheResolutionsAreSpelledTheWayTheLeafWritesThem()
+    {
+        Assert.All(ReactorResolutions.All, r => Assert.Equal(r.ToLowerInvariant(), r));
+        Assert.Equal(
+            ReactorResolutions.All.Count,
+            ReactorResolutions.All.Distinct(StringComparer.Ordinal).Count());
+
+        Assert.Equal(
+            new[]
+            {
+                ReactorResolutions.Confirmed, ReactorResolutions.Dismissed,
+                ReactorResolutions.Lapsed, ReactorResolutions.NoLongerApplicable,
+            },
+            ReactorResolutions.All);
+    }
+
+    /// <summary>
+    /// A confirmed proposal whose action failed is representable, and so is one where none ran.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ <b><c>Ok</c> is nullable and that is load-bearing.</b> Three of the four resolutions attempt
+    /// nothing, and a consumer reading a missing <c>Ok</c> as <c>false</c> would report every dismissal
+    /// as a broken action. The resolution says what the person did; <c>Ok</c> says what the action did.
+    /// </remarks>
+    [Fact]
+    public void WhatThePersonDidAndWhatTheActionDidAreSeparateAnswers()
+    {
+        const string dismissed = """
+        {"Rule":"update_regression","Subject":"necesse","Action":"propose_restore",
+         "ActionInstance":"necesse","DecisionId":"9f1c","ProposalHandle":"0f2a",
+         "Resolution":"dismissed","AnsweredBy":"local:claude"}
+        """;
+
+        ReactorResolvedEventData? no = JsonSerializer.Deserialize<ReactorResolvedEventData>(dismissed);
+        Assert.NotNull(no);
+        Assert.Equal(ReactorResolutions.Dismissed, no.Resolution);
+        Assert.Null(no.Ok);
+
+        const string failed = """
+        {"Rule":"update_regression","Subject":"necesse","Action":"propose_restore",
+         "ActionInstance":"necesse","DecisionId":"9f1c","ProposalHandle":"0f2a",
+         "Resolution":"confirmed","AnsweredBy":"local:claude","Ok":false,
+         "Detail":"no archive on record carries a pre-update reason"}
+        """;
+
+        ReactorResolvedEventData? ran = JsonSerializer.Deserialize<ReactorResolvedEventData>(failed);
+        Assert.NotNull(ran);
+        Assert.Equal(ReactorResolutions.Confirmed, ran.Resolution);
+        Assert.False(ran.Ok);
+        Assert.Equal("local:claude", ran.AnsweredBy);
+    }
+
+    /// <summary>Every event is recognised, and the family shares one prefix.</summary>
+    [Fact]
+    public void EveryEventIsClassifiedUnderOnePrefix()
     {
         Assert.StartsWith(ReactorEvents.Prefix, ReactorEvents.Decided, StringComparison.Ordinal);
+        Assert.StartsWith(ReactorEvents.Prefix, ReactorEvents.Proposed, StringComparison.Ordinal);
+        Assert.StartsWith(ReactorEvents.Prefix, ReactorEvents.Resolved, StringComparison.Ordinal);
         Assert.StartsWith(ReactorEvents.Prefix, ReactorEvents.Acted, StringComparison.Ordinal);
 
         Assert.Equal(ReactorEvents.Decided, KgsmEventCatalog.NameOf<ReactorDecidedEventData>());
+        Assert.Equal(ReactorEvents.Proposed, KgsmEventCatalog.NameOf<ReactorProposedEventData>());
+        Assert.Equal(ReactorEvents.Resolved, KgsmEventCatalog.NameOf<ReactorResolvedEventData>());
         Assert.Equal(ReactorEvents.Acted, KgsmEventCatalog.NameOf<ReactorActedEventData>());
     }
 

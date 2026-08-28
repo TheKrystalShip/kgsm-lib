@@ -156,6 +156,8 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(AssistantBlueprintAuthoringStartedEventData))]
 [JsonSerializable(typeof(AssistantBlueprintAuthoredEventData))]
 [JsonSerializable(typeof(ReactorDecidedEventData))]
+[JsonSerializable(typeof(ReactorProposedEventData))]
+[JsonSerializable(typeof(ReactorResolvedEventData))]
 [JsonSerializable(typeof(ReactorActedEventData))]
 [JsonSerializable(typeof(FileWrittenEventData))]
 [JsonSerializable(typeof(BackupDownloadedEventData))]
