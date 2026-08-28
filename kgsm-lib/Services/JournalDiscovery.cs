@@ -29,7 +29,7 @@ namespace TheKrystalShip.KGSM.Services;
 /// silence as a failure to read it.
 /// </para>
 /// <para>
-/// ⚠ The scan finds a journal only where the writer's own default puts it. A producer configured to
+/// The scan finds a journal only where the writer's own default puts it. A producer configured to
 /// write somewhere else is invisible to it — so a consumer that knows of such a journal names it
 /// explicitly instead, which is how the engine's configurable directory is handled and how a consumer
 /// that keeps its OWN journal at a configured path makes it readable. A named journal is taken on the

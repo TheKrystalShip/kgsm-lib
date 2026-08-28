@@ -233,7 +233,7 @@ public static class ServiceCollectionExtensions
     /// it, which is the whole point of that indirection.
     /// </para>
     /// <para>
-    /// ⚠ <b>Called before it, this does nothing and says nothing.</b> The later
+    /// <b>Called before it, this does nothing and says nothing.</b> The later
     /// <c>AddKgsmServices</c> re-registers the single-journal pair over this one, leaving a consumer
     /// tailing the engine alone while believing it tails every producer — which reads as a quiet host
     /// rather than as a misconfiguration. There is no error to catch: both registrations are valid, and
@@ -245,7 +245,7 @@ public static class ServiceCollectionExtensions
     /// unconventionally registers its own <see cref="IJournalDiscovery"/> after this call.
     /// </para>
     /// <para>
-    /// ⚠ The federated source keeps <b>one cursor per producer</b>, which is a different store from the
+    /// The federated source keeps <b>one cursor per producer</b>, which is a different store from the
     /// single-journal <see cref="IEventCursorStore"/> and cannot be migrated from it: a position in the
     /// engine's journal says nothing about a position in anyone else's. A consumer switching over
     /// therefore starts each journal from <paramref name="startPosition"/>, and one that indexes events
@@ -269,7 +269,7 @@ public static class ServiceCollectionExtensions
     /// </param>
     /// <param name="scanBudgetBytes">
     /// The scan budget allowed for each journal in a history query. Non-positive uses
-    /// <see cref="KgsmOptions.DefaultEventHistoryScanBudgetBytes"/>. ⚠ It applies <em>per journal</em>,
+    /// <see cref="KgsmOptions.DefaultEventHistoryScanBudgetBytes"/>. It applies <em>per journal</em>,
     /// so each answers to the same depth whatever the fleet size, at the cost of total work scaling
     /// with the number of producers.
     /// </param>
@@ -337,7 +337,7 @@ public static class ServiceCollectionExtensions
     /// rather than by whichever call happened to come last.
     /// </para>
     /// <para>
-    /// ⚠ The alternative this replaces is worth naming, because it has no symptom. Two valid
+    /// The alternative this replaces is worth naming, because it has no symptom. Two valid
     /// <c>AddSingleton</c> registrations of one interface differ only in call order, and a consumer
     /// that federated too early kept reading its single journal **successfully** — reporting a healthy
     /// journal and a quiet host, while the events it wanted sat in four other files. There is no

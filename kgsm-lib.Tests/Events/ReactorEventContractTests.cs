@@ -10,13 +10,13 @@ namespace TheKrystalShip.KGSM.Tests.Events;
 /// </summary>
 /// <remarks>
 /// <para>
-/// ⚠ <b>The catalog's own drift tests cannot see this.</b> They compare a descriptor's fields against
+/// <b>The catalog's own drift tests cannot see this.</b> They compare a descriptor's fields against
 /// the payload's <em>C# property names</em>, which is the right question for classification and the
 /// wrong one for binding: a property whose <see cref="JsonPropertyNameAttribute"/> drifts from the
 /// constant keeps its C# name, stays classified, and silently reads back as its default at runtime.
 /// </para>
 /// <para>
-/// ⚠ <b>And the producer is a different repository.</b> The reactor writes these from its own copy of
+/// <b>And the producer is a different repository.</b> The reactor writes these from its own copy of
 /// the field names, so nothing in this solution fails when the two spellings part company. The
 /// literals below are lines the leaf actually wrote, which is the only check that reaches across the
 /// gap — everything else here would be this library agreeing with itself.
@@ -128,7 +128,7 @@ public sealed class ReactorEventContractTests
     /// A line written before a field existed still reads, and the field it lacks reads as unknown.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Retention outlives a release.</b> A journal holds what earlier builds wrote for as long as
+    /// <b>Retention outlives a release.</b> A journal holds what earlier builds wrote for as long as
     /// its segments are kept, so a consumer reads shapes the current producer no longer emits. Null is
     /// what the absence means — nobody is known to have shaped that rule — and a reader that treated an
     /// older line as a parse failure would lose a fortnight of decisions on the day a field was added.
@@ -169,7 +169,7 @@ public sealed class ReactorEventContractTests
     /// The outcome spellings are the ones the leaf writes.
     /// </summary>
     /// <remarks>
-    /// ⚠ Lower case, which is not what the leaf's own enum names look like — it lowercases them on the
+    /// Lower case, which is not what the leaf's own enum names look like — it lowercases them on the
     /// way out, deliberately, so that every enumerated value in every payload on this host is spelled
     /// the same way. A consumer comparing against a C# enum name would match nothing.
     /// </remarks>
@@ -213,7 +213,7 @@ public sealed class ReactorEventContractTests
     /// A decision is not filed under the server it names.
     /// </summary>
     /// <remarks>
-    /// ⚠ It is something this host <em>noticed</em> about a server rather than something that happened
+    /// It is something this host <em>noticed</em> about a server rather than something that happened
     /// to one, and its subject is not always a server at all — a threshold episode is about a sensor.
     /// A consumer routing on the subject would put a judgment in the same list as the events it judged.
     /// </remarks>
@@ -230,7 +230,7 @@ public sealed class ReactorEventContractTests
     /// Who shaped a rule is classified as naming a person.
     /// </summary>
     /// <remarks>
-    /// ⚠ The one personal field the reactor writes. A surface listing decisions to a room of players
+    /// The one personal field the reactor writes. A surface listing decisions to a room of players
     /// would otherwise print the operator who wrote each rule beside it — and the catalog is where a
     /// consumer learns that without having to know what a KGSM username is.
     /// </remarks>
@@ -248,7 +248,7 @@ public sealed class ReactorEventContractTests
     /// Who answered a proposal is classified as naming a person; the handle they answered with is not.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>The two fields pull in opposite directions and sit on the same event.</b> An answer names a
+    /// <b>The two fields pull in opposite directions and sit on the same event.</b> An answer names a
     /// natural person, so a surface has to be able to withhold it. A handle names nobody and is instead
     /// the string that lets its holder ask for the action — classified opaque so nothing renders it for
     /// want of meaning, which is also what keeps it out of a channel a fleet reads.
@@ -277,7 +277,7 @@ public sealed class ReactorEventContractTests
     /// A proposal's handle is spelled apart from the one an account carries.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>A bare <c>Handle</c> already means a person on this host.</b> One field name cannot carry
+    /// <b>A bare <c>Handle</c> already means a person on this host.</b> One field name cannot carry
     /// two classifications, so a consumer meeting both would treat whichever it saw first as the answer
     /// for both — reading a redemption token as somebody's name, or the reverse.
     /// </remarks>
@@ -297,7 +297,7 @@ public sealed class ReactorEventContractTests
     /// The four resolutions are spelled the way the leaf writes them, and exhaust the ways out.
     /// </summary>
     /// <remarks>
-    /// ⚠ Lower case with an underscore, matching the leaf's own conversion of its enum names — a
+    /// Lower case with an underscore, matching the leaf's own conversion of its enum names — a
     /// consumer comparing against a C# name would match nothing, and one folding the last three
     /// together would lose the only signal separating a rule nobody wants from one that speaks too
     /// early.
@@ -323,7 +323,7 @@ public sealed class ReactorEventContractTests
     /// A confirmed proposal whose action failed is representable, and so is one where none ran.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b><c>Ok</c> is nullable and that is load-bearing.</b> Three of the four resolutions attempt
+    /// <b><c>Ok</c> is nullable and that is load-bearing.</b> Three of the four resolutions attempt
     /// nothing, and a consumer reading a missing <c>Ok</c> as <c>false</c> would report every dismissal
     /// as a broken action. The resolution says what the person did; <c>Ok</c> says what the action did.
     /// </remarks>

@@ -221,7 +221,7 @@ public class EventWrapper
     /// the emitter, or minted by it. <see langword="null"/> when nothing correlated it.
     /// </summary>
     /// <remarks>
-    /// ⚠ An emitter may stamp a token it was <b>given</b> or one it <b>minted</b>, never one it
+    /// An emitter may stamp a token it was <b>given</b> or one it <b>minted</b>, never one it
     /// <b>inferred</b>. This field asserts that the emitter was executing that operation, which is
     /// a causal claim; an observed coincidence goes in <see cref="During"/> instead. Nothing
     /// populates this yet.
@@ -502,7 +502,7 @@ public class InstanceInstalledData : EventDataBase
 /// because a reader that learns only the destination cannot tell which disk just got its space
 /// back, and emptying a disk before it is unplugged is the whole reason the verb exists.
 /// <para>
-/// ⚠ The move starts the instance once on the new path to confirm it runs there, so an
+/// The move starts the instance once on the new path to confirm it runs there, so an
 /// <c>instance_started</c> and an <c>instance_stopped</c> land between the operation's beginning
 /// and this event, with no bracket saying they belong to it. A consumer that settles run-state on
 /// those alone reports the server as having been running mid-move.
@@ -1285,7 +1285,7 @@ public class HostThresholdBreachedData : HostThresholdEventDataBase
 /// </summary>
 /// <remarks>
 /// A separate event rather than a mutation of the breach, because the journal is append-only and the two
-/// are separate immutable facts. ⚠ <b>Cleared does not always mean recovered</b> — see
+/// are separate immutable facts. <b>Cleared does not always mean recovered</b> — see
 /// <see cref="CloseReason"/>.
 /// </remarks>
 public class HostThresholdClearedData : HostThresholdEventDataBase
@@ -1303,7 +1303,7 @@ public class HostThresholdClearedData : HostThresholdEventDataBase
     /// Gets or sets why the episode ended.
     /// </summary>
     /// <remarks>
-    /// ⚠ Load-bearing, and never to be flattened into "recovered". A value that came back under its line
+    /// Load-bearing, and never to be flattened into "recovered". A value that came back under its line
     /// and a rule that stopped being evaluated are different events, and an episode that ended because
     /// its rule was retuned, disabled or removed did <b>not</b> recover — the value was never observed to
     /// come down. A consumer that reports every close as a return to normal is reporting a measurement
@@ -1407,7 +1407,7 @@ public class AuthSessionRevokedData : AccountEventDataBase
 /// its authority changed, or had its password set.
 /// </summary>
 /// <remarks>
-/// ⚠ <b>Never carries a password</b>, in any form, hashed or otherwise. <c>user_password_changed</c>
+/// <b>Never carries a password</b>, in any form, hashed or otherwise. <c>user_password_changed</c>
 /// records that a credential was set and by whom, which is the only signal an account takeover leaves;
 /// the credential itself is not part of that fact.
 /// </remarks>
@@ -1483,7 +1483,7 @@ public class ServiceProvisioningEventData : ServiceEventData;
 public class ServiceConfigChangedEventData : ServiceEventData
 {
     /// <summary>
-    /// Gets or sets the configuration keys the change touched. ⚠ <b>Keys only, never values</b> — a
+    /// Gets or sets the configuration keys the change touched. <b>Keys only, never values</b> — a
     /// leaf's configuration holds tokens and passwords.
     /// </summary>
     public string[]? Keys { get; set; }
@@ -1514,7 +1514,7 @@ public class ServiceRestartedEventData : ServiceEventData
 /// </summary>
 /// <remarks>
 /// <para>
-/// ⚠ <b>Separate from <see cref="ServiceEventData"/>, and carrying no leaf id.</b> Those events are
+/// <b>Separate from <see cref="ServiceEventData"/>, and carrying no leaf id.</b> Those events are
 /// kgsm-api recording what was done <em>to</em> a leaf, so they must name which one; these are a leaf
 /// reporting on itself, and which leaf that is comes from the journal the line was read out of. A
 /// <c>Leaf</c> property here would be a second answer able to disagree with the first — the reader
@@ -1583,7 +1583,7 @@ public class LeafRecoveredEventData : LeafLifecycleEventData
 /// Data for <c>leaf_stopping</c> — a leaf is going away deliberately.
 /// </summary>
 /// <remarks>
-/// ⚠ There is no <c>leaf_stopped</c> counterpart. The last thing a process can write is that it is
+/// There is no <c>leaf_stopped</c> counterpart. The last thing a process can write is that it is
 /// stopping; a <c>leaf_ready</c> with no <c>leaf_stopping</c> before it is how an unclean exit is
 /// established, and the journal is already the record that says so.
 /// </remarks>
@@ -1593,7 +1593,7 @@ public class LeafStoppingEventData : LeafLifecycleEventData
     /// Gets or sets why the leaf is stopping (<c>signal</c>, <c>idle</c>, <c>reload</c>).
     /// </summary>
     /// <remarks>
-    /// ⚠ Load-bearing. <c>idle</c> is a socket-activated leaf's resting state rather than a fault, and
+    /// Load-bearing. <c>idle</c> is a socket-activated leaf's resting state rather than a fault, and
     /// <c>reload</c> is a leaf replacing itself in place without restarting what it supervises. A
     /// consumer that reports a leaf going away has to read this before it does.
     /// </remarks>
@@ -1621,7 +1621,7 @@ public abstract class AssistantEventData : KgsmEventDataBase;
 /// Data for <c>assistant_claim_corrected</c> — a reply described work the turn never did.
 /// </summary>
 /// <remarks>
-/// ⚠ <b>Never carries the prompt or the reply.</b> The journal is readable by anything on the host
+/// <b>Never carries the prompt or the reply.</b> The journal is readable by anything on the host
 /// that can open the directory; a transcript belongs to the person who spoke it. What is here is
 /// enough to count these and to find the conversation, and nothing more.
 /// </remarks>
@@ -1674,14 +1674,14 @@ public class AssistantActionDeclinedEventData : AssistantEventData
 /// Data for <c>assistant_action_proposed</c> — a mutation is staged and waiting on a person.
 /// </summary>
 /// <remarks>
-/// ⚠ Carries no handle. The handle <b>is</b> the capability that redeems the action, and a journal is
+/// Carries no handle. The handle <b>is</b> the capability that redeems the action, and a journal is
 /// not where a capability goes.
 /// </remarks>
 public class AssistantActionProposedEventData : AssistantEventData
 {
     /// <summary>Gets or sets what kind of action was staged.</summary>
     /// <remarks>
-    /// ⚠ The name, never the ordinal. Retired members leave gaps in that enum, so an ordinal written
+    /// The name, never the ordinal. Retired members leave gaps in that enum, so an ordinal written
     /// today reads as a different action after the next one is removed.
     /// </remarks>
     [JsonPropertyName(AssistantEventFields.Kind)]
@@ -1743,7 +1743,7 @@ public class AssistantBlueprintAuthoredEventData : BlueprintEventDataBase
 /// browser.
 /// </summary>
 /// <remarks>
-/// ⚠ <b>Never carries the content</b>, only what identifies the write. An instance's configuration
+/// <b>Never carries the content</b>, only what identifies the write. An instance's configuration
 /// files hold rcon passwords, tokens and webhook URLs.
 /// </remarks>
 public class FileWrittenEventData : EventDataBase
@@ -1813,7 +1813,7 @@ public abstract class ReactorEventData : KgsmEventDataBase
     /// none.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Distinct from <see cref="Subject"/>, which is what was judged.</b> They are the same
+    /// <b>Distinct from <see cref="Subject"/>, which is what was judged.</b> They are the same
     /// string for most rules and will not stay that way: a rule judging a host sensor can still
     /// propose something about a server, and a consumer that routed on the subject would file that
     /// under the sensor.
@@ -1830,7 +1830,7 @@ public abstract class ReactorEventData : KgsmEventDataBase
 /// Data for <c>reactor.decided</c> — a rule reached a verdict about a subject.
 /// </summary>
 /// <remarks>
-/// ⚠ <b>A verdict, not an action.</b> In observe mode — which is where every rule starts and the most
+/// <b>A verdict, not an action.</b> In observe mode — which is where every rule starts and the most
 /// the build honours today — nothing is staged and nothing is performed, so this reports what the host
 /// noticed. A consumer that rendered it as something having been done would be announcing work that
 /// did not happen.
@@ -1842,7 +1842,7 @@ public class ReactorDecidedEventData : ReactorEventData
     /// <c>unknown</c>.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Carried rather than derived.</b> A consumer that worked it out by looking the name up and
+    /// <b>Carried rather than derived.</b> A consumer that worked it out by looking the name up and
     /// seeing what it found would be guessing — a host-scoped subject like <c>k10temp/Tctl</c> has no
     /// server to resolve to, and a router needs to know that rather than discover it by failing.
     /// </remarks>
@@ -1878,12 +1878,12 @@ public class ReactorDecidedEventData : ReactorEventData
     /// <see langword="null"/> when nobody is known to have.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Provenance beside the actor, never instead of it.</b> The rule performed the act; a person
+    /// <b>Provenance beside the actor, never instead of it.</b> The rule performed the act; a person
     /// wrote the rule. A consumer renders <em>"stopped by rule <c>disk_pressure_stop</c>, written by
     /// <c>discord:tanya</c>"</em>.
     /// </remarks>
     /// <remarks>
-    /// ⚠ <b>Null is a real state.</b> A rule the build ships, or one hand-written into the file over
+    /// <b>Null is a real state.</b> A rule the build ships, or one hand-written into the file over
     /// SSH, carries no identity — and there is no fallback to the OS user anywhere in this ecosystem.
     /// Render its absence rather than substituting the host, the daemon, or whoever is reading.
     /// </remarks>
@@ -1925,7 +1925,7 @@ public class ReactorDecidedEventData : ReactorEventData
 /// Data for <c>reactor.acted</c> — a decision was carried out, however it went.
 /// </summary>
 /// <remarks>
-/// ⚠ <b>The one reactor event that is an audit row.</b> Something was performed on this host with no
+/// <b>The one reactor event that is an audit row.</b> Something was performed on this host with no
 /// person behind the request, which is exactly what an audit trail is for — and the actor is the rule,
 /// with <see cref="ReactorDecidedEventData.RuleAuthor"/> naming whoever shaped it.
 /// </remarks>
@@ -1955,7 +1955,7 @@ public class ReactorActedEventData : ReactorEventData
 /// Data for <c>reactor.proposed</c> — a rule staged an action for a person to confirm.
 /// </summary>
 /// <remarks>
-/// ⚠ <b>Nothing has been done.</b> The action named here is held under <see cref="ProposalHandle"/> and will
+/// <b>Nothing has been done.</b> The action named here is held under <see cref="ProposalHandle"/> and will
 /// stay held until somebody redeems it or <see cref="ExpiresAt"/> passes. A consumer that rendered this
 /// as work performed would be announcing something that has not happened — and a consumer that renders
 /// it as work <em>about to</em> happen is wrong too, because the commonest ending is that the condition
@@ -1965,7 +1965,7 @@ public class ReactorProposedEventData : ReactorEventData
 {
     /// <summary>Gets or sets the token this proposal is redeemed with.</summary>
     /// <remarks>
-    /// ⚠ <b>It is a capability, not a name.</b> Anything that can present it can ask for the proposal
+    /// <b>It is a capability, not a name.</b> Anything that can present it can ask for the proposal
     /// to be confirmed, subject to the same authority the action itself requires — so it belongs in a
     /// panel and a push payload, and not in a channel a fleet reads.
     /// </remarks>
@@ -2013,7 +2013,7 @@ public class ReactorProposedEventData : ReactorEventData
 /// </summary>
 /// <remarks>
 /// <para>
-/// ⚠ <b>Read <see cref="Resolution"/> and <see cref="Ok"/> as two separate answers.</b> The resolution
+/// <b>Read <see cref="Resolution"/> and <see cref="Ok"/> as two separate answers.</b> The resolution
 /// is what the person did; <c>Ok</c> is what the action did, and it is <see langword="null"/> whenever
 /// nothing ran — which is three of the four resolutions. A consumer treating a null as a failure would
 /// report every dismissal as a broken action.

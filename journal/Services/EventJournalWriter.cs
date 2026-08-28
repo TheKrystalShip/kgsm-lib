@@ -111,7 +111,7 @@ public sealed class EventJournalWriter : IEventJournalWriter
     /// hosting stack: this package is consumed by a root-running firewall authority that builds no
     /// container and by an AOT daemon that counts its megabytes.
     /// <para>
-    /// ⚠ The one case this does not cover: a process that runs for longer than the window <em>and
+    /// The one case this does not cover: a process that runs for longer than the window <em>and
     /// records nothing in it</em> keeps segments it would otherwise drop. It is also, by construction,
     /// a journal that is not growing — and the next restart prunes it.
     /// </para>

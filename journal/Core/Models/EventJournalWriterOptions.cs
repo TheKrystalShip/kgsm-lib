@@ -70,7 +70,7 @@ public sealed class EventJournalWriterOptions
     /// into directories it has no business in, and would have to be granted the privilege to do it.
     /// </para>
     /// <para>
-    /// ⚠ <b>Zero or negative keeps everything.</b> The explicit opt-out for a host whose audit trail is
+    /// <b>Zero or negative keeps everything.</b> The explicit opt-out for a host whose audit trail is
     /// retained elsewhere — and the reason it has to be explicit is that an unbounded journal is a disk
     /// that fills, slowly, on a machine whose whole job is to keep running.
     /// </para>
@@ -103,7 +103,7 @@ public sealed class EventJournalWriterOptions
     /// what this producer believes, rather than restating the rule a second time.
     /// </para>
     /// <para>
-    /// ⚠ Both failures are silent at runtime. A journal a reader cannot attribute is not reported as
+    /// Both failures are silent at runtime. A journal a reader cannot attribute is not reported as
     /// unreadable — it is not found, and a producer with no journal has honestly recorded nothing. The
     /// events are written, the writes succeed, and the record is invisible.
     /// </para>

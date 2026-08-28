@@ -7,7 +7,7 @@ namespace TheKrystalShip.KGSM.Tests.Services;
 /// Reading back what a producer's own journal last said about itself.
 /// </summary>
 /// <remarks>
-/// The memory a process that exits does not have. ⚠ Measured on the speech leaf: it reported a model
+/// The memory a process that exits does not have. Measured on the speech leaf: it reported a model
 /// it could not load, exited when idle, woke with the model fixed, and wrote no recovery — because the
 /// fresh process had never seen the fault.
 /// </remarks>
@@ -64,7 +64,7 @@ public sealed class LeafStateTests : IDisposable
     [Fact]
     public void A_leaf_coming_up_wipes_the_slate()
     {
-        // ⚠ The line that separates the two kinds of leaf. A resident one writes leaf_ready on every
+        // The line that separates the two kinds of leaf. A resident one writes leaf_ready on every
         // start, so everything before it described a run that has ended and its faults must not be
         // carried into a fresh process. A leaf that exits when idle writes no ready line, which is
         // exactly why its faults do carry.

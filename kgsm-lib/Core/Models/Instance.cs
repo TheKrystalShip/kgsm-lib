@@ -175,7 +175,7 @@ public record class Instance
     /// own config, which an unmounted library takes with it (<see cref="LibraryState"/> says so).
     /// </summary>
     /// <remarks>
-    /// ⚠ Null is not <see cref="InstanceRuntime.Native"/>. Reading an unreported runtime as native
+    /// Null is not <see cref="InstanceRuntime.Native"/>. Reading an unreported runtime as native
     /// sends a consumer to the watchdog for a container's run state, and the answer it gets back is
     /// a confident wrong one.
     /// </remarks>

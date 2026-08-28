@@ -13,7 +13,7 @@ namespace TheKrystalShip.KGSM.Events;
 /// what a reader will conclude about it rather than assuming.
 /// </para>
 /// <para>
-/// ⚠ The failure this exists to prevent is silent. A producer writing where no reader scans is not
+/// The failure this exists to prevent is silent. A producer writing where no reader scans is not
 /// reported as unreadable or degraded: the directory simply is not found, and a producer with no
 /// directory has honestly recorded nothing. A misplaced journal and an idle leaf look identical.
 /// </para>

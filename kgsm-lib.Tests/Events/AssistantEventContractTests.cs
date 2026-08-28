@@ -10,7 +10,7 @@ namespace TheKrystalShip.KGSM.Tests.Events;
 /// </summary>
 /// <remarks>
 /// <para>
-/// ⚠ <b>The catalog's own drift tests cannot see this.</b> They compare a descriptor's fields against
+/// <b>The catalog's own drift tests cannot see this.</b> They compare a descriptor's fields against
 /// the payload's <em>C# property names</em>, which is the right question for classification and the
 /// wrong one for binding: a property whose <see cref="JsonPropertyNameAttribute"/> drifts from the
 /// constant keeps its C# name, stays classified, and silently reads back as its default at runtime.
@@ -44,7 +44,7 @@ public sealed class AssistantEventContractTests
     /// Every payload property binds to the wire name the catalog classifies it under.
     /// </summary>
     /// <remarks>
-    /// ⚠ Compared against a <b>fresh instance</b> rather than <c>default(T)</c>. A string property
+    /// Compared against a <b>fresh instance</b> rather than <c>default(T)</c>. A string property
     /// initialised to <see cref="string.Empty"/> is not null when it fails to bind, so a null check
     /// would pass on exactly the drift this exists to catch.
     /// </remarks>

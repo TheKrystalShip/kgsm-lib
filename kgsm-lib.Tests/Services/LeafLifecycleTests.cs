@@ -115,7 +115,7 @@ public sealed class LeafLifecycleTests : IDisposable
     [Fact]
     public void A_reason_that_changes_while_the_fault_persists_is_not_a_new_fault()
     {
-        // ⚠ Deliberate. A backend that reports a different error string each time it is retried would
+        // Deliberate. A backend that reports a different error string each time it is retried would
         // otherwise turn one outage into a stream of them.
         LeafLifecycle lifecycle = Build();
 
@@ -199,7 +199,7 @@ public sealed class LeafLifecycleTests : IDisposable
     [Fact]
     public void A_leaf_that_comes_up_already_broken_may_say_so_first()
     {
-        // ⚠ Call order is not enforced. A leaf whose initialisation partly failed is reporting
+        // Call order is not enforced. A leaf whose initialisation partly failed is reporting
         // honestly, and refusing the order would lose that.
         LeafLifecycle lifecycle = Build();
 
@@ -216,7 +216,7 @@ public sealed class LeafLifecycleTests : IDisposable
     [Fact]
     public void A_leaf_that_wakes_healthy_after_reporting_a_fault_clears_it()
     {
-        // ⚠ The defect this seed exists for, measured on the speech leaf: it reported a model it could
+        // The defect this seed exists for, measured on the speech leaf: it reported a model it could
         // not load, exited when idle, woke with the model fixed, and wrote no recovery — because the
         // fresh process had never seen the fault. A journal that reports a fault and can never clear
         // it is worse than one that reports neither.
@@ -294,7 +294,7 @@ public sealed class LeafLifecycleTests : IDisposable
     [InlineData(LeafStopReason.Reload)]
     public void The_reason_reaches_the_line_unchanged(string reason)
     {
-        // ⚠ Load-bearing on the consumer side: `idle` is a socket-activated leaf's resting state and
+        // Load-bearing on the consumer side: `idle` is a socket-activated leaf's resting state and
         // `reload` is a leaf replacing itself without restarting what it supervises. Neither is an
         // outage, and both look like one without this field.
         Build().MarkStopping(reason);
@@ -320,7 +320,7 @@ public sealed class LeafLifecycleTests : IDisposable
     [Fact]
     public void A_lifecycle_event_names_no_leaf_in_its_payload()
     {
-        // ⚠ The producer is established from the journal the line was read out of. A leaf id in the
+        // The producer is established from the journal the line was read out of. A leaf id in the
         // payload would be a second answer able to disagree with it.
         Build().MarkReady();
 

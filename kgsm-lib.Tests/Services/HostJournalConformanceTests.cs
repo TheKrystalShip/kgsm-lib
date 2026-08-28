@@ -26,7 +26,7 @@ namespace TheKrystalShip.KGSM.Tests.Services;
 /// for.
 /// </para>
 /// <para>
-/// ⚠ <b>It needs a host with journals on it, and says so loudly when there is none.</b> A machine that
+/// <b>It needs a host with journals on it, and says so loudly when there is none.</b> A machine that
 /// has never run KGSM sets <see cref="SkipVariable"/>; anything else fails rather than passing over an
 /// empty scan. A check that quietly succeeds when it measured nothing is the exact failure mode this
 /// document is about, and it would be absurd for the check itself to have it.

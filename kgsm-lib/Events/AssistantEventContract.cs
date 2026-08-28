@@ -39,7 +39,7 @@ public static class AssistantEvents
     /// <c>assistant_action_declined</c> — somebody reached for an action their tier does not carry.
     /// </summary>
     /// <remarks>
-    /// ⚠ Authorization only. The assistant also refuses for blast-radius reasons — too many staged
+    /// Authorization only. The assistant also refuses for blast-radius reasons — too many staged
     /// commands, too many searches, a repeated lookup — and those are loop guards firing on ordinary
     /// model over-eagerness, not somebody reaching past their permissions.
     /// </remarks>

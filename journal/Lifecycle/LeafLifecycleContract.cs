@@ -12,7 +12,7 @@ namespace TheKrystalShip.KGSM.Lifecycle;
 /// differently — not whether the transition exists.
 /// </para>
 /// <para>
-/// ⚠ <b>Not <c>service_*</c>.</b> Those four events already exist and mean the opposite direction:
+/// <b>Not <c>service_*</c>.</b> Those four events already exist and mean the opposite direction:
 /// kgsm-api emits them to record what was done <em>to</em> a leaf, on somebody's instruction, with a
 /// person as the actor. These are what a leaf did by itself. Both land in one merged page, so the
 /// prefix is what keeps a reader from confusing "an admin restarted the monitor" with "the monitor
@@ -34,7 +34,7 @@ public static class LeafLifecycleEvents
     /// The leaf is going away deliberately.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>There is deliberately no <c>leaf.stopped</c>.</b> The last thing a process can write is
+    /// <b>There is deliberately no <c>leaf.stopped</c>.</b> The last thing a process can write is
     /// that it is stopping; whether it then stopped is not something it is around to say. A consumer
     /// that needs to know reads the next <see cref="Ready"/> — one with no <see cref="Stopping"/>
     /// before it is an unclean exit, and the journal is already the record that says so.
@@ -69,7 +69,7 @@ public static class LeafLifecycleEvents
 /// The payload field names, held once so the emitter and the reader cannot spell them differently.
 /// </summary>
 /// <remarks>
-/// ⚠ This exists because the equivalent drift is live elsewhere. A producer writing literal property
+/// This exists because the equivalent drift is live elsewhere. A producer writing literal property
 /// names in its own repo, and a payload class declaring matching properties in the reader's, are two
 /// spellings of one set of names bound by nothing but case-insensitive matching — and a rename on
 /// either side yields a field that silently reads back as its default. These four events are emitted
@@ -119,7 +119,7 @@ public static class LeafStopReason
     /// The leaf is replacing itself in place, keeping what it supervises.
     /// </summary>
     /// <remarks>
-    /// ⚠ The watchdog's hot-swap is this: SIGHUP then <c>execve</c>, same process id, and not one
+    /// The watchdog's hot-swap is this: SIGHUP then <c>execve</c>, same process id, and not one
     /// supervised game restarted. It looks like a stop and a start in the journal and it is neither,
     /// so a consumer that reports a restart has to read the reason before it does.
     /// </remarks>

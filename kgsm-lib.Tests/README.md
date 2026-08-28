@@ -128,11 +128,11 @@ Tests for JSON converters that handle KGSM's unconventional JSON formats:
 
 The test suite achieves comprehensive coverage across:
 
-- ✅ **Core Services**: ProcessRunner, BlueprintService, InstanceService, KgsmClient
-- ✅ **Utilities**: LogParser
-- ✅ **Models**: Blueprint, Instance, ProcessResult, KgsmResult
-- ✅ **Exceptions**: Full exception hierarchy
-- ✅ **Converters**: JSON string converters (with documented edge cases)
+- **Core Services**: ProcessRunner, BlueprintService, InstanceService, KgsmClient
+- **Utilities**: LogParser
+- **Models**: Blueprint, Instance, ProcessResult, KgsmResult
+- **Exceptions**: Full exception hierarchy
+- **Converters**: JSON string converters (with documented edge cases)
 
 ### Not Covered
 - EventService (requires Unix socket integration)

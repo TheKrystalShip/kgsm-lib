@@ -48,7 +48,7 @@ public abstract class JournalRecorder(IEventJournalWriter writer, ILogger logger
     /// </summary>
     /// <remarks>
     /// Derived from the producer id, so a component's identity has one source rather than a constant
-    /// beside it free to disagree. ⚠ A producer whose events are mostly driven by <em>people</em>
+    /// beside it free to disagree. A producer whose events are mostly driven by <em>people</em>
     /// overrides this to null: attributing an action with an unknown actor to the daemon that carried
     /// it out states an author it does not know, and an honest null is what the envelope is for.
     /// </remarks>
@@ -58,7 +58,7 @@ public abstract class JournalRecorder(IEventJournalWriter writer, ILogger logger
     /// The origin a record carries when the call site names none.
     /// </summary>
     /// <remarks>
-    /// ⚠ Origin is never fabricated. This defaults to <see cref="OriginSystem"/> because a producer
+    /// Origin is never fabricated. This defaults to <see cref="OriginSystem"/> because a producer
     /// acting on its own really was driven by no product surface — that is a fact, not a placeholder.
     /// A producer acting on somebody's behalf passes the surface that drove it, or overrides this to
     /// null when it cannot know.
@@ -128,7 +128,7 @@ public abstract class JournalRecorder(IEventJournalWriter writer, ILogger logger
     /// the order things happened, where hopping to the thread pool lets two events emitted back to
     /// back land the wrong way round.
     /// <para>
-    /// ⚠ Blocking on the append is only reasonable because it is one file write. A producer that
+    /// Blocking on the append is only reasonable because it is one file write. A producer that
     /// records from an async context should await <see cref="RecordAsync"/> instead.
     /// </para>
     /// </remarks>

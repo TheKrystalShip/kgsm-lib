@@ -12,7 +12,7 @@ namespace TheKrystalShip.KGSM.Services;
 /// mode is: a directory cannot be entered without execute on every directory above it.
 /// </para>
 /// <para>
-/// ⚠ <b>And the result is silence, not an error.</b> A reader that cannot traverse into the state
+/// <b>And the result is silence, not an error.</b> A reader that cannot traverse into the state
 /// directory does not get a permission failure it can report — <c>Directory.Exists</c> answers false,
 /// so discovery concludes the producer has no journal, which is exactly what a leaf that has recorded
 /// nothing looks like. There is no reading of the host that distinguishes them. This is the check

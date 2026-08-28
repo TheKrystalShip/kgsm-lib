@@ -30,7 +30,7 @@ namespace TheKrystalShip.KGSM.Services;
 /// same way is what matters; which of two simultaneous events comes first does not.
 /// </para>
 /// <para>
-/// ⚠ <b>The scan budget applies per journal, not per query.</b> Each journal answers to the same
+/// <b>The scan budget applies per journal, not per query.</b> Each journal answers to the same
 /// depth whatever the fleet size, so a page's completeness does not quietly degrade as leaves are
 /// added — at the cost of total work scaling with the number of producers.
 /// </para>

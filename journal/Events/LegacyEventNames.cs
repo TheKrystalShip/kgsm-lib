@@ -16,7 +16,7 @@ namespace TheKrystalShip.KGSM.Events;
 /// Past that no line can carry a legacy name, and the table goes with the code that reads it.
 /// </para>
 /// <para>
-/// ⚠ <b>Direction is one-way.</b> Nothing translates a current name back: the legacy spellings are
+/// <b>Direction is one-way.</b> Nothing translates a current name back: the legacy spellings are
 /// not written by anything and a reverse lookup would only ever serve code trying to write one.
 /// </para>
 /// </remarks>

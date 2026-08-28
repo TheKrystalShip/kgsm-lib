@@ -57,7 +57,7 @@ public interface ILibraryService
     /// <see cref="KgsmTimeoutOptions.Move"/> rather than the default ceiling.
     /// </para>
     /// <para>
-    /// ⚠ Mutually exclusive with <paramref name="force"/> — one moves the instances and the other
+    /// Mutually exclusive with <paramref name="force"/> — one moves the instances and the other
     /// abandons them. Both together is refused by the engine, which owns that rule so there is one
     /// answer to it.
     /// </para>

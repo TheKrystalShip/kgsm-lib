@@ -133,7 +133,7 @@ public interface IInstanceService
     /// request thread on this holds it for the whole of that — drive it as a job.
     /// </para>
     /// <para>
-    /// ⚠ The verification start emits <c>instance_started</c> and <c>instance_stopped</c> partway
+    /// The verification start emits <c>instance_started</c> and <c>instance_stopped</c> partway
     /// through, with no bracket around them. A surface that reads run-state off those alone shows
     /// the server running mid-move; the move's own bracket is the caller's to keep.
     /// </para>

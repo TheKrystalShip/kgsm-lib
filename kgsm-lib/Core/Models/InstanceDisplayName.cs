@@ -10,7 +10,7 @@ namespace TheKrystalShip.KGSM.Core.Models;
 /// <c>.config.ini</c> as plain text, which is what separates it from
 /// <see cref="InstanceNote"/> — a note is base64-encoded and so can hold anything, while a label
 /// reaches the file as itself and has to survive being read back out of it.</para>
-/// <para>⚠ <b>That is a hard constraint, not tidiness.</b> The engine renders the config to JSON
+/// <para><b>That is a hard constraint, not tidiness.</b> The engine renders the config to JSON
 /// with a line-oriented parse that separates key from value with a tab, so a tab inside a value
 /// truncates it there and a newline makes the remainder of the label parse as further config keys —
 /// under which an instance can report an id that is not its own. Both are silent. Stripping the

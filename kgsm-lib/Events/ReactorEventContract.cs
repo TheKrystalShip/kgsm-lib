@@ -17,7 +17,7 @@ namespace TheKrystalShip.KGSM.Events;
 /// and nobody answered"</em>, which is the one an operator most needs to see when reviewing a week.
 /// </para>
 /// <para>
-/// ⚠ <b>Written on a transition, never on an evaluation.</b> A state rule re-reads its condition on
+/// <b>Written on a transition, never on an evaluation.</b> A state rule re-reads its condition on
 /// every sweep and the reactor's ledger folds those into one row that gets better informed. Emitting
 /// per evaluation would write a line every thirty seconds for a condition that has not changed, and
 /// the journal would record how often the reactor looked rather than what it concluded.
@@ -29,7 +29,7 @@ public static class ReactorEvents
     /// <c>reactor.decided</c> — a rule reached a verdict about a subject.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Not an audit row.</b> A decision in observe mode is something this host <em>noticed</em>,
+    /// <b>Not an audit row.</b> A decision in observe mode is something this host <em>noticed</em>,
     /// not something it did, and an audit trail records what was performed. Only
     /// <see cref="Acted"/> has any business becoming one.
     /// </remarks>
@@ -45,7 +45,7 @@ public static class ReactorEvents
     /// that rendered this as work performed would be announcing something that has not been done.
     /// </para>
     /// <para>
-    /// ⚠ <b>Its expiry is not what makes it safe.</b> A proposal is addressed to whoever notices,
+    /// <b>Its expiry is not what makes it safe.</b> A proposal is addressed to whoever notices,
     /// possibly in the morning, so the window is measured in hours rather than the seconds a
     /// confirmation held in front of somebody who just asked gets. What makes the long window safe is
     /// that the condition is re-derived at redemption: a server that came back up on its own resolves
@@ -66,7 +66,7 @@ public static class ReactorEvents
     /// one nobody wants, and a rule whose offers all go stale is one whose settle window is too short.
     /// </para>
     /// <para>
-    /// ⚠ <b>The resolution says what the person did; <c>Ok</c> says what the action did.</b> They
+    /// <b>The resolution says what the person did; <c>Ok</c> says what the action did.</b> They
     /// answer different questions and a confirmed proposal whose action then failed needs both.
     /// <c>Ok</c> is absent whenever nothing ran.
     /// </para>
@@ -83,7 +83,7 @@ public static class ReactorEvents
     /// event, and a join is a second read that can fail while the first succeeded.
     /// </para>
     /// <para>
-    /// ⚠ <b>Autonomous, with nobody behind it.</b> An action a person confirmed is a
+    /// <b>Autonomous, with nobody behind it.</b> An action a person confirmed is a
     /// <see cref="Resolved"/> carrying their name; this is the one where the rule is the whole
     /// authority. Keeping them apart is what lets a surface answer "what did this host do on its own"
     /// without subtracting one set from another.
@@ -95,7 +95,7 @@ public static class ReactorEvents
     /// The prefix every event this leaf writes shares.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>The reactor tails every producer's journal, its own included</b>, so what it writes comes
+    /// <b>The reactor tails every producer's journal, its own included</b>, so what it writes comes
     /// back to it. No rule may wake on one of these: a rule woken by a decision would decide about its
     /// own decision, write that, and be woken by it — at the sweep interval, forever, with a
     /// plausible-looking ledger. The leaf enforces it by construction, and this is the string anything
@@ -167,11 +167,11 @@ public static class ReactorEventFields
     /// </summary>
     /// <remarks>
     /// <para>
-    /// ⚠ <b>Not guessable, and not a name.</b> Confirming is redeeming this handle, not re-issuing the
+    /// <b>Not guessable, and not a name.</b> Confirming is redeeming this handle, not re-issuing the
     /// command it describes — which is what keeps the re-derivation of the condition on the path.
     /// </para>
     /// <para>
-    /// ⚠ <b>Spelled in full on the wire because a bare <c>Handle</c> already means a person.</b> An
+    /// <b>Spelled in full on the wire because a bare <c>Handle</c> already means a person.</b> An
     /// account event carries one, and that is somebody's name; this is a capability. One field name
     /// standing for both would leave every consumer classifying whichever it met first.
     /// </para>
@@ -206,7 +206,7 @@ public static class ReactorEventFields
 /// — a consumer compares against these without knowing anybody's casing convention.
 /// </para>
 /// <para>
-/// ⚠ <b>Three of these are not verdicts about the world.</b> Fired and settled report what the rule
+/// <b>Three of these are not verdicts about the world.</b> Fired and settled report what the rule
 /// decided; suppressed, ceilinged and superseded report that it decided <em>yes</em> and the gate held
 /// it back. A consumer counting "how often was this condition true" must count those alongside
 /// <see cref="Fired"/>, and one counting "how often did anything happen" must not.
@@ -233,7 +233,7 @@ public static class ReactorOutcomes
     /// No judgment could be formed.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Never read as a no.</b> Either the world could not be read or what was read is not enough
+    /// <b>Never read as a no.</b> Either the world could not be read or what was read is not enough
     /// to decide on, and a surface that folded this into "the condition does not hold" would report
     /// silence as an all-clear.
     /// </remarks>
@@ -271,7 +271,7 @@ public static class ReactorResolutions
     /// Somebody tried to confirm it, and by then the condition it rested on had gone.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>This is the safety property, observed working.</b> The rule is re-evaluated at redemption
+    /// <b>This is the safety property, observed working.</b> The rule is re-evaluated at redemption
     /// rather than at staging, so a server that came back up on its own turns a confirmed restore into
     /// this instead of overwriting a running world. A host where these are common is not a host with a
     /// broken reactor — it is one where the settle windows are shorter than the conditions.

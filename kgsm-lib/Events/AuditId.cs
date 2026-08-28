@@ -149,7 +149,7 @@ public static class AuditId
     /// resolves, which is a fault somebody can see.
     /// </para>
     /// <para>
-    /// ⚠ <b>Every derivation of an event's id must make this same choice.</b> One event served two ways
+    /// <b>Every derivation of an event's id must make this same choice.</b> One event served two ways
     /// — pushed live and found in history — has to come back with one id, or a client reconciling the
     /// two sees two facts. That is why this takes the id as an argument rather than reading it
     /// somewhere: both callers hold it already, and neither can quietly opt out.
@@ -158,7 +158,7 @@ public static class AuditId
     /// <b>Ordering survives.</b> The id is the tie-break in the <c>(timestamp, id)</c> keyset a page
     /// walks, compared as a plain string. A UUIDv7 is time-ordered, so within a producer these sort the
     /// way the journal does; across producers, within a single millisecond, the order is deterministic
-    /// rather than true — which is exactly what the positional form gave. ⚠ The tie-break's real
+    /// rather than true — which is exactly what the positional form gave. The tie-break's real
     /// requirement is only that it is a <em>stable total order both sources of a merged page agree
     /// on</em>: a caller merges this history with rows that have no journal position at all, so the
     /// comparison can never be positional. Mixed forms compare fine, which is what lets the two

@@ -278,7 +278,7 @@ public sealed class EventJournalHistoryTests : IDisposable
     }
 
     /// <summary>
-    /// ⚠ Paging must not skip a row when the id scheme changes underneath a cursor — which is what a
+    /// Paging must not skip a row when the id scheme changes underneath a cursor — which is what a
     /// deploy does to a client mid-scroll.
     /// </summary>
     /// <remarks>

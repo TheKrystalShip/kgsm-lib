@@ -16,7 +16,7 @@ namespace TheKrystalShip.KGSM.Tests.Services;
 /// </summary>
 /// <remarks>
 /// <para>
-/// ⚠ <b>The drift this prevents is live elsewhere in the ecosystem.</b> A producer writes literal
+/// <b>The drift this prevents is live elsewhere in the ecosystem.</b> A producer writes literal
 /// property names into a payload from its own repository, and the reader declares a class with
 /// matching properties in another — two spellings of one set of names, bound by nothing but
 /// case-insensitive matching. A rename on either side yields a field that silently reads back as its
@@ -92,7 +92,7 @@ public sealed class LeafLifecycleContractTests : IDisposable
     [MemberData(nameof(EveryLifecycleEvent))]
     public void An_emitted_line_reads_back_into_its_payload_class(string eventType)
     {
-        // ⚠ The registration this proves is the one that fails at RUNTIME, not at build: the library is
+        // The registration this proves is the one that fails at RUNTIME, not at build: the library is
         // reflection-free for its AOT consumers, so a payload type missing from KgsmJsonContext throws
         // NotSupportedException the first time a consumer reads one of these lines.
         string data = DataJsonFor(eventType);
@@ -109,7 +109,7 @@ public sealed class LeafLifecycleContractTests : IDisposable
         // Every property populated, not merely a successful parse: a name that does not match reads
         // back as a default, which is exactly the silent failure and it deserializes perfectly.
         //
-        // ⚠ Compared against a FRESH INSTANCE rather than against default(T). A payload's string
+        // Compared against a FRESH INSTANCE rather than against default(T). A payload's string
         // properties are initialised to string.Empty, which is not null — so an unmatched name leaves
         // "" behind and a default(T) comparison waves it through. That hole was real here and this is
         // what closed it.
@@ -151,7 +151,7 @@ public sealed class LeafLifecycleContractTests : IDisposable
     [Fact]
     public void A_lifecycle_payload_never_names_a_leaf()
     {
-        // ⚠ The producer is established from the journal a line was read out of, and a reader can check
+        // The producer is established from the journal a line was read out of, and a reader can check
         // that. A leaf id inside the payload would be a claim it cannot check, free to disagree — which
         // is the whole reason these do not derive from ServiceEventData.
         foreach (string type in LifecycleEventTypes())

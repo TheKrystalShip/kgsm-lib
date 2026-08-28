@@ -23,11 +23,11 @@ offers are mostly `confirmed` is a candidate for acting on its own, one whose of
 mostly go `no_longer_applicable` speaks too early. A consumer folding the last three into "not
 confirmed" throws away the only signal separating them.
 
-⚠ **The resolution says what the person did; `Ok` says what the action did.** `Ok` is nullable and
+**The resolution says what the person did; `Ok` says what the action did.** `Ok` is nullable and
 absent whenever nothing ran, which is three resolutions out of four — reading a missing `Ok` as
 `false` reports every dismissal as a broken action.
 
-⚠ **A proposal's handle is spelled `ProposalHandle` on the wire.** A bare `Handle` already means a
+**A proposal's handle is spelled `ProposalHandle` on the wire.** A bare `Handle` already means a
 person's account handle, classified `Identity`/`Personal`; this is an opaque capability that names
 nobody. One field name cannot carry two classifications, and a consumer meeting both would treat
 whichever it saw first as the answer for both.
@@ -48,11 +48,11 @@ routing on the subject would file a judgment in the same list as the events it w
 
 `RuleAuthor` is who shaped the rule, as a stable `provider:name` username, classified as naming a
 natural person — the one personal field the reactor writes, and the reason a surface listing decisions
-to a room of players does not print the operator behind each rule beside it. ⚠ **Null is a real
+to a room of players does not print the operator behind each rule beside it. **Null is a real
 state**: a rule the build ships, or one hand-written over SSH, carries no identity, and there is no
 fallback to the OS user anywhere in this ecosystem.
 
-⚠ **Three of the six outcomes are not verdicts about the world.** `fired` and `settled` report what
+**Three of the six outcomes are not verdicts about the world.** `fired` and `settled` report what
 the rule decided; `suppressed`, `ceilinged` and `superseded` report that it decided *yes* and the gate
 held it back. A consumer counting how often a condition was true must count those; one counting how
 often anything happened must not.
@@ -88,7 +88,7 @@ used to translate an engine name into a display one.
 `LegacyEventNames` resolves a name an earlier build wrote, applied where a line is read. Retention
 holds a segment for months, so both spellings are on disk for one retention period after a producer
 cuts over; resolving it once, at the read, is what keeps every consumer above working in a single
-vocabulary. ⚠ The table has an end date and goes with the last legacy line.
+vocabulary. The table has an end date and goes with the last legacy line.
 
 An unclassified event's subject is read off its namespace rather than guessed from a prefix, so a
 `blueprint.*` nothing has described is still known to be about a blueprint.
@@ -232,7 +232,7 @@ Binds kgsm 3.18.0-rc7, which owns the console write. This is the single C# entry
 - `InstanceAnnouncementSentData` deserializes `instance_announcement_sent`, carrying both the message
   as written and the console command it resolved to.
 
-⚠ **A successful result means the engine wrote to the console, never that a person read it.** Nothing
+**A successful result means the engine wrote to the console, never that a person read it.** Nothing
 above this layer can observe delivery, so no surface may report the message as seen.
 
 
@@ -303,7 +303,7 @@ is taken out.
 
 Both are minutes of copying, not requests: `KgsmTimeoutOptions.Move` (2 hours) is sized for a
 populated drive going out rather than for one server, and a caller should drive either as a job.
-⚠ **The move starts the instance once on the new path to confirm it runs there**, so an
+**The move starts the instance once on the new path to confirm it runs there**, so an
 `instance_started` and an `instance_stopped` land partway through with no bracket around them. A
 surface reading run-state off those alone shows the server running mid-move; the operation's own
 bracket is the caller's to keep.
@@ -335,7 +335,7 @@ would put a host's placement policy in every consumer.
 a C# project has to library management; nothing else shells `kgsm libraries`.
 
 `Library` carries `Name`, `Path`, `State`, `FreeBytes`, `TotalBytes` and `InstanceCount`.
-⚠ **An offline library reports null capacity, not zero** — an unreachable root was never measured,
+**An offline library reports null capacity, not zero** — an unreachable root was never measured,
 and a zero would read as a full disk. Its `InstanceCount` is still answered, being read from the
 instance registry rather than from the disk. `List()` returns null on a failed read and an empty
 list for a host with nothing registered: a surface that collapses the two offers "no libraries" as
@@ -343,7 +343,7 @@ a fact it never read.
 
 `Instance` gains `LibraryDir` (the absolute root the instance sits under) and `Library` (the
 resolved library name, or `unregistered` when its root matches no registered library).
-⚠ `InstallDir` is unchanged and unrelated — it is the game-binaries subdirectory of `WorkingDir`.
+`InstallDir` is unchanged and unrelated — it is the game-binaries subdirectory of `WorkingDir`.
 
 `library_added` and `library_removed` are classified in `KgsmEventCatalog` under a new
 `EventSubject.Library`, so they dispatch into `LibraryAddedData`/`LibraryRemovedData` instead of
@@ -361,7 +361,7 @@ would be a fabricated answer rather than a missing one.
 Apply it per-property. It is deliberately not registered globally: which of the two answers is honest
 depends on what the key means, and only the property knows that.
 
-⚠ **4.47.0 carries four `Instance` properties this does not** — `ObservedRamMb`, `ObservedRamPeakMb`,
+**4.47.0 carries four `Instance` properties this does not** — `ObservedRamMb`, `ObservedRamPeakMb`,
 `ObservedWindowDays` and `ObservedUpdatedAt`. A published version cannot be replaced, so a consumer that
 pinned 4.47.0 still compiles against them; nothing on the feed depends on it. What an instance has been
 measured to hold is kgsm-monitor's to serve, from the footprint it accumulates, rather than a property of
@@ -379,7 +379,7 @@ The flag is appended only when asked for, and defaults to false, so a caller tha
 keeps the protection. Provenance and force travel by different channels — environment and argument —
 so asking for one never drops the other.
 
-⚠ It does not create memory. Forcing a start the node genuinely cannot fit invites the OOM killer,
+It does not create memory. Forcing a start the node genuinely cannot fit invites the OOM killer,
 which may take down a different server, or the watchdog supervising them all.
 
 ### Added — the run clock reaches stopped instances (`Lib` 4.45.0)
@@ -412,7 +412,7 @@ Both are additive and nullable; a daemon that does not report them deserializes 
 
 ### Fixed — a segment's top rows were selected by file order and served in id order (`Lib` 4.43.0)
 
-⚠ **A silent skip.** Each segment is streamed forward once with matches kept in a bounded ring, and
+**A silent skip.** Each segment is streamed forward once with matches kept in a bounded ring, and
 the ring dropped the oldest as it went — right only while id order and file order agree. The
 assembled page is then sorted by `(timestamp, id)`, and a row the ring already discarded is one that
 sort never sees and no page ever serves. Nothing counts it, so a walk just comes up short.
@@ -437,12 +437,12 @@ The shape is checked rather than trusted — an id this ecosystem did not write 
 unique or ordered, and a malformed one falls back to the position rather than putting a duplicate or
 a mis-sort into a page.
 
-⚠ **Audit row ids change**, for lines written since producers began minting ids. Nothing persists
+**Audit row ids change**, for lines written since producers began minting ids. Nothing persists
 one, so there is no stored migration; the `/audit` cursor is opaque and its encoding has changed
 before. A named id carries no producer prefix — a minted id is already unique across every journal on
 the host, which is what the prefix compensated for.
 
-⚠ **Every derivation of an event's id must make the same choice**, or one event served two ways —
+**Every derivation of an event's id must make the same choice**, or one event served two ways —
 pushed live and found in history — comes back with two ids. `ForLine` takes the id as an argument so
 neither caller can quietly opt out.
 
@@ -536,7 +536,7 @@ nowhere.
 kept segment over several lines rather than that the file still exists — `copytruncate` and dropping
 the first N lines both leave the file there.
 
-⚠ There is deliberately **no `ConformanceRule` id** for it. A line-level checker reads a journal as it
+There is deliberately **no `ConformanceRule` id** for it. A line-level checker reads a journal as it
 is now and holds no baseline, so it could never produce that finding, and a rule that can never fire
 is a check that exists only in a list.
 
@@ -609,15 +609,15 @@ record empty because from its side nothing occurred.
 - `assistant_claim_corrected` — a reply described an action the turn never took, or a lookup it never
   made. The only measurement of the deployed model's fabrication rate on real prompts; the benchmark
   scores the same checks against a fixed corpus, which is a different question.
-- `assistant_action_declined` — somebody reached past their tier. ⚠ Authorization only: the
+- `assistant_action_declined` — somebody reached past their tier. Authorization only: the
   blast-radius refusals are loop guards firing on ordinary model over-eagerness.
-- `assistant_action_proposed` — a mutation is staged and waiting on a person. ⚠ Carries no handle; the
+- `assistant_action_proposed` — a mutation is staged and waiting on a person. Carries no handle; the
   handle is the capability that redeems the action.
 - `assistant_blueprint_authoring_started` / `assistant_blueprint_authored` — brackets around a run
   whose probe install and uninstall the engine records in full, plus the outcome, which on a failed run
   is the only event either way.
 
-⚠ **`AssistantEventContractTests` covers what the catalog's own drift tests cannot.** Those compare a
+**`AssistantEventContractTests` covers what the catalog's own drift tests cannot.** Those compare a
 descriptor's fields against the payload's *C# property names* — the right question for classification
 and the wrong one for binding. A property whose `[JsonPropertyName]` drifts from the shared constant
 keeps its C# name, stays classified, and silently reads back as its default. The new test binds a
@@ -627,7 +627,7 @@ document written from the catalog's names and compares against a **fresh instanc
 
 ### Fixed — a leaf that exits could report a fault and never clear it (`Journal` 1.8.0, `Lib` 4.35.0)
 
-⚠ **Measured on the speech leaf.** It reported a model it could not load, exited when idle, woke with
+**Measured on the speech leaf.** It reported a model it could not load, exited when idle, woke with
 the model fixed, and wrote **no recovery** — because the fresh process had never seen the fault. A
 journal that reports a fault and can never clear it is worse than one that reports neither.
 
@@ -651,7 +651,7 @@ socket-activated leaf from re-reporting the same condition on every wake.
 
 ### Documented — a self-re-execing leaf must supply its own start (`Journal` 1.7.1)
 
-⚠ `LeafLifecycle` reads the process start from the OS by default, and an `execve` keeps the process id
+`LeafLifecycle` reads the process start from the OS by default, and an `execve` keeps the process id
 — so a leaf that replaces its own image goes on being told when the *original* process began. Measured
 on the watchdog's first hot-swap: a `StartupMs` of four hours. Not fabricated, and still the wrong
 clock. The `startedAt` parameter is how such a leaf passes a moment captured at the top of its entry
@@ -664,7 +664,7 @@ point, which is also correct for a cold start.
 
 **`LeafLifecycle` reports transitions, not states.** A leaf calls `MarkDegraded` from its polling loop
 every tick and gets one line, because the change is decided from what this object has already reported
-rather than from what the caller believes. A component already degraded is a no-op ⚠ *even when the
+rather than from what the caller believes. A component already degraded is a no-op *even when the
 detail differs* — a backend returning a different error string on each retry would otherwise turn one
 outage into a stream. `MarkRecovered` for something that never broke writes nothing at all.
 
@@ -677,14 +677,14 @@ multiplied by seven emitting repositories.
 
 `Degraded` is a **component**, not a boolean: a leaf can be broken in two ways at once and recover from
 one, and "the assistant's LLM backend is unreachable" is actionable where "the assistant is degraded"
-is not. ⚠ Keep the component set bounded — one built from a guild or a mount grows without limit.
+is not. Keep the component set bounded — one built from a guild or a mount grows without limit.
 
 Two things the design deliberately refuses:
 
-- ⚠ **There is no `leaf_stopped`.** The last thing a process can write is that it is stopping; whether
+- **There is no `leaf_stopped`.** The last thing a process can write is that it is stopping; whether
   it then stopped is not something it is around to say. A `leaf_ready` with no `leaf_stopping` before
   it *is* an unclean exit, and the journal is already the record that says so.
-- ⚠ **No payload names a leaf, and none carries a version.** The producer comes from the journal a line
+- **No payload names a leaf, and none carries a version.** The producer comes from the journal a line
   was read out of, which a reader can check, and `ProducerVersion` is already on every line. A copy in
   the payload would be a second answer able to disagree — which is why these do not derive from
   `ServiceEventData`, whose `Leaf` id is required and correct for kgsm-api's `service_*` events about
@@ -717,7 +717,7 @@ a pass:
   journal's history legitimately holds shapes a current build would no longer write. A host check
   samples the newest lines — what the deployed builds are writing now — and the sample size is the
   caller's.
-- ⚠ **An empty scan fails.** A clean report over nothing looks exactly like a clean report over a
+- **An empty scan fails.** A clean report over nothing looks exactly like a clean report over a
   host. A machine that is not a KGSM host sets `KGSM_CONFORMANCE_SKIP_HOST`; anything else fails
   rather than passing silently, and every report carries what it read (`kgsm-monitor(1)`) whether or
   not it found anything wrong.
@@ -732,7 +732,7 @@ access, and the writer reports it at construction. A directory cannot be entered
 every directory above it, so a state directory closed to the group makes the journal inside it
 unreachable however permissive the journal's own mode is.
 
-⚠ **The result is silence, not an error.** A reader that cannot traverse in does not get a permission
+**The result is silence, not an error.** A reader that cannot traverse in does not get a permission
 failure it can report — `Directory.Exists` answers false, so discovery concludes the producer has no
 journal, which is indistinguishable from a leaf that has recorded nothing. Nothing on the host tells
 them apart, which is why the check runs where it does: the producer is the only party in a position
@@ -751,7 +751,7 @@ to **90 days** — the engine's own `event_journal_retention_days`, so a merged 
 bounded by one number rather than by whichever producer was least generous. Zero or negative keeps
 everything, the explicit opt-out for a host that retains its trail elsewhere.
 
-⚠ **Only one producer of five pruned anything before this.** The engine has a daily timer running
+**Only one producer of five pruned anything before this.** The engine has a daily timer running
 `kgsm events journal prune`, which prunes the engine's directory alone; every leaf journal grew
 without bound. They are days old today, which is the point at which to fix it rather than the point
 at which it hurts.
@@ -766,7 +766,7 @@ the segment date rolls over, which is exactly daily for a resident daemon and is
 retention can ever remove, since a segment *is* a day. So there is no timer, and with it no hosting
 dependency — this package is consumed by a root-running firewall authority that builds no container.
 Startup is what covers the other extreme: a socket-activated authority may exist for the length of
-one request, and a timer would never fire in it. ⚠ The gap left is a process that runs longer than
+one request, and a timer would never fire in it. The gap left is a process that runs longer than
 the window and records nothing in it — which is by construction a journal that is not growing, and
 the next restart prunes it.
 
@@ -777,7 +777,7 @@ Two safety properties, both tested:
   every event after the cut. Removing the file whole makes a consumer report an `EventJournalGap` —
   a discontinuity it can say out loud.
 - **Age comes from the segment's name, not its mtime.** A restore, a copy or a backup tool moves an
-  mtime without any event moving. ⚠ This differs from the engine's `find -mtime`; the two agree on a
+  mtime without any event moving. This differs from the engine's `find -mtime`; the two agree on a
   normally-operating host and only the name still agrees on a recovered one.
 
 A file whose name is not a date is left alone rather than guessed at.
@@ -788,7 +788,7 @@ A file whose name is not a date is left alone rather than guessed at.
 `IEventSource` and `IEventJournalHistory` — federated if a federated reader is in the container,
 single-journal otherwise — so either call order produces the same result.
 
-⚠ **The bug this removes had no symptom.** Two valid `AddSingleton` registrations of one interface
+**The bug this removes had no symptom.** Two valid `AddSingleton` registrations of one interface
 differ only in call order, so a consumer that federated too early kept reading its single journal
 **successfully**: healthy journal, quiet host, nothing to catch, and the events it wanted sitting in
 four other files. It cost kgsm-bot its announcements once already. Three of the four consumers carried
@@ -857,7 +857,7 @@ right answer a producer can derive, and the writer package now derives all four.
 journal lives is one definition rather than a copy on each side of the split.
 
 The package takes `Microsoft.Extensions.DependencyInjection.Abstractions` for the registration —
-⚠ **Abstractions, and it stays that way.** The DI implementation would bring a container this package
+**Abstractions, and it stays that way.** The DI implementation would bring a container this package
 never builds and Hosting a process model, into a root-running firewall authority whose attack surface
 is why the writer lives outside the engine-interop library at all.
 
@@ -976,7 +976,7 @@ nobody passes null rather than a stand-in.
   - The payloads carry **raw values only** — no summary sentence, no severity, no formatted number. A
     consumer renders those, and freezing one consumer's wording into the record would make every other
     consumer live with it.
-  - ⚠ `CloseReason` is load-bearing and must never be flattened into "recovered": an episode that ended
+  - `CloseReason` is load-bearing and must never be flattened into "recovered": an episode that ended
     because its rule was retuned, disabled or removed did **not** recover — the value was never observed
     to come down. `OpenedTs` travels on both events so a reader can place the breach without holding the
     pair.
@@ -1023,7 +1023,7 @@ nobody passes null rather than a stand-in.
     fields existed reads without a migration for as long as retention holds it.
   - `EventWrapper.OpId` / `RunId` / `During` and their `EventHistoryEntry` counterparts — **reserved
     for correlation and populated by nothing.** Declared now so correlation costs no second envelope
-    change. ⚠ A producer may stamp an `OpId` it was **given** or **minted**, never one it
+    change. A producer may stamp an `OpId` it was **given** or **minted**, never one it
     **inferred**; an observed coincidence belongs in `During`. `OpId` asserts causality and `During`
     asserts co-incidence, and the separation is part of the contract rather than of the later work.
   - `EventHistoryEntry.Producer` — stamped by the reader from the journal a line was read from, never
@@ -1051,7 +1051,7 @@ nobody passes null rather than a stand-in.
     answer able to disagree with the writer. The engine falls out of the same rule
     (`/var/lib/kgsm/events` → `kgsm`) and is also added explicitly, since its journal location is
     configurable.
-  - ⚠ **A journal is never located by deriving a path from a name.** Measured on a live host: one leaf's
+  - **A journal is never located by deriving a path from a name.** Measured on a live host: one leaf's
     unit and state directory differ (`kgsm-assistant-service` vs `kgsm-assistant`), and two leaves have no
     `StateDirectory` at all — so any name-based convention is right for most and silently wrong for the
     rest. Wrong is expensive both ways: the writer cannot create a directory under root-owned `/var/lib`
@@ -1067,7 +1067,7 @@ nobody passes null rather than a stand-in.
   - `AddKgsmJournalFederation(...)` — opt-in registration that replaces `AddKgsmServices`'
     `IEventJournalHistory` and `IEventSource` with the federated pair by last-registration, so every
     handler a consumer already registers keeps working: `EventService` resolves `IEventSource` and
-    never learns what backs it. ⚠ The federated source keeps one cursor **per producer**, a different
+    never learns what backs it. The federated source keeps one cursor **per producer**, a different
     store from the single-journal `IEventCursorStore` and not migratable from it — a position in the
     engine's journal says nothing about a position in anyone else's — so a consumer switching over
     starts each journal from the given `EventStartPosition`.

@@ -31,7 +31,7 @@
          registered, and the BCL; anything more would be the engine-interop library arriving through the
          back door, which is the entire reason this is a separate package.
 
-         ⚠ Both are the Abstractions packages, and that is the constraint, not an accident. The
+         Both are the Abstractions packages, and that is the constraint, not an accident. The
          DependencyInjection *implementation* would bring a container this package never builds, and
          Hosting would bring a process model — into a root-running firewall authority whose attack
          surface is the reason the writer lives here at all. A registration helper is worth one

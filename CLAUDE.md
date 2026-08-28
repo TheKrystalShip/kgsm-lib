@@ -117,7 +117,7 @@ captures it from a raw handler first (raw handlers run before typed dispatch, fo
 The position says where the event **is**. `AuditId.ForPosition` turns it into
 `evt_<segment>_<offset>` — unique by construction, and ordered like the file, so one value works as an
 id and as a pagination cursor. That rests on a promise rather than on arithmetic: one line per event,
-and segments appended to and deleted whole (conformance §2·l). ⚠ **Rewrite a segment and it breaks
+and segments appended to and deleted whole (conformance §2·l). **Rewrite a segment and it breaks
 silently** — deleting a line shifts every byte after it, and a stored position then resolves to a real,
 parseable event of the wrong kind.
 
@@ -164,7 +164,7 @@ Three things to know before changing it:
 - **An old line is allowed to look old.** A line records what the build that wrote it produced, so a
   journal's history holds shapes a current build would no longer write. A host check samples the
   *newest* line per journal; the sample size is the caller's, which is why it is a parameter.
-- ⚠ **An empty scan fails.** A clean report over nothing is indistinguishable from a clean report over
+- **An empty scan fails.** A clean report over nothing is indistinguishable from a clean report over
   a host. A machine that is not a KGSM host sets `KGSM_CONFORMANCE_SKIP_HOST`; anything else fails,
   and `HostReport.Describe()` always states what it read.
 - **A rule needs a test on both sides.** `Every_rule_the_checker_can_report_is_one_this_suite_exercises`
@@ -184,20 +184,20 @@ gets it) is how a leaf says `leaf.ready`, `leaf.degraded`, `leaf.recovered`, `le
 has already said; the emitter decides what changed. So most of its value is in what it declines to
 write, and that is the part to preserve when changing it.
 
-- ⚠ **`MarkReady` takes the leaf's own readiness signal, never the host's.** `ApplicationStarted` fires
+- **`MarkReady` takes the leaf's own readiness signal, never the host's.** `ApplicationStarted` fires
   once every hosted service has started — before a supervisor has joined its slice, before a gateway
   has connected, before a sampler has a frame. Wiring it to the host lifecycle would report every leaf
   ready before it was, which is why there is no shared hosted-service adapter and no
   `Microsoft.Extensions.Hosting` dependency.
-- ⚠ **A component already degraded is a no-op even when the detail differs.** Deliberate: a backend
+- **A component already degraded is a no-op even when the detail differs.** Deliberate: a backend
   returning a different error string on each retry would otherwise turn one outage into a stream.
-- ⚠ **Keep the component set bounded.** A component id built from a guild, a mount or an instance makes
+- **Keep the component set bounded.** A component id built from a guild, a mount or an instance makes
   the dedup dictionary grow without limit. Name the class of thing; put the offenders in `Detail`.
 - **The leaf writes no field names.** The payload is composed inside the emitter, so these events have
   one writer however many leaves emit them. Names live in `LeafLifecycleFields`; the payload classes
   bind to those constants by `JsonPropertyName`, and `LeafLifecycleContractTests` checks the binding
   against what an emitter actually wrote rather than against a list.
-- ⚠ **No payload names a leaf or carries a version.** The producer comes from the journal the line was
+- **No payload names a leaf or carries a version.** The producer comes from the journal the line was
   read out of, and `ProducerVersion` is on every envelope. That is why these do not derive from
   `ServiceEventData` — its `Leaf` id is required, and correct, for kgsm-api's `service_*` events about
   *other* leaves, which are the opposite direction from these.
@@ -221,7 +221,7 @@ shown.
 - **It states facts and never policy.** `Phase` does not mean "hide this"; `Personal` does not mean
   "refuse this". A consumer decides what to do with a fact, and two consumers are allowed to decide
   differently — the Control Panel shows a player's address and the Discord bot does not, both
-  deliberately. ⚠ **The moment a permission lands in the catalog, every surface inherits whichever
+  deliberately. **The moment a permission lands in the catalog, every surface inherits whichever
   one wrote the rule**, and the surfaces lose the right to differ. This is the constraint to defend
   when extending it.
 - **`FieldSensitivity` is what the data is, not who may see it.** `Public` is safe wherever events
@@ -236,7 +236,7 @@ shown.
   `Opaque` — nothing renders it for want of meaning rather than for privacy. `Ports` is structured,
   so a generic renderer that flattens it puts JSON in a sentence.
 - **`Describe` never returns null.** An unrecognised type comes back with `Known` false, its subject
-  read off the engine's `<subject>_<verb>` naming, and **no fields**. ⚠ An empty field list means
+  read off the engine's `<subject>_<verb>` naming, and **no fields**. An empty field list means
   *render nothing from the payload* — not that the payload is empty. An event nobody has classified
   may carry anything, and a consumer that prints unclassified fields is one engine release away from
   publishing something it should not.
@@ -250,7 +250,7 @@ shown.
 - Field classification walks up through intermediate bases (the moderation events carry theirs on a
   shared one) and stops before `EventDataBase`/`BlueprintEventDataBase`/`KgsmEventDataBase` — the
   subject and the envelope are structural, not payload.
-- ⚠ The descriptor table is built in a **static constructor**, not a field initializer. The shared
+- The descriptor table is built in a **static constructor**, not a field initializer. The shared
   field definitions are static initializers themselves and run in textual order, so building the
   table from a field initializer reads every one of them before it is assigned.
 
@@ -270,7 +270,7 @@ what an expression means. It lives here for the same reason `KgsmEventCatalog` d
 - **A window's id is its schedule expression, canonicalised.** Nothing stores it. Duplicate detection,
   postpone, skip and announcement bookkeeping all key on it, and editing the schedule deliberately
   produces a *different* window — which is what makes anything announced about the old one retractable.
-  ⚠ An interval therefore keeps the unit it was written with: rewriting `120m` as `2h` would silently
+  An interval therefore keeps the unit it was written with: rewriting `120m` as `2h` would silently
   re-identify the window.
 - **Canonical task order is fixed** (`backup` → `update` → `restart`) and the written order carries no
   meaning. The order is a property of what the tasks are: a backup taken after an update archives the
@@ -344,7 +344,7 @@ category rather than here. Its one unit-testable dependency, `LogParser`, is cov
 ### NuGet Packaging
 `<GeneratePackageOnBuild>true</GeneratePackageOnBuild>` auto-generates the package on Release builds.
 
-⚠ **Because of that flag, `dotnet pack` does not reliably build first** — it packs whatever is
+**Because of that flag, `dotnet pack` does not reliably build first** — it packs whatever is
 already in `bin/Release/`, so straight after an edit it will happily produce a package containing
 the *previous* build, and consumers restore code you did not write. Build first, then publish:
 

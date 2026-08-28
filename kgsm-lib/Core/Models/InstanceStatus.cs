@@ -89,7 +89,7 @@ public record class ConfigurationInfo
     /// an absent one the engine takes it from the instance registry, which is on this host.
     /// </summary>
     /// <remarks>
-    /// ⚠ Two spellings on one field: a mounted instance's management script reports the file name
+    /// Two spellings on one field: a mounted instance's management script reports the file name
     /// (<c>factorio.bp.yaml</c>) and the registry reports the bare name (<c>factorio</c>). Read
     /// <see cref="Instance.Blueprint"/> for one that is always the name.
     /// </remarks>
@@ -164,7 +164,7 @@ public record class InstanceRuntimeStatus
     /// reading it would take comes out of a directory that is not there.
     /// </summary>
     /// <remarks>
-    /// ⚠ Null is not <see langword="false"/>. An unreadable instance is not a stopped one, and a
+    /// Null is not <see langword="false"/>. An unreadable instance is not a stopped one, and a
     /// surface that renders the two the same way tells an operator their server is down when what
     /// happened is that a disk came out. Render null as an explicit unknown, and read
     /// <see cref="LibraryState"/> for why.

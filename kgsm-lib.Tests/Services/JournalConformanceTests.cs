@@ -269,7 +269,7 @@ public sealed class JournalConformanceTests : IDisposable
     [InlineData(false)]  // federation first — the order that silently did nothing
     public void Federation_WinsWhicheverOrderItWasRegisteredIn(bool servicesFirst)
     {
-        // ⚠ The regression this exists for has no symptom. Two valid AddSingleton registrations of one
+        // The regression this exists for has no symptom. Two valid AddSingleton registrations of one
         // interface differ only in call order, so a consumer that federated too early kept reading its
         // single journal SUCCESSFULLY — healthy journal, quiet host, nothing to catch. Asserting that
         // resolution succeeded proves nothing; the assertion has to name the type.
@@ -357,7 +357,7 @@ public sealed class JournalConformanceTests : IDisposable
     [Fact]
     public void Reachability_ReportsAStateDirectoryTheGroupCannotEnter()
     {
-        // ⚠ The failure this exists for is silence: a reader that cannot traverse in gets no permission
+        // The failure this exists for is silence: a reader that cannot traverse in gets no permission
         // error, it gets Directory.Exists == false — which discovery reads as a producer that has
         // recorded nothing. Nothing on the host distinguishes the two.
         string dir = Segments("kgsm-api");

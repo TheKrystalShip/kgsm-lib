@@ -290,7 +290,7 @@ public sealed class EventJournalHistory : IEventJournalHistory
 
         // Bounded top-K by the SAME order the page is sorted in, not by file order.
         //
-        // ⚠ Dropping the oldest line as it streams past is only right while id order and file order
+        // Dropping the oldest line as it streams past is only right while id order and file order
         // agree, which held while every id was derived from a byte offset. A line's own id does not
         // sort that way: within one millisecond a named line can rank BELOW an unnamed one written
         // after it, and a plain ring would already have discarded the one that outranks it — a row

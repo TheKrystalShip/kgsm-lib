@@ -27,7 +27,7 @@ namespace TheKrystalShip.KGSM.Lifecycle;
 /// <para>
 /// <b>Identity comes from <see cref="JournalRecorder"/> and is not overridden.</b> A leaf reporting on
 /// itself was driven by no product surface, so the inherited <c>system:&lt;leaf&gt;</c> actor and
-/// <c>system</c> origin are the true answers rather than defaults to accept. ⚠ This is a separate
+/// <c>system</c> origin are the true answers rather than defaults to accept. This is a separate
 /// recorder from the leaf's own for that reason: a leaf whose ordinary events are person-driven
 /// overrides both to null, and reusing that recorder would stamp a lifecycle event with no author.
 /// </para>
@@ -63,7 +63,7 @@ public sealed class LeafLifecycle : JournalRecorder
     /// the case where the OS would not say, and every duration is then omitted rather than estimated —
     /// so it is expressible rather than only reachable by the read failing.
     /// <para>
-    /// ⚠ <b>A leaf that replaces its own image must pass one.</b> An <c>execve</c> keeps the process
+    /// <b>A leaf that replaces its own image must pass one.</b> An <c>execve</c> keeps the process
     /// id, so the OS goes on reporting the original start: a hot-swap of a daemon that had been up
     /// four hours reported a four-hour startup time. That is measured, not fabricated, and it is still
     /// the wrong clock. Capture a moment at the top of the entry point and pass it — correct for a
@@ -74,7 +74,7 @@ public sealed class LeafLifecycle : JournalRecorder
     /// What this producer already reported broken and has not reported fixed, so a transition can be
     /// measured against something this process did not itself observe.
     /// <para>
-    /// ⚠ <b>A leaf that exits between observations needs this.</b> Measured on the speech leaf: it
+    /// <b>A leaf that exits between observations needs this.</b> Measured on the speech leaf: it
     /// reported a model it could not load, exited when idle, woke with the model fixed, and wrote no
     /// recovery — because the fresh process had never seen the fault. Seed it with
     /// <see cref="LeafState.DegradedComponentsFor"/> and both directions work across a restart. A
@@ -120,7 +120,7 @@ public sealed class LeafLifecycle : JournalRecorder
     /// </summary>
     /// <remarks>
     /// <para>
-    /// ⚠ <b>Call this from the leaf's own readiness signal, never from the host's.</b> A generic host
+    /// <b>Call this from the leaf's own readiness signal, never from the host's.</b> A generic host
     /// considers itself started once every hosted service has started, which is before a supervisor has
     /// joined its slice, before a gateway has connected, and before a sampler has produced a frame. The
     /// moment worth reporting is the one the leaf itself can name.
@@ -163,12 +163,12 @@ public sealed class LeafLifecycle : JournalRecorder
     /// sends somebody reading logs where "the assistant's LLM backend is unreachable" does not.
     /// </para>
     /// <para>
-    /// ⚠ <b>A component already degraded is a no-op, even when <paramref name="detail"/> differs.</b>
+    /// <b>A component already degraded is a no-op, even when <paramref name="detail"/> differs.</b>
     /// The first report is the transition; a reason that changes while the component stays broken is
     /// not a second one, and emitting it would turn one fault into a stream.
     /// </para>
     /// <para>
-    /// ⚠ Keep the set of components <b>bounded and known to the leaf</b>. A component id built from
+    /// Keep the set of components <b>bounded and known to the leaf</b>. A component id built from
     /// something the host supplies — a guild, a mount, an instance — makes this dictionary grow without
     /// limit; name the class of thing and put the offenders in <paramref name="detail"/>.
     /// </para>
@@ -204,7 +204,7 @@ public sealed class LeafLifecycle : JournalRecorder
     /// Reports that a part that was not working is working again.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>A component that was never reported degraded writes nothing.</b> A recovery for something
+    /// <b>A component that was never reported degraded writes nothing.</b> A recovery for something
     /// that never broke is a transition that did not happen, and a consumer clearing an alert it never
     /// raised is the mildest of the things that follow from inventing one.
     /// </remarks>
@@ -235,7 +235,7 @@ public sealed class LeafLifecycle : JournalRecorder
     /// </summary>
     /// <remarks>
     /// The last thing the leaf can say, and the one that tells a consumer this was a deploy rather than
-    /// a fault. ⚠ Nothing confirms it afterwards — see <see cref="LeafLifecycleEvents.Stopping"/>.
+    /// a fault. Nothing confirms it afterwards — see <see cref="LeafLifecycleEvents.Stopping"/>.
     /// </remarks>
     /// <param name="reason">Why. One of <see cref="LeafStopReason"/> unless the leaf means something else.</param>
     /// <returns>True when a line was written; false when it already said so, or the write failed.</returns>

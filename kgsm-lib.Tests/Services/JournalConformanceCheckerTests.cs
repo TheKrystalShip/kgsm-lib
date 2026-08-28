@@ -295,7 +295,7 @@ public sealed class JournalConformanceCheckerTests : IDisposable
     [Fact]
     public void A_line_carrying_its_own_id_conforms()
     {
-        // ⚠ The ordering constraint behind §2·m, as a test. The checker has to know this field BEFORE
+        // The ordering constraint behind §2·m, as a test. The checker has to know this field BEFORE
         // any producer emits it: otherwise the first producer to ship an id has every line it writes
         // reported as having invented a field, and the host conformance check goes red on a fleet that
         // is doing exactly what the contract asks.

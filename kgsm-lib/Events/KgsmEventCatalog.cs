@@ -285,7 +285,7 @@ public static class KgsmEventCatalog
                  Field("Threshold", FieldShape.Number), Field("PeakValue", FieldShape.Number),
                  Field("PeakBand", FieldShape.Text), Field("OpenedTs", FieldShape.Number),
                  Field("ClosedTs", FieldShape.Number), Field("CloseValue", FieldShape.Number),
-                 // ⚠ Not always a recovery. A rule retuned, disabled or removed closes an episode
+                 // Not always a recovery. A rule retuned, disabled or removed closes an episode
                  // without the value ever being observed to come down.
                  Field("CloseReason", FieldShape.Text)]),
 
@@ -354,7 +354,7 @@ public static class KgsmEventCatalog
             Account<UserAccountEventData>("user.tier_changed", EventOutcome.Neutral, AccountChangeFields),
             Account<UserAccountEventData>("user.deleted", EventOutcome.Neutral, AccountChangeFields),
 
-            // ⚠ Records that a credential was set and by whom. Never the credential.
+            // Records that a credential was set and by whom. Never the credential.
             Account<UserAccountEventData>("user.password_changed", EventOutcome.Neutral, AccountChangeFields),
 
             Account<IdentityLinkEventData>("identity.linked", EventOutcome.Neutral, IdentityFields),
@@ -374,7 +374,7 @@ public static class KgsmEventCatalog
 
             // -- what a leaf says about ITSELF --------------------------------------------------
             // Same subject as the four above and the opposite direction: those record what kgsm-api
-            // did to a leaf on somebody's instruction, these are the leaf's own report. ⚠ None of
+            // did to a leaf on somebody's instruction, these are the leaf's own report. None of
             // them names a leaf, because the journal a line was read from already does — see
             // LeafLifecycleEventData.
             LeafEvent<LeafReadyEventData>(LeafLifecycleEvents.Ready, EventOutcome.Success,
@@ -411,7 +411,7 @@ public static class KgsmEventCatalog
 
             // -- what the reactor judged -------------------------------------------------------
             // Service-subject for the same reason the assistant's are: a decision is something this
-            // host NOTICED, not something that happened to the server it names. ⚠ Its severity is the
+            // host NOTICED, not something that happened to the server it names. Its severity is the
             // RULE's, carried in the payload, so a consumer reads it from there rather than from the
             // descriptor — which classifies the family and cannot know which rule spoke.
             ReactorEvent<ReactorDecidedEventData>(
@@ -461,7 +461,7 @@ public static class KgsmEventCatalog
 
             // -- panel actions on an instance --------------------------------------------------
             // Instance-subject because that is what they are about, even though the Control Panel and
-            // not the engine performed them. ⚠ Both carry an identity of the bytes and never the bytes:
+            // not the engine performed them. Both carry an identity of the bytes and never the bytes:
             // an instance config file holds rcon passwords, and a world is somebody's data.
             Instance<FileWrittenEventData>("file.written", EventWeight.Fact, EventOutcome.Neutral,
                 [Path, SizeBytes, Sha256]),
@@ -569,7 +569,7 @@ public static class KgsmEventCatalog
     /// <see cref="AssistantEvent{TData}"/> is: the journal directory already says who produced it.
     /// </para>
     /// <para>
-    /// ⚠ <b>Not instance-subject, even though most decisions name a server.</b> A decision is
+    /// <b>Not instance-subject, even though most decisions name a server.</b> A decision is
     /// something this host <em>noticed</em> about a server rather than something that happened to one,
     /// and the subject is not always a server at all — a threshold episode is about a sensor. A
     /// consumer that filed these under the instance would put a judgment in the same list as the
@@ -759,7 +759,7 @@ public static class KgsmEventCatalog
     /// Who shaped the rule. A KGSM username, so it names a natural person rather than a player.
     /// </summary>
     /// <remarks>
-    /// ⚠ The one personal field the reactor writes, and the reason it is classified rather than left
+    /// The one personal field the reactor writes, and the reason it is classified rather than left
     /// public: a surface listing decisions to a room of players would otherwise print the operator who
     /// wrote each rule beside it.
     /// </remarks>
@@ -814,7 +814,7 @@ public static class KgsmEventCatalog
     /// The token a staged proposal is redeemed with.
     /// </summary>
     /// <remarks>
-    /// ⚠ <b>Opaque because presenting it is how a proposal gets confirmed.</b> It carries no meaning to
+    /// <b>Opaque because presenting it is how a proposal gets confirmed.</b> It carries no meaning to
     /// render, and a surface that printed it into a channel a fleet reads would be publishing the one
     /// string that lets somebody ask for the action.
     /// </remarks>

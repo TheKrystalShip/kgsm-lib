@@ -14,7 +14,7 @@ namespace TheKrystalShip.KGSM.Core.Models;
 /// <see cref="TheKrystalShip.KGSM.Events.AuditId.ForPosition(string, long)"/> turn it into a stable id.
 /// </para>
 /// <para>
-/// ⚠ <b>Rewrite a segment and this breaks silently.</b> Deleting one line shifts every byte after it,
+/// <b>Rewrite a segment and this breaks silently.</b> Deleting one line shifts every byte after it,
 /// and a stored position then resolves to a real, parseable event that is simply not the one it named
 /// — no exception, nothing malformed, and every reading derived from it as trustworthy-looking as one
 /// derived from the truth. Nothing here can detect that; it is prevented upstream by §2·l, and

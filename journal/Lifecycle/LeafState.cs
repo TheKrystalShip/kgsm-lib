@@ -8,7 +8,7 @@ namespace TheKrystalShip.KGSM.Lifecycle;
 /// </summary>
 /// <remarks>
 /// <para>
-/// ⚠ <b>A process reports transitions from what it remembers, and a process that exits remembers
+/// <b>A process reports transitions from what it remembers, and a process that exits remembers
 /// nothing.</b> Measured on the speech leaf: it reported a model it could not load, exited when idle,
 /// woke with the model fixed, and wrote no recovery — because the fresh process had never seen the
 /// fault. A journal that reports a fault and can never clear it is worse than one that reports

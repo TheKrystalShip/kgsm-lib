@@ -57,7 +57,7 @@ public static class JournalServiceCollectionExtensions
     /// anything to record.
     /// </para>
     /// <para>
-    /// ⚠ <paramref name="configure"/> is for the producer whose journal genuinely does not sit at the
+    /// <paramref name="configure"/> is for the producer whose journal genuinely does not sit at the
     /// convention — a configurable path, or a test isolating itself under a temporary root. It is not
     /// the normal case, and a directory a reader would attribute to somebody else is reported by the
     /// writer at construction rather than accepted quietly.
