@@ -141,6 +141,7 @@ namespace TheKrystalShip.KGSM;
 // The Control Panel's own facts (kgsm-api's journal).
 [JsonSerializable(typeof(AuthSessionEventData))]
 [JsonSerializable(typeof(AuthSessionRevokedData))]
+[JsonSerializable(typeof(AuthLockedOutData))]
 [JsonSerializable(typeof(UserAccountEventData))]
 [JsonSerializable(typeof(IdentityLinkEventData))]
 [JsonSerializable(typeof(ServiceProvisioningEventData))]

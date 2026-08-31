@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — the run of guesses that locked an account (`TheKrystalShip.KGSM.Lib` 8.8.0)
+
+`auth.locked_out` classifies the one authentication *failure* that is worth a row. Everything else in
+the `auth_*` family records something that worked; this records somebody working through passwords
+against a real account, which is the fact an operator reviewing a week of access most needs and the
+one nothing has ever recorded.
+
+**It is emitted when the lock begins, never on the attempts it then refuses.** An account under
+attack is retried immediately, so a row per refused attempt would produce exactly the flood that
+buries the record it is made of. One run of guessing is one row however long the run is, and
+`FailedCount` says how far it got.
+
+**A wrong username never reaches it.** There is nothing to lock, so the event names an account that
+exists — which is what separates it from a failed attempt and is why it carries `Identity` while
+saying nothing about attempts that matched nobody.
+
+`Until` is when the account can be tried again, so a reader can tell a lock that has since expired
+from one still standing without consulting the store.
+
+### Changed — accounts are authored by whoever holds them
+
+The account-subject events are no longer described as the Control Panel's own. A host that holds its
+own accounts writes them from its API; a cluster whose accounts are held by an auth anchor has the
+anchor write them, into the anchor's journal. The classification is unchanged and the wire shapes are
+unchanged — a reader establishes the producer from the journal a line was read out of, so both are
+attributed correctly without either naming itself in a payload.
+
 ### Added — an offer, and how it ended (`TheKrystalShip.KGSM.Lib` 8.7.0)
 
 `reactor.proposed` and `reactor.resolved` classify the two facts a reactor rule running in propose

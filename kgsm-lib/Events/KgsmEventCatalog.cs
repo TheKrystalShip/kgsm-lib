@@ -332,9 +332,11 @@ public static class KgsmEventCatalog
             LibraryEvent<LibraryRemovedData>("library.removed"),
 
             // -- accounts ----------------------------------------------------------------------
-            // Signing in and authority changing. The Control Panel performs these itself — no engine
-            // command runs — so it authors them, and they are classified here because a payload field
-            // nobody has classified renders nowhere and these carry the values most worth care.
+            // Signing in and authority changing. No engine command runs for any of them, so whichever
+            // component holds the accounts authors them — a host's own Control Panel when it holds its
+            // own, and a cluster's auth anchor when one does. They are classified here because a
+            // payload field nobody has classified renders nowhere, and these carry the values most
+            // worth care.
             Account<AuthSessionEventData>("auth.signed_in", EventOutcome.Success, SessionFields),
             Account<AuthSessionEventData>("auth.signed_out", EventOutcome.Neutral, SessionFields),
 
@@ -346,8 +348,15 @@ public static class KgsmEventCatalog
             Account<AuthSessionRevokedData>("auth.session.revoked", EventOutcome.Neutral,
                 [UserId, Username, Field("Scope", FieldShape.Text), Sid, Field("Count", FieldShape.Number)]),
 
-            // An account's authority is only ever changed here — the store is the sole authority on
-            // this host — so these six are the whole record of anybody's permissions moving.
+            // The one authentication FAILURE that is a fact rather than noise. It is emitted when the
+            // lock begins and not on the attempts it goes on to refuse, so one run of guessing is one
+            // row however long it runs.
+            Account<AuthLockedOutData>("auth.locked_out", EventOutcome.Failure,
+                [UserId, Username, Identity, Field("FailedCount", FieldShape.Number),
+                 Field("Until", FieldShape.Timestamp)]),
+
+            // An account's authority is only ever changed by whoever writes the account store, so
+            // these six are the whole record of anybody's permissions moving.
             Account<UserAccountEventData>("user.provisioned", EventOutcome.Neutral, AccountChangeFields),
             Account<UserAccountEventData>("user.approved", EventOutcome.Success, AccountChangeFields),
             Account<UserAccountEventData>("user.disabled", EventOutcome.Neutral, AccountChangeFields),

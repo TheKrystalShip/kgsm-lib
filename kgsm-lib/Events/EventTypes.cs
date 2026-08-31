@@ -1403,6 +1403,33 @@ public class AuthSessionRevokedData : AccountEventDataBase
 }
 
 /// <summary>
+/// Data for <c>auth_locked_out</c> — a run of wrong passwords locked an account.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Written when the lockout <em>begins</em>, never on the attempts it then refuses. An account under
+/// attack is tried again immediately and would otherwise produce a row per guess — turning the one
+/// record worth reading into the flood that buries it.
+/// </para>
+/// <para>
+/// The account is real: a wrong username never reaches a lockout, because there is nothing to lock.
+/// So this names somebody whose password was being guessed, which is what separates it from a failed
+/// attempt and is the reason it is the failure worth a row.
+/// </para>
+/// </remarks>
+public class AuthLockedOutData : AccountEventDataBase
+{
+    /// <summary>Gets or sets the identity the attempts were made against, as <c>provider:name</c>.</summary>
+    public string Identity { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets how many consecutive failures the lockout followed.</summary>
+    public int FailedCount { get; set; }
+
+    /// <summary>Gets or sets when the account can be tried again.</summary>
+    public DateTimeOffset Until { get; set; }
+}
+
+/// <summary>
 /// Data for the <c>user_*</c> events — an account was provisioned, approved, disabled, deleted, had
 /// its authority changed, or had its password set.
 /// </summary>
