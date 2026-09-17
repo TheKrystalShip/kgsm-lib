@@ -124,6 +124,80 @@ public sealed class LeafStateTests : IDisposable
         Assert.Equal(["hearing"], LeafState.DegradedComponentsFor(Producer, _root));
     }
 
+    [Fact]
+    public void A_report_carries_what_the_leaf_said_about_a_fault_and_when()
+    {
+        Write("""{"V":2,"EventType":"leaf.degraded","Data":{"Component":"upnp-router","Detail":"The router has not answered."},"Timestamp":"2026-08-16T04:45:00.000Z"}""");
+
+        LeafDegradation only = Assert.Single(LeafState.Read(_directory).Degraded);
+        Assert.Equal("upnp-router", only.Component);
+        Assert.Equal("The router has not answered.", only.Detail);
+        Assert.Equal(new DateTimeOffset(2026, 8, 16, 4, 45, 0, TimeSpan.Zero), only.Since);
+    }
+
+    [Fact]
+    public void A_fault_the_leaf_said_it_fixed_is_a_recovery()
+    {
+        Write(Degraded("backend"), Recovered("backend"));
+
+        LeafStateReport report = LeafState.Read(_directory);
+
+        Assert.Empty(report.Degraded);
+        Assert.Equal(["backend"], report.Recovered);
+        Assert.Empty(report.Cleared);
+    }
+
+    [Fact]
+    public void A_fault_wiped_by_the_leaf_coming_up_is_cleared_and_not_a_recovery()
+    {
+        // A daemon restarted in the middle of an outage writes a ready line and has not re-observed
+        // anything yet. Reading that as a recovery would announce the outage over while it continues.
+        Write(Degraded("upnp-router"), Ready());
+
+        LeafStateReport report = LeafState.Read(_directory);
+
+        Assert.Empty(report.Degraded);
+        Assert.Empty(report.Recovered);
+        Assert.Equal(["upnp-router"], report.Cleared);
+    }
+
+    [Fact]
+    public void A_component_is_in_exactly_the_set_its_last_line_puts_it_in()
+    {
+        Write(Degraded("a"), Ready(), Degraded("a"), Degraded("b"), Recovered("b"), Degraded("c"), Ready(), Recovered("c"));
+
+        LeafStateReport report = LeafState.Read(_directory);
+
+        Assert.Empty(report.Degraded);
+        Assert.Equal(["b", "c"], report.Recovered.Order());
+        Assert.Equal(["a"], report.Cleared);
+    }
+
+    [Fact]
+    public void A_component_the_segment_never_mentions_is_in_no_set()
+    {
+        // A fault reported before the segment boundary is neither broken, recovered nor cleared as far as
+        // this read can tell, and a consumer must be able to see that it was told nothing.
+        File.WriteAllLines(Path.Combine(_directory, "2026-08-15.ndjson"), [Degraded("yesterday")]);
+        File.WriteAllLines(Path.Combine(_directory, "2026-08-16.ndjson"), [Degraded("today")]);
+
+        LeafStateReport report = LeafState.Read(_directory);
+
+        Assert.Equal(["today"], report.Degraded.Select(d => d.Component));
+        Assert.Empty(report.Recovered);
+        Assert.Empty(report.Cleared);
+    }
+
+    [Fact]
+    public void A_fault_with_no_detail_or_timestamp_reports_both_as_unknown()
+    {
+        Write("""{"V":2,"EventType":"leaf.degraded","Data":{"Component":"hearing","Detail":null}}""");
+
+        LeafDegradation only = Assert.Single(LeafState.Read(_directory).Degraded);
+        Assert.Null(only.Detail);
+        Assert.Null(only.Since);
+    }
+
     private void Write(params string[] lines) =>
         File.WriteAllLines(Path.Combine(_directory, "2026-08-16.ndjson"), lines);
 

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — a leaf's fault read back with what it said, and how it ended (`TheKrystalShip.KGSM.Journal` 2.2.0, `TheKrystalShip.KGSM.Lib` 8.9.0)
+
+`LeafState.Read` replays a producer's newest segment into a `LeafStateReport`: each component still
+broken with the `Detail` the leaf wrote and when it reported it (`LeafDegradation`), the components
+whose last transition is a reported recovery, and the components a `leaf.ready` wiped before anything
+re-observed them.
+
+**The last two are different facts, and a consumer announcing a recovery needs them apart.** A resident
+daemon restarted in the middle of an outage writes a ready line with the fault still true; reading that
+as a recovery announces the outage over while it continues. A component the segment never mentions is
+in none of the three sets, so a fault reported before the segment boundary reads as unknown rather than
+as either outcome. `DegradedComponents` is the same replay reduced to ids.
+
 ### Added — the run of guesses that locked an account (`TheKrystalShip.KGSM.Lib` 8.8.0)
 
 `auth.locked_out` classifies the one authentication *failure* that is worth a row. Everything else in
