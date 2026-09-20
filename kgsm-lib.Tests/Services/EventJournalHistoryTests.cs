@@ -67,7 +67,8 @@ public sealed class EventJournalHistoryTests : IDisposable
         Assert.Equal("server.ready", Assert.Single(page.Events).Type);
     }
 
-    private EventJournalHistory CreateHistory(long? budgetBytes = null)
+    private EventJournalHistory CreateHistory(
+        long? budgetBytes = null, Mock<ILogger<EventJournalHistory>>? logger = null)
         => new(
             new KgsmOptions
             {
@@ -75,7 +76,7 @@ public sealed class EventJournalHistoryTests : IDisposable
                 EventJournalDirectory = _directory,
                 EventHistoryScanBudgetBytes = budgetBytes ?? KgsmOptions.DefaultEventHistoryScanBudgetBytes
             },
-            new Mock<ILogger<EventJournalHistory>>().Object);
+            (logger ?? new Mock<ILogger<EventJournalHistory>>()).Object);
 
     /// <summary>One line of journal, shaped like a real envelope.</summary>
     private static string Envelope(
@@ -106,6 +107,18 @@ public sealed class EventJournalHistoryTests : IDisposable
         using var writer = new StreamWriter(stream);
         foreach (string line in lines)
             writer.Write(line + "\n");
+    }
+
+    /// <summary>
+    /// Appends exact bytes, the way a crash leaves them — a hole carries no newline of its own, so
+    /// a writer that adds one could not produce the shape this reproduces.
+    /// </summary>
+    private void AppendRaw(string segment, params byte[][] chunks)
+    {
+        using var stream = new FileStream(
+            Path.Combine(_directory, segment), FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+        foreach (byte[] chunk in chunks)
+            stream.Write(chunk, 0, chunk.Length);
     }
 
     // ── Filters ──────────────────────────────────────────────────────────────────────────
@@ -627,6 +640,96 @@ public sealed class EventJournalHistoryTests : IDisposable
 
         Assert.True(page.JournalReadable);
         Assert.Empty(page.Events);
+    }
+
+    /// <summary>
+    /// The zeros an unclean shutdown leaves in a segment are a hole, not a line, and the append
+    /// sitting against them landed. It is read.
+    /// </summary>
+    /// <remarks>
+    /// Measured on this host: three producers went down mid-append and the filesystem left each
+    /// segment a run of NULs running straight into the next event, with no newline between them.
+    /// Read as one line that event is unparseable, so every scan reaching that far back discarded a
+    /// whole event and reported its producer for output it never wrote.
+    /// </remarks>
+    [Fact]
+    public async Task QueryAsync_AnEventWrittenAgainstACrashHole_IsRead()
+    {
+        AppendRaw("2026-08-04.ndjson",
+            Encoding.UTF8.GetBytes(Envelope("server.started", "2026-08-04T10:00:00Z", instance: "factorio") + "\n"),
+            new byte[512],
+            Encoding.UTF8.GetBytes(Envelope("server.stopped", "2026-08-04T10:05:00Z", instance: "factorio") + "\n"));
+
+        EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery());
+
+        Assert.Equal(
+            ["server.stopped", "server.started"],
+            page.Events.Select(e => e.Type));
+    }
+
+    /// <summary>A hole with nothing behind it is not an event and is not reported as a broken one.</summary>
+    [Fact]
+    public async Task QueryAsync_AHoleWithNothingBehindIt_IsSkippedLikeABlankLine()
+    {
+        var hole = new byte[512];
+        hole[^1] = (byte)'\n';
+
+        AppendRaw("2026-08-04.ndjson",
+            Encoding.UTF8.GetBytes(Envelope("server.started", "2026-08-04T10:00:00Z", instance: "factorio") + "\n"),
+            hole);
+
+        EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery());
+
+        Assert.Equal("server.started", Assert.Single(page.Events).Type);
+    }
+
+    /// <summary>
+    /// A hole never shifts an id. The offset an event is keyed on is where its bytes sit in the
+    /// file, so healing the line a reader assembled must not renumber what follows it.
+    /// </summary>
+    [Fact]
+    public async Task QueryAsync_AHoleDoesNotMoveTheIdsOfTheEventsBehindIt()
+    {
+        byte[] first = Encoding.UTF8.GetBytes(Envelope("server.started", "2026-08-04T10:00:00Z", instance: "factorio") + "\n");
+        byte[] second = Encoding.UTF8.GetBytes(Envelope("server.stopped", "2026-08-04T10:05:00Z", instance: "factorio") + "\n");
+
+        AppendRaw("2026-08-04.ndjson", first, new byte[64], second);
+
+        EventHistoryPage page = await CreateHistory().QueryAsync(new EventHistoryQuery());
+
+        // The healed line begins where the hole began, because that is where the reader found it.
+        Assert.Equal(
+            AuditId.ForPosition("2026-08-04", first.Length),
+            page.Events.Single(e => e.Type == "server.stopped").Id);
+    }
+
+    /// <summary>
+    /// A line that cannot be read is described once, not again on every query that walks past it.
+    /// </summary>
+    /// <remarks>
+    /// Measured on this host: a segment is never rewritten, so a line that will not parse meets every
+    /// later query at the same offset, and each was reported with its full stack. Three standing
+    /// faults produced 146,000 identical entries in a day — a log reporting one fact so often that
+    /// nothing else in it could be found. The first report still carries everything; the repeats go
+    /// to Debug, where a reader looking for them can still have them.
+    /// </remarks>
+    [Fact]
+    public async Task QueryAsync_AStandingFault_IsReportedOnceRatherThanOnEveryQuery()
+    {
+        Append("2026-08-04.ndjson", "{ this is not json");
+
+        var logger = new Mock<ILogger<EventJournalHistory>>();
+        EventJournalHistory history = CreateHistory(logger: logger);
+
+        await history.QueryAsync(new EventHistoryQuery());
+        await history.QueryAsync(new EventHistoryQuery());
+        await history.QueryAsync(new EventHistoryQuery());
+
+        logger.Verify(
+            l => l.Log(
+                LogLevel.Warning, It.IsAny<EventId>(), It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception>(), (Func<It.IsAnyType, Exception?, string>)It.IsAny<object>()),
+            Times.Once);
     }
 
     [Fact]

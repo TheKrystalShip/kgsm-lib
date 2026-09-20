@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -43,6 +45,38 @@ public sealed class EventJournalHistory : IEventJournalHistory
     /// </para>
     /// </summary>
     private static readonly TimeSpan SegmentSlack = TimeSpan.FromDays(1);
+
+    /// <summary>
+    /// The positions already described as unreadable, so a standing fault in a segment is reported
+    /// once rather than on every scan that walks past it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A segment is never rewritten, so a line that cannot be read now cannot be read later either:
+    /// every query reaching back that far meets the same position again, and at a surface's polling
+    /// cadence that is tens of thousands of identical stack traces a day burying everything else in
+    /// the log. The first encounter carries the exception, the rest go to Debug — so the fault is
+    /// still described in full, and still visible for as long as it stands.
+    /// </para>
+    /// <para>
+    /// Process-wide because the reader is resolved per scope: a memory held on the instance would
+    /// forget between one query and the next, which is the same thing as having none.
+    /// </para>
+    /// </remarks>
+    private static readonly ConcurrentDictionary<string, byte> ReportedFaults = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// How many distinct faulted positions are remembered. A journal holds a handful at most; past
+    /// this many, something is wrong with the directory itself rather than with a line, and repeating
+    /// the reports is the better failure than growing without bound.
+    /// </summary>
+    private const int MaxReportedFaults = 512;
+
+    /// <summary>Whether this is the first time <paramref name="offset"/> in <paramref name="path"/> has been reported.</summary>
+    private static bool FirstReportOf(string path, long offset) =>
+        ReportedFaults.Count >= MaxReportedFaults
+        || ReportedFaults.TryAdd(
+            string.Create(CultureInfo.InvariantCulture, $"{path}+{offset}"), 0);
 
     private readonly string _directory;
     private readonly long _budgetBytes;
@@ -328,6 +362,11 @@ public sealed class EventJournalHistory : IEventJournalHistory
                     break;
                 }
 
+                // Read past the hole an unclean shutdown left, if there is one. The offset above is
+                // taken from the line as it sits on disk, so an id keeps naming the same bytes
+                // whether or not the line it names had zeros in front of it.
+                line = JournalLine.WithoutHole(line);
+
                 if (line.Length == 0)
                     continue;
 
@@ -343,9 +382,15 @@ public sealed class EventJournalHistory : IEventJournalHistory
                     // An event with no timestamp cannot be placed in a time-ordered history, and
                     // inventing one would put a fabricated moment in the audit trail. It is
                     // reported and skipped.
-                    _logger.LogWarning(
-                        "Event journal {Segment}+{Offset} carries no Timestamp and is absent from history",
-                        segment, lineStart);
+                    if (FirstReportOf(path, lineStart))
+                        _logger.LogWarning(
+                            "Event journal {Segment}+{Offset} carries no Timestamp and is absent from history",
+                            segment, lineStart);
+                    else
+                        _logger.LogDebug(
+                            "Event journal {Segment}+{Offset} carries no Timestamp and is absent from history",
+                            segment, lineStart);
+
                     continue;
                 }
 
@@ -467,6 +512,8 @@ public sealed class EventJournalHistory : IEventJournalHistory
             string? line;
             while ((line = await reader.ReadLineAsync(token).ConfigureAwait(false)) is not null)
             {
+                line = JournalLine.WithoutHole(line);
+
                 if (string.IsNullOrWhiteSpace(line))
                     continue;
 
@@ -487,7 +534,8 @@ public sealed class EventJournalHistory : IEventJournalHistory
 
     /// <summary>
     /// Deserializes one journal line, or null when it cannot be read. A malformed line is
-    /// reported and skipped — one bad line never fails a whole query.
+    /// reported and skipped — one bad line never fails a whole query, and never repeats its
+    /// report on every query either (<see cref="ReportedFaults"/>).
     /// </summary>
     private EventWrapper? Deserialize(string line, string path, long offset)
     {
@@ -503,7 +551,11 @@ public sealed class EventJournalHistory : IEventJournalHistory
                 wrapper.EventType = LegacyEventNames.Canonical(wrapper.EventType);
             if (wrapper is null || string.IsNullOrEmpty(wrapper.EventType))
             {
-                _logger.LogWarning("Event journal {Path}+{Offset} holds no readable event", path, offset);
+                if (FirstReportOf(path, offset))
+                    _logger.LogWarning("Event journal {Path}+{Offset} holds no readable event", path, offset);
+                else
+                    _logger.LogDebug("Event journal {Path}+{Offset} holds no readable event", path, offset);
+
                 return null;
             }
 
@@ -511,7 +563,11 @@ public sealed class EventJournalHistory : IEventJournalHistory
         }
         catch (JsonException ex)
         {
-            _logger.LogWarning(ex, "Event journal {Path}+{Offset} is not valid JSON", path, offset);
+            if (FirstReportOf(path, offset))
+                _logger.LogWarning(ex, "Event journal {Path}+{Offset} is not valid JSON", path, offset);
+            else
+                _logger.LogDebug("Event journal {Path}+{Offset} is not valid JSON", path, offset);
+
             return null;
         }
     }

@@ -133,6 +133,12 @@ public static class LeafState
         /// <summary>Replays one line, ignoring anything that is not a transition.</summary>
         public void Apply(string line)
         {
+            // The segment this replays is a producer's newest, which after an unclean shutdown is
+            // the one holding the hole — with the ready line the fresh process wrote sitting
+            // directly against it. Dropping that line reports a leaf as still broken over faults
+            // its restart already wiped.
+            line = JournalLine.WithoutHole(line);
+
             if (line.Length == 0)
                 return;
 

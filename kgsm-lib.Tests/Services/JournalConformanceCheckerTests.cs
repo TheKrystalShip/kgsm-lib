@@ -677,6 +677,28 @@ public sealed class JournalConformanceCheckerTests : IDisposable
         }
     }
 
+    // ── What the filesystem left behind ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// A conforming line the machine died in front of is still a conforming line. The zeros ahead of
+    /// it belong to the filesystem, and a check that read them as the producer's spelling would
+    /// report a component for bytes it never wrote.
+    /// </summary>
+    [Fact]
+    public void A_line_written_against_a_crash_hole_conforms()
+    {
+        Assert.Empty(Check(new string('\0', 200) + Line()));
+    }
+
+    /// <summary>A hole carrying nothing else is named for what it is, not judged as a line.</summary>
+    [Fact]
+    public void A_hole_carrying_nothing_else_is_reported_as_a_hole()
+    {
+        ConformanceFinding finding = AssertBreaks(ConformanceRule.LineParses, new string('\0', 200));
+
+        Assert.Contains("unclean shutdown", finding.Detail, StringComparison.Ordinal);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────────────────────
 
     private static IReadOnlyList<ConformanceFinding> Check(string line) =>

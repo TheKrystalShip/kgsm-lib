@@ -1,3 +1,5 @@
+using System.Text;
+
 using TheKrystalShip.KGSM.Events;
 using TheKrystalShip.KGSM.Lifecycle;
 
@@ -196,6 +198,35 @@ public sealed class LeafStateTests : IDisposable
         LeafDegradation only = Assert.Single(LeafState.Read(_directory).Degraded);
         Assert.Null(only.Detail);
         Assert.Null(only.Since);
+    }
+
+    /// <summary>
+    /// A leaf that came back after the machine went down reports the restart it wrote, not the
+    /// faults that restart wiped.
+    /// </summary>
+    /// <remarks>
+    /// The segment this replays is the producer's newest, which after an unclean shutdown is exactly
+    /// the one carrying the hole — and the ready line the fresh process wrote is the append sitting
+    /// against it, because the hole ends where the next write began.
+    /// </remarks>
+    [Fact]
+    public void A_ready_line_written_against_a_crash_hole_still_wipes_the_faults_before_it()
+    {
+        string path = Path.Combine(_directory, "2026-08-16.ndjson");
+        using (var stream = new FileStream(path, FileMode.Create, FileAccess.Write))
+        {
+            byte[] fault = Encoding.UTF8.GetBytes(Degraded("hearing") + "\n");
+            byte[] ready = Encoding.UTF8.GetBytes(Ready() + "\n");
+
+            stream.Write(fault, 0, fault.Length);
+            stream.Write(new byte[256], 0, 256);
+            stream.Write(ready, 0, ready.Length);
+        }
+
+        LeafStateReport report = LeafState.Read(_directory);
+
+        Assert.Empty(report.Degraded);
+        Assert.Equal(["hearing"], report.Cleared);
     }
 
     private void Write(params string[] lines) =>

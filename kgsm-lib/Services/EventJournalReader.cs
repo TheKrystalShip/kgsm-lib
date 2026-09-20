@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.Extensions.Logging;
 using TheKrystalShip.KGSM.Core.Interfaces;
 using TheKrystalShip.KGSM.Core.Models;
+using TheKrystalShip.KGSM.Events;
 
 namespace TheKrystalShip.KGSM.Services;
 
@@ -431,9 +432,13 @@ public sealed class EventJournalReader : IEventJournalReader
                     consumed = bufferStart + i + 1;
                     start = i + 1;
 
-                    string line = Encoding.UTF8
-                        .GetString(partial.GetBuffer(), 0, (int)partial.Length)
-                        .Trim();
+                    // A reader resuming after an unclean shutdown meets the hole the filesystem left
+                    // where the last appends were going to be; the event past it landed and is
+                    // dispatched, while the offset stays the one the line occupies on disk.
+                    string line = JournalLine.WithoutHole(
+                        Encoding.UTF8
+                            .GetString(partial.GetBuffer(), 0, (int)partial.Length)
+                            .Trim());
                     partial.SetLength(0);
 
                     if (line.Length > 0)

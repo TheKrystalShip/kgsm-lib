@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text;
 
 namespace TheKrystalShip.KGSM.Tests.Services;
 
@@ -80,6 +81,17 @@ public sealed class EventJournalReaderTests : IDisposable
         using var writer = new StreamWriter(stream);
         foreach (string line in lines)
             writer.Write(line + "\n");
+    }
+
+    /// <summary>
+    /// Appends exact bytes, the way the machine going down leaves them — a hole carries no newline
+    /// of its own, so a writer that added one could not produce the shape this reproduces.
+    /// </summary>
+    private void AppendRaw(string segment, params byte[][] chunks)
+    {
+        using var stream = new FileStream(SegmentPath(segment), FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+        foreach (byte[] chunk in chunks)
+            stream.Write(chunk, 0, chunk.Length);
     }
 
     private static async Task WaitFor(Func<bool> condition, string because)
@@ -165,6 +177,30 @@ public sealed class EventJournalReaderTests : IDisposable
             Assert.Contains("second", order[1]);
             Assert.Contains("third", order[2]);
             Assert.Contains("fourth", order[3]);
+        });
+    }
+
+    /// <summary>
+    /// The first thing a consumer reads after the machine comes back is the hole the shutdown left,
+    /// with the event that landed against it. That event is delivered.
+    /// </summary>
+    [Fact]
+    public async Task Oldest_DeliversTheEventWrittenAgainstACrashHole()
+    {
+        AppendRaw("2026-08-04.ndjson",
+            Encoding.UTF8.GetBytes(Envelope("before-the-crash") + "\n"),
+            new byte[256],
+            Encoding.UTF8.GetBytes(Envelope("after-the-crash") + "\n"));
+
+        EventJournalReader reader = CreateReader(EventStartPosition.Oldest, new MemoryCursorStore());
+
+        await RunAsync(reader, async received =>
+        {
+            await WaitFor(() => received.Count == 2, "both events either side of the hole");
+
+            string[] order = received.ToArray();
+            Assert.Contains("before-the-crash", order[0]);
+            Assert.Contains("after-the-crash", order[1]);
         });
     }
 

@@ -89,9 +89,17 @@ public static class JournalConformance
         void Add(string rule, string detail) =>
             findings.Add(new ConformanceFinding(producer, segment, lineNumber, rule, detail));
 
+        // A hole is the filesystem's, not the producer's: reporting the zeros against the envelope
+        // contract blames a component for bytes it never wrote. What landed either side of the hole
+        // is checked normally, and a line that is nothing else is named for what it is.
+        bool holed = JournalLine.IsHoled(line);
+        line = JournalLine.WithoutHole(line);
+
         if (string.IsNullOrWhiteSpace(line))
         {
-            Add(ConformanceRule.LineParses, "the line is blank");
+            Add(ConformanceRule.LineParses, holed
+                ? "an unclean shutdown left a hole here; the bytes it stands in for were never written to disk"
+                : "the line is blank");
             return findings;
         }
 

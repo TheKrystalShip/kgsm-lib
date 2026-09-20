@@ -109,6 +109,13 @@ payloads compact for that reason, and only complete lines are dispatched. Anythi
 rewrites a segment in place (a log rotator's `copytruncate`) invalidates every cursor into it,
 which is why retention deletes whole segments and never truncates one.
 
+**A run of NUL bytes in a segment is a hole, not a line.** The filesystem records the file as longer
+than the bytes it has written, and a machine that goes down in between leaves zeros standing where an
+append was going to be. Every reader passes lines through `JournalLine.WithoutHole` first: the hole
+carries no newline, so it runs into the next append and a reader would otherwise throw away a whole
+event that landed. The bytes the hole replaced are gone and nothing reconstructs them — offsets are
+taken from the line as it sits on disk, so healing one never moves an id.
+
 **Every event carries its position, and its name.** `IEventSource.EventReceived` and
 `IEventService.RegisterRawHandler` both take an `EventPosition` (segment + byte offset)
 alongside the envelope. Only raw handlers see it; a consumer that needs it inside a *typed* handler

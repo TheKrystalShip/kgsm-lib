@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed — the hole an unclean shutdown leaves in a segment (`TheKrystalShip.KGSM.Journal` 2.3.0, `TheKrystalShip.KGSM.Lib` 8.9.1)
+
+`JournalLine.WithoutHole` strips the run of NUL bytes a filesystem leaves where it had recorded a
+segment as longer without having written the bytes. Every reader of a segment uses it: the history
+scan, the tailing reader, the leaf-state replay and the conformance check.
+
+**A NUL is never content** — the writer appends UTF-8 JSON and escapes every control character — and
+the hole carries no newline of its own, so it runs straight into the next append and a reader is handed
+one line made of both. That event landed, and it is read rather than discarded with the zeros. The
+bytes the hole stands in for are gone and nothing here invents them; zeros left *between* two partial
+records are a torn write, stay unparseable, and are reported. The conformance check names a line that
+is nothing but hole for what it is, rather than reporting its producer for bytes it never wrote — and
+the leaf-state replay now sees the `leaf.ready` a restart wrote against a hole, instead of reporting
+components as still broken over faults that restart had already wiped.
+
+**A standing fault in a segment is reported once.** A segment is never rewritten, so a line that will
+not parse meets every later query at the same offset. `EventJournalHistory` remembers the positions it
+has described: the first encounter carries the exception, the repeats go to Debug. Measured here at
+146,000 identical entries in a day from three faults — a log reporting one fact so often that nothing
+else in it could be found.
+
 ### Added — a leaf's fault read back with what it said, and how it ended (`TheKrystalShip.KGSM.Journal` 2.2.0, `TheKrystalShip.KGSM.Lib` 8.9.0)
 
 `LeafState.Read` replays a producer's newest segment into a `LeafStateReport`: each component still
