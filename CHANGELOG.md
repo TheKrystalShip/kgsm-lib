@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — the engine's actions (`TheKrystalShip.KGSM.Lib` 8.10.0-dev.1)
+
+`KgsmActions` names every action in the engine's manifest (`kgsm/deploy/kgsm.actions.json`) as a
+constant — `KgsmActions.ServerRestart` is `kgsm:server.restart` — for callers to check a person against
+and for components to name in `[Requires]` when they call the engine as their own service account.
+`KgsmActionsTests` reads the engine's manifest from the sibling checkout, or from
+`KGSM_ENGINE_CHECKOUT`, and fails naming any action declared on one side only. It also fails when
+neither is there, since a comparison that could not be made shows nothing.
+
 ### Fixed — the hole an unclean shutdown leaves in a segment (`TheKrystalShip.KGSM.Journal` 2.3.0, `TheKrystalShip.KGSM.Lib` 8.9.1)
 
 `JournalLine.WithoutHole` strips the run of NUL bytes a filesystem leaves where it had recorded a

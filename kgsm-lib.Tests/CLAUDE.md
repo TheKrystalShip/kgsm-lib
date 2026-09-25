@@ -10,6 +10,11 @@ ordinary files, so its whole contract is unit-testable: start position, whole-li
 rolling, cursor resume, and gap reporting. It writes segments the way the engine does, one complete
 line per append.
 
+**`KgsmActionsTests` is the one test that reads another repo.** It compares `KgsmActions` with the
+engine's hand-written manifest, `kgsm/deploy/kgsm.actions.json`, found in the `kgsm` checkout beside
+this one or at `KGSM_ENGINE_CHECKOUT`. With neither it fails rather than skipping: an agreement nobody
+could check is not one.
+
 **Process-bound classes are intentionally not in the unit suite** — `LogSubscriptionService` spawns a
 real `kgsm --follow` `Process`, needs a live KGSM, and belongs in an integration category rather than
 here. Its one unit-testable dependency, `LogParser`, is covered (`Utilities/LogParserTests.cs`).
