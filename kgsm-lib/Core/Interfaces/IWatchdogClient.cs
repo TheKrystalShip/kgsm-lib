@@ -1,3 +1,4 @@
+using TheKrystalShip.KGSM.ComponentConfig;
 using TheKrystalShip.KGSM.Core.Models;
 
 namespace TheKrystalShip.KGSM.Core.Interfaces;
@@ -44,6 +45,7 @@ public interface IWatchdogClient : IDisposable
     /// <param name="instanceName">The instance to start.</param>
     /// <param name="origin">The requesting leaf, e.g. <c>"scheduler"</c> (the default).</param>
     /// <param name="cancellationToken">Cancels the request.</param>
+    [Performs(KgsmActions.ServerStart)]
     Task<WatchdogActionResult> StartAsync(
         string instanceName,
         string origin = "scheduler",
@@ -57,6 +59,7 @@ public interface IWatchdogClient : IDisposable
     /// <param name="instanceName">The instance to stop.</param>
     /// <param name="origin">The requesting leaf, e.g. <c>"scheduler"</c> (the default).</param>
     /// <param name="cancellationToken">Cancels the request.</param>
+    [Performs(KgsmActions.ServerStop)]
     Task<WatchdogActionResult> StopAsync(
         string instanceName,
         string origin = "scheduler",
@@ -67,18 +70,21 @@ public interface IWatchdogClient : IDisposable
     /// daemon will spawn it automatically on the next host boot (or watchdog start). Idempotent —
     /// already-enabled returns <see cref="WatchdogActionResult.Ok"/> = false (409) rather than throwing.
     /// </summary>
+    [Performs(KgsmActions.ServerConfigWrite)]
     Task<WatchdogActionResult> EnableAsync(string instanceName, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Removes <paramref name="instanceName"/> from the watchdog's persisted boot-autostart set.
     /// Idempotent — already-disabled returns <see cref="WatchdogActionResult.Ok"/> = false (409) rather than throwing.
     /// </summary>
+    [Performs(KgsmActions.ServerConfigWrite)]
     Task<WatchdogActionResult> DisableAsync(string instanceName, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Returns the names of all instances currently in the persisted boot-autostart set.
     /// An empty list means no instances are enabled (never null).
     /// </summary>
+    [Performs(KgsmActions.ServerRead)]
     Task<IReadOnlyList<string>> GetEnabledNamesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -94,6 +100,7 @@ public interface IWatchdogClient : IDisposable
     /// and was NOT deregistered (deregistering it would orphan the process).
     /// </para>
     /// </summary>
+    [Performs(KgsmActions.ServerUninstall)]
     Task<WatchdogActionResult> ForgetAsync(string instanceName, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -103,6 +110,7 @@ public interface IWatchdogClient : IDisposable
     /// with a message (not an exception) if the instance cgroup does not exist
     /// (not running) — the caller should treat this as "will apply at next start".
     /// </summary>
+    [Performs(KgsmActions.ServerConfigWrite)]
     Task<WatchdogActionResult> SetCpuPriorityAsync(string instanceName, string priority, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -117,6 +125,7 @@ public interface IWatchdogClient : IDisposable
     /// <param name="instanceName">The instance to restart.</param>
     /// <param name="origin">The requesting leaf, e.g. <c>"scheduler"</c> (the default).</param>
     /// <param name="cancellationToken">Cancels the request.</param>
+    [Performs(KgsmActions.ServerRestart)]
     Task<WatchdogActionResult> RestartAsync(
         string instanceName,
         string origin = "scheduler",
@@ -146,6 +155,7 @@ public interface IWatchdogClient : IDisposable
     /// <param name="instanceName">The instance to park.</param>
     /// <param name="origin">The requesting leaf, e.g. <c>"scheduler"</c> (the default).</param>
     /// <param name="cancellationToken">Cancels the request.</param>
+    [Performs(KgsmActions.ServerUpdate)]
     Task<WatchdogActionResult> BeginMaintenanceAsync(
         string instanceName,
         string origin = "scheduler",
@@ -164,6 +174,7 @@ public interface IWatchdogClient : IDisposable
     /// <param name="instanceName">The instance to release.</param>
     /// <param name="origin">The requesting leaf, e.g. <c>"scheduler"</c> (the default).</param>
     /// <param name="cancellationToken">Cancels the request.</param>
+    [Performs(KgsmActions.ServerUpdate)]
     Task<WatchdogActionResult> EndMaintenanceAsync(
         string instanceName,
         string origin = "scheduler",
@@ -175,12 +186,14 @@ public interface IWatchdogClient : IDisposable
     /// </summary>
     /// <param name="instanceName">The instance to query.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
+    [Performs(KgsmActions.ServerRead)]
     Task<WatchdogInstanceState?> GetStatusAsync(string instanceName, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Lists every instance the daemon currently supervises.
     /// </summary>
     /// <param name="cancellationToken">Cancels the request.</param>
+    [Performs(KgsmActions.ServerRead)]
     Task<IReadOnlyList<WatchdogInstanceState>> ListAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -192,6 +205,7 @@ public interface IWatchdogClient : IDisposable
     /// down: a stopped instance is not in the supervised table, so it does not appear in a list at all.
     /// </remarks>
     /// <param name="cancellationToken">Cancels the request.</param>
+    [Performs(KgsmActions.ServerRead)]
     Task<IReadOnlyList<WatchdogRunTimes>> GetRunTimesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -218,6 +232,7 @@ public interface IWatchdogClient : IDisposable
     /// <param name="instanceName">The instance whose console to follow.</param>
     /// <param name="cancellationToken">Stops the follow when cancelled — the normal way it ends (a server-side disconnect ends it without cancellation).</param>
     /// <returns>An async sequence of console lines (newline already stripped).</returns>
+    [Performs(KgsmActions.ServerConsoleRead)]
     IAsyncEnumerable<string> FollowConsoleAsync(string instanceName, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -243,6 +258,7 @@ public interface IWatchdogClient : IDisposable
     /// <param name="lines">How many trailing lines to request (the daemon clamps 0..5000).</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>The trailing console lines oldest-first, or an empty list when there is no console.</returns>
+    [Performs(KgsmActions.ServerConsoleRead)]
     Task<IReadOnlyList<string>> GetConsoleTailAsync(string instanceName, int lines, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -259,6 +275,7 @@ public interface IWatchdogClient : IDisposable
     /// <param name="instanceName">The instance whose runs to list.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>The runs newest-first, or an empty list when there are none.</returns>
+    [Performs(KgsmActions.ServerConsoleRead)]
     Task<IReadOnlyList<WatchdogConsoleRun>> GetConsoleRunsAsync(string instanceName, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -276,6 +293,7 @@ public interface IWatchdogClient : IDisposable
     /// <param name="run">Newest-first run index; 0 is the most recent.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>That run's trailing console lines oldest-first, or an empty list.</returns>
+    [Performs(KgsmActions.ServerConsoleRead)]
     Task<IReadOnlyList<string>> GetConsoleRunTailAsync(
         string instanceName, int lines, int run, CancellationToken cancellationToken = default);
 
@@ -306,6 +324,7 @@ public interface IWatchdogClient : IDisposable
     /// <param name="endOffset">Byte offset to read back from; negative means the end of the log.</param>
     /// <param name="cancellationToken">Cancels the request.</param>
     /// <returns>The window and its byte range, or an empty window.</returns>
+    [Performs(KgsmActions.ServerConsoleRead)]
     Task<WatchdogConsoleWindow> GetConsoleWindowAsync(
         string instanceName, int lines, int run, long endOffset, CancellationToken cancellationToken = default);
 
@@ -328,6 +347,7 @@ public interface IWatchdogClient : IDisposable
     /// instance, or a daemon too old to serve the route. A known instance that has never printed is
     /// an open download of length 0, which is a different fact and stays distinguishable.
     /// </returns>
+    [Performs(KgsmActions.ServerConsoleRead)]
     Task<WatchdogConsoleDownload?> OpenConsoleDownloadAsync(
         string instanceName, int run, CancellationToken cancellationToken = default);
 
@@ -354,6 +374,7 @@ public interface IWatchdogClient : IDisposable
     /// not an empty host</b> — it is the supervisor being unavailable, and a caller must report it
     /// as unknown rather than as nobody online.
     /// </returns>
+    [Performs(KgsmActions.ServerRead)]
     Task<IReadOnlyDictionary<string, WatchdogInstancePresence>?> GetPlayerPresenceAsync(CancellationToken cancellationToken = default);
 
     /// <summary>

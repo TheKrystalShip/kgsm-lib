@@ -1,3 +1,4 @@
+using TheKrystalShip.KGSM.ComponentConfig;
 using TheKrystalShip.KGSM.Core.Models;
 using TheKrystalShip.KGSM.Core.Models.Enums;
 
@@ -19,6 +20,7 @@ public interface IInstanceService
     /// Gets a dictionary of all instances.
     /// </summary>
     /// <returns>A dictionary of instance names to instance objects.</returns>
+    [Performs(KgsmActions.ServerRead)]
     Dictionary<string, Instance> GetAll();
 
     /// <summary>
@@ -32,6 +34,7 @@ public interface IInstanceService
     /// cases to an empty dictionary and so cannot tell them apart.
     /// </summary>
     /// <returns>The instance roster on a successful read (may be empty), or <see langword="null"/> on a read failure.</returns>
+    [Performs(KgsmActions.ServerRead)]
     Dictionary<string, Instance>? GetAllOrNull();
 
     /// <summary>
@@ -39,6 +42,7 @@ public interface IInstanceService
     /// </summary>
     /// <param name="instanceName">Instance name to get information for.</param>
     /// <returns>The instance information as a structured object.</returns>
+    [Performs(KgsmActions.ServerRead)]
     Instance? GetInstanceInfo(string instanceName);
 
     /// <summary>
@@ -46,6 +50,7 @@ public interface IInstanceService
     /// </summary>
     /// <param name="instanceName">Instance name to get status for.</param>
     /// <returns>The instance status as a structured object.</returns>
+    [Performs(KgsmActions.ServerRead)]
     InstanceRuntimeStatus? GetInstanceStatus(string instanceName);
 
     /// <summary>
@@ -77,6 +82,7 @@ public interface IInstanceService
     /// instance management script's own status report; dedicated liveness
     /// routing (systemd vs standalone) is a separate lifecycle-layer concern.
     /// </remarks>
+    [Performs(KgsmActions.ServerRead)]
     Dictionary<string, Reading<InstanceRuntimeStatus>> GetAllStatuses(bool fast = false);
 
     /// <summary>
@@ -111,6 +117,7 @@ public interface IInstanceService
     /// every path, event and downstream store uses, and the label is decoration a person changes
     /// whenever they like. <see cref="GenerateId"/> answers what an id would be without installing.
     /// </remarks>
+    [Performs(KgsmActions.ServerInstall)]
     KgsmResult Install(string blueprintName, string? library = null, string? version = null, string? displayName = null, string? actor = null, string? origin = null, int? port = null, bool? start = null, string? id = null);
 
     /// <summary>
@@ -120,6 +127,7 @@ public interface IInstanceService
     /// <param name="actor">Optional audit principal — see <see cref="Install"/>.</param>
     /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result of the uninstallation operation.</returns>
+    [Performs(KgsmActions.ServerUninstall)]
     KgsmResult Uninstall(string instanceName, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -151,6 +159,7 @@ public interface IInstanceService
     /// <param name="actor">Optional audit principal — see <see cref="Install"/>.</param>
     /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result of the move operation.</returns>
+    [Performs(KgsmActions.ServerMove)]
     KgsmResult Move(string instanceName, string library, bool skipSpaceCheck = false, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -161,6 +170,7 @@ public interface IInstanceService
     /// <returns>Result containing the instance logs.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the logs cannot be retrieved.</exception>
+    [Performs(KgsmActions.ServerConsoleRead)]
     ICollection<string> GetLogs(string instanceName, int maxLines = 10);
 
     /// <summary>
@@ -172,6 +182,7 @@ public interface IInstanceService
     /// <returns>Result containing the instance logs.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the logs cannot be retrieved.</exception>
+    [Performs(KgsmActions.ServerConsoleRead)]
     Task<ICollection<string>> GetLogsAsync(string instanceName, int maxLines = 10, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -180,6 +191,7 @@ public interface IInstanceService
     /// <param name="instanceName">Instance name to get status for.</param>
     /// <returns>Result containing the instance status.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
+    [Performs(KgsmActions.ServerRead)]
     KgsmResult GetStatus(string instanceName);
 
     /// <summary>
@@ -188,6 +200,7 @@ public interface IInstanceService
     /// <param name="instanceName">Instance name to get information for.</param>
     /// <returns>Result containing the instance information.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
+    [Performs(KgsmActions.ServerRead)]
     KgsmResult GetInfo(string instanceName);
 
     /// <summary>
@@ -196,6 +209,7 @@ public interface IInstanceService
     /// <param name="instanceName">Instance name to check.</param>
     /// <returns>True if the instance is active, false otherwise.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
+    [Performs(KgsmActions.ServerRead)]
     bool IsActive(string instanceName);
 
     /// <summary>
@@ -207,6 +221,7 @@ public interface IInstanceService
     /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result of the start operation.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
+    [Performs(KgsmActions.ServerStart)]
     KgsmResult Start(string instanceName, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -217,6 +232,7 @@ public interface IInstanceService
     /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result of the stop operation.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
+    [Performs(KgsmActions.ServerStop)]
     KgsmResult Stop(string instanceName, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -227,6 +243,7 @@ public interface IInstanceService
     /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result of the restart operation.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="instanceName"/> is null.</exception>
+    [Performs(KgsmActions.ServerRestart)]
     KgsmResult Restart(string instanceName, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -234,6 +251,7 @@ public interface IInstanceService
     /// </summary>
     /// <param name="instanceName">Instance name to get version for.</param>
     /// <returns>Result containing the installed version.</returns>
+    [Performs(KgsmActions.ServerRead)]
     KgsmResult GetInstalledVersion(string instanceName);
 
     /// <summary>
@@ -241,6 +259,7 @@ public interface IInstanceService
     /// </summary>
     /// <param name="instanceName">Instance name to get latest version for.</param>
     /// <returns>Result containing the latest version.</returns>
+    [Performs(KgsmActions.ServerRead)]
     KgsmResult GetLatestVersion(string instanceName);
 
     /// <summary>
@@ -261,6 +280,7 @@ public interface IInstanceService
     /// </param>
     /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result indicating if an update is available.</returns>
+    [Performs(KgsmActions.ServerRead)]
     KgsmResult CheckUpdate(string instanceName, bool emit = false, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -270,6 +290,7 @@ public interface IInstanceService
     /// <param name="actor">Optional audit principal — see <see cref="Install"/>.</param>
     /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result of the update operation.</returns>
+    [Performs(KgsmActions.ServerUpdate)]
     KgsmResult Update(string instanceName, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -277,6 +298,7 @@ public interface IInstanceService
     /// </summary>
     /// <param name="instanceName">Instance name to get backups for.</param>
     /// <returns>Result whose stdout is one backup id per line, newest first.</returns>
+    [Performs(KgsmActions.ServerBackupsRead)]
     KgsmResult GetBackups(string instanceName);
 
     /// <summary>
@@ -289,6 +311,7 @@ public interface IInstanceService
     /// fails or its output cannot be parsed: callers must not read an empty list as proof that no
     /// backups exist — use <see cref="GetBackups"/> when the distinction matters.
     /// </returns>
+    [Performs(KgsmActions.ServerBackupsRead)]
     List<InstanceBackup> GetBackupsDetailed(string instanceName);
 
     /// <summary>
@@ -315,6 +338,7 @@ public interface IInstanceService
     /// Thrown when <paramref name="reason"/> or <paramref name="retention"/> is not one the engine
     /// accepts — refused here rather than after minutes of archiving.
     /// </exception>
+    [Performs(KgsmActions.ServerBackupsCreate)]
     KgsmResult CreateBackup(string instanceName, string? actor = null, string? origin = null,
         string? reason = null, string? retention = null);
 
@@ -333,6 +357,7 @@ public interface IInstanceService
     /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result of the pin operation.</returns>
     /// <exception cref="ArgumentException">Thrown when either argument is null or whitespace.</exception>
+    [Performs(KgsmActions.ServerBackupsManage)]
     KgsmResult PinBackup(string instanceName, string backupName, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -345,6 +370,7 @@ public interface IInstanceService
     /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result of the unpin operation.</returns>
     /// <exception cref="ArgumentException">Thrown when either argument is null or whitespace.</exception>
+    [Performs(KgsmActions.ServerBackupsManage)]
     KgsmResult UnpinBackup(string instanceName, string backupName, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -363,6 +389,7 @@ public interface IInstanceService
     /// <param name="actor">Optional audit actor label (e.g. "scheduler").</param>
     /// <param name="origin">Optional audit origin label (e.g. "scheduler").</param>
     /// <returns>Result of the prune operation.</returns>
+    [Performs(KgsmActions.ServerBackupsManage)]
     KgsmResult PruneBackups(string instanceName, int keepN, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -380,6 +407,7 @@ public interface IInstanceService
     /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result of the delete operation.</returns>
     /// <exception cref="ArgumentException">Thrown when either argument is null or whitespace.</exception>
+    [Performs(KgsmActions.ServerBackupsManage)]
     KgsmResult DeleteBackup(string instanceName, string backupName, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -390,6 +418,7 @@ public interface IInstanceService
     /// <param name="actor">Optional audit principal — see <see cref="Install"/>.</param>
     /// <param name="origin">Optional driving surface — see <see cref="Install"/>.</param>
     /// <returns>Result of the backup restoration operation.</returns>
+    [Performs(KgsmActions.ServerBackupsRestore)]
     KgsmResult RestoreBackup(string instanceName, string backupName, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -402,6 +431,7 @@ public interface IInstanceService
     /// same call that would otherwise mint one, and learn before installing whether it is usable.</param>
     /// <returns>Result whose standard output is the id, with no trailing decoration.</returns>
     /// <exception cref="ArgumentException">Thrown when blueprintName is null or whitespace.</exception>
+    [Performs(KgsmActions.ServerInstall)]
     KgsmResult GenerateId(string blueprintName, string? id = null);
 
     /// <summary>
@@ -411,6 +441,7 @@ public interface IInstanceService
     /// <param name="instanceName">The instance to save.</param>
     /// <returns>Result of the save operation.</returns>
     /// <exception cref="ArgumentException">Thrown when instanceName is null or whitespace.</exception>
+    [Performs(KgsmActions.ServerConsoleWrite)]
     KgsmResult Save(string instanceName);
 
     /// <summary>
@@ -426,6 +457,7 @@ public interface IInstanceService
     /// <c>KGSM_EVENT_ORIGIN</c>; null omits it (no surface — never fabricated).</param>
     /// <returns>Result containing log output after command execution.</returns>
     /// <exception cref="ArgumentException">Thrown when instanceName or command is null or whitespace.</exception>
+    [Performs(KgsmActions.ServerConsoleWrite)]
     KgsmResult SendInput(string instanceName, string command, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -463,6 +495,7 @@ public interface IInstanceService
     /// <returns>Result of the announce operation.</returns>
     /// <exception cref="ArgumentException">Thrown when instanceName or message is null or
     /// whitespace, or when message contains a line break.</exception>
+    [Performs(KgsmActions.ServerAnnounce)]
     KgsmResult Announce(string instanceName, string message, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -488,6 +521,7 @@ public interface IInstanceService
     /// <returns>Result of the kick operation.</returns>
     /// <exception cref="ArgumentException">Thrown when instanceName or target is null or
     /// whitespace, or when target contains a line break.</exception>
+    [Performs(KgsmActions.ServerPlayersKick)]
     KgsmResult Kick(string instanceName, string target, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -505,6 +539,7 @@ public interface IInstanceService
     /// <returns>Result of the ban operation.</returns>
     /// <exception cref="ArgumentException">Thrown when instanceName or target is null or
     /// whitespace, or when target contains a line break.</exception>
+    [Performs(KgsmActions.ServerPlayersBan)]
     KgsmResult Ban(string instanceName, string target, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -524,6 +559,7 @@ public interface IInstanceService
     /// <returns>Result of the unban operation.</returns>
     /// <exception cref="ArgumentException">Thrown when instanceName or target is null or
     /// whitespace, or when target contains a line break.</exception>
+    [Performs(KgsmActions.ServerPlayersBan)]
     KgsmResult Unban(string instanceName, string target, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -532,6 +568,7 @@ public interface IInstanceService
     /// <param name="instanceName">The instance to find the config path for.</param>
     /// <returns>Result containing the absolute path to the config file.</returns>
     /// <exception cref="ArgumentException">Thrown when instanceName is null or whitespace.</exception>
+    [Performs(KgsmActions.ServerConfigRead)]
     KgsmResult FindConfigPath(string instanceName);
 
     /// <summary>
@@ -541,6 +578,7 @@ public interface IInstanceService
     /// <param name="key">The configuration key to read.</param>
     /// <returns>Result whose standard output holds the value (empty if the key is absent).</returns>
     /// <exception cref="ArgumentException">Thrown when instanceName or key is null or whitespace.</exception>
+    [Performs(KgsmActions.ServerConfigRead)]
     KgsmResult GetInstanceConfigValue(string instanceName, string key);
 
     /// <summary>
@@ -557,6 +595,7 @@ public interface IInstanceService
     /// always has a configuration, so an empty list is never the honest answer to a failed read.
     /// </returns>
     /// <exception cref="ArgumentException">Thrown when instanceName is null or whitespace.</exception>
+    [Performs(KgsmActions.ServerConfigRead)]
     List<InstanceConfigEntry>? GetInstanceConfig(string instanceName, bool settableOnly = false);
 
     /// <summary>
@@ -577,6 +616,7 @@ public interface IInstanceService
     /// <returns>Result of the operation.</returns>
     /// <exception cref="ArgumentException">Thrown when instanceName or key is null or whitespace.</exception>
     /// <exception cref="ArgumentNullException">Thrown when value is null.</exception>
+    [Performs(KgsmActions.ServerConfigWrite)]
     KgsmResult SetInstanceConfigValue(string instanceName, string key, string value, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -604,6 +644,7 @@ public interface IInstanceService
     /// <returns>Result of the operation.</returns>
     /// <exception cref="ArgumentException">Thrown when instanceId is null or whitespace.</exception>
     /// <exception cref="ArgumentNullException">Thrown when displayName is null.</exception>
+    [Performs(KgsmActions.ServerConfigWrite)]
     KgsmResult SetDisplayName(string instanceId, string displayName, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -630,6 +671,7 @@ public interface IInstanceService
     /// <exception cref="ArgumentException">Thrown when instanceName is null or whitespace, or when
     /// the sanitized body exceeds <see cref="InstanceNote.MaxLength"/>.</exception>
     /// <exception cref="ArgumentNullException">Thrown when body is null.</exception>
+    [Performs(KgsmActions.ServerConfigWrite)]
     InstanceNoteResult SetInstanceNote(string instanceName, string body, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -673,6 +715,7 @@ public interface IInstanceService
     /// </code>
     /// </para>
     /// </remarks>
+    [Performs(KgsmActions.ServerConsoleRead)]
     Task<LogSubscription> SubscribeToLogsAsync(string instanceName, CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -691,5 +734,6 @@ public interface IInstanceService
     /// - minimumLogLevel: Only log entries at or above this level will be included
     /// - includeRawLines: When true, the LogEntry.RawLine property will contain the original log line
     /// </remarks>
+    [Performs(KgsmActions.ServerConsoleRead)]
     Task<LogSubscription> SubscribeToLogsAsync(string instanceName, LogLevel minimumLogLevel, bool includeRawLines = true, CancellationToken cancellationToken = default);
 }

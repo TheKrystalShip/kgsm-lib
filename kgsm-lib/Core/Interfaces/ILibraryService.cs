@@ -1,3 +1,4 @@
+using TheKrystalShip.KGSM.ComponentConfig;
 using TheKrystalShip.KGSM.Core.Models;
 
 namespace TheKrystalShip.KGSM.Core.Interfaces;
@@ -18,6 +19,7 @@ public interface ILibraryService
     /// from a failed read — a caller that collapses the two reports an unreadable host
     /// as an empty one.
     /// </returns>
+    [Performs(KgsmActions.EngineConfigRead)]
     List<Library>? List();
 
     /// <summary>
@@ -36,6 +38,7 @@ public interface ILibraryService
     /// <c>KGSM_EVENT_ORIGIN</c>; null/empty = no surface emitted.</param>
     /// <returns>Result of the add operation.</returns>
     /// <exception cref="ArgumentNullException">Thrown when path is null.</exception>
+    [Performs(KgsmActions.LibrariesManage)]
     KgsmResult Add(string path, string? name = null, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -66,6 +69,7 @@ public interface ILibraryService
     /// <param name="origin">Optional driving surface — see <see cref="Add"/>.</param>
     /// <returns>Result of the remove operation.</returns>
     /// <exception cref="ArgumentNullException">Thrown when name is null.</exception>
+    [Performs(KgsmActions.LibrariesManage)]
     KgsmResult Remove(string name, bool force = false, string? drainTo = null, string? actor = null, string? origin = null);
 
     /// <summary>
@@ -78,5 +82,6 @@ public interface ILibraryService
     /// <param name="origin">Optional driving surface — see <see cref="Add"/>.</param>
     /// <returns>Result of the rename operation.</returns>
     /// <exception cref="ArgumentNullException">Thrown when either name is null.</exception>
+    [Performs(KgsmActions.LibrariesManage)]
     KgsmResult Rename(string oldName, string newName, string? actor = null, string? origin = null);
 }

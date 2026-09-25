@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added — the engine's actions (`TheKrystalShip.KGSM.Lib` 8.10.0-dev.1)
+### Added — the engine's actions (`TheKrystalShip.KGSM.Lib` 8.10.0-dev.2)
 
 `KgsmActions` names every action in the engine's manifest (`kgsm/deploy/kgsm.actions.json`) as a
 constant — `KgsmActions.ServerRestart` is `kgsm:server.restart` — for callers to check a person against
@@ -15,6 +15,13 @@ and for components to name in `[Requires]` when they call the engine as their ow
 `KgsmActionsTests` reads the engine's manifest from the sibling checkout, or from
 `KGSM_ENGINE_CHECKOUT`, and fails naming any action declared on one side only. It also fails when
 neither is there, since a comparison that could not be made shows nothing.
+
+Every engine call on `IInstanceService`, `ILifecycleService`, `IBlueprintService`, `IBlueprintFiles`,
+`ILibraryService`, `IConfigService`, `IInstanceFiles`, `IInstanceBackups` and `IWatchdogClient` is
+marked `[Performs(KgsmActions.…)]`. A component built with `TheKrystalShip.KGSM.ComponentConfig`
+3.2.0-dev.2 or later then fails its build at any such call that neither requires the action nor names
+it in a check. The package is build-only, and this library gains no dependency from it. Health probes,
+UPnP reads and the pure `Render`/`TryParse` stay unmarked.
 
 ### Fixed — the hole an unclean shutdown leaves in a segment (`TheKrystalShip.KGSM.Journal` 2.3.0, `TheKrystalShip.KGSM.Lib` 8.9.1)
 

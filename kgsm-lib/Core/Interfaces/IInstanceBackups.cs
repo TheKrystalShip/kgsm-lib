@@ -1,3 +1,4 @@
+using TheKrystalShip.KGSM.ComponentConfig;
 using TheKrystalShip.KGSM.Core.Models;
 
 namespace TheKrystalShip.KGSM.Core.Interfaces;
@@ -40,5 +41,6 @@ public interface IInstanceBackups
     /// regular file; <see cref="FileOpOutcome.IoError"/> for any other filesystem failure.
     /// </returns>
     /// <exception cref="ArgumentException">Thrown when either argument is null or whitespace.</exception>
+    [Performs(KgsmActions.ServerBackupsRead)]
     FileOpResult<BackupArchive> OpenArchive(string instance, string backupId);
 }
