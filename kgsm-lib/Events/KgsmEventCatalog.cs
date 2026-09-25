@@ -191,7 +191,9 @@ public static class KgsmEventCatalog
             Instance<InstanceUninstallStartedData>("server.uninstall.started", EventWeight.Phase),
             Instance<InstanceUninstallFinishedData>("server.uninstall.finished", EventWeight.Phase),
             Instance<InstanceUninstallFailedData>("server.uninstall.failed", EventWeight.Fact, EventOutcome.Failure, severity: EventSeverity.Danger),
-            Instance<InstanceUninstalledData>("server.uninstalled", EventWeight.Fact, EventOutcome.Success, severity: EventSeverity.Danger),
+            // The nonce says which install went; like a session key it correlates and shows nothing.
+            Instance<InstanceUninstalledData>("server.uninstalled", EventWeight.Fact, EventOutcome.Success,
+                [Field("InstallNonce", FieldShape.Opaque)], severity: EventSeverity.Danger),
             Instance<InstanceFilesRemovedData>("server.uninstall.files_removed", EventWeight.Phase),
             Instance<InstanceDirectoriesRemovedData>("server.uninstall.directories_removed", EventWeight.Phase),
             Instance<InstanceRemovedData>("server.uninstall.removed", EventWeight.Phase),

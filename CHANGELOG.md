@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — the install nonce (`TheKrystalShip.KGSM.Lib` 8.10.0-dev.3)
+
+`Instance.InstallNonce` (`install_nonce`) is what tells one install apart from another under the same
+name. The engine writes it at create and gives one to any instance that lacks it the first time its
+info is read. `InstanceUninstalledData.InstallNonce` names the install a `server.uninstalled` removed,
+and is null when the instance's library was offline. The catalog classifies it as opaque: it
+correlates and shows nothing.
+
 ### Added — the engine's actions (`TheKrystalShip.KGSM.Lib` 8.10.0-dev.2)
 
 `KgsmActions` names every action in the engine's manifest (`kgsm/deploy/kgsm.actions.json`) as a

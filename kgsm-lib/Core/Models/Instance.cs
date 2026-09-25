@@ -50,6 +50,15 @@ public record class Instance
     public DateTime InstallDateTime { get; set; } = DateTime.MinValue;
 
     /// <summary>
+    /// What tells this install apart from any other under the same name. Never changes for the
+    /// instance's life; a server removed and installed again under the same name has a different one.
+    /// A grant of access names an instance by its node, its name and this nonce. Empty only for an
+    /// instance whose library is offline, whose config could not be read.
+    /// </summary>
+    [JsonPropertyName("install_nonce")]
+    public string InstallNonce { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the working directory for the instance.
     /// </summary>
     [JsonPropertyName("working_dir")]

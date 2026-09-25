@@ -505,6 +505,33 @@ public class EventDeserializationTests
         Assert.Contains(descriptor.Fields, f => f.Name == "ToLibrary");
     }
 
+    private const string UninstalledWireJson = """
+        {"V":1,"Id":"01a02c84-e4e4-7b57-b8ce-3483f2a61840","EventType":"server.uninstalled","Data":{"InstanceName":"factorio-again","InstallNonce":"9f3c0d2e6a1b4c77"},"Timestamp":"2026-09-26T02:48:21.990Z","Actor":null,"Origin":null,"Hostname":"hotrod","ProducerVersion":"3.18.0-rc28"}
+        """;
+
+    private const string OfflineUninstalledWireJson = """
+        {"V":1,"Id":"01a02c84-e4e4-7b57-b8ce-3483f2a61841","EventType":"server.uninstalled","Data":{"InstanceName":"away","InstallNonce":null},"Timestamp":"2026-09-26T02:48:21.990Z","Actor":null,"Origin":null,"Hostname":"hotrod","ProducerVersion":"3.18.0-rc28"}
+        """;
+
+    [Fact]
+    public void UninstalledEvent_NamesTheInstallThatWent()
+    {
+        (_, EventDataBase? data) = Deserialize(UninstalledWireJson, typeof(InstanceUninstalledData));
+
+        var uninstalled = Assert.IsType<InstanceUninstalledData>(data);
+        Assert.Equal("factorio-again", uninstalled.InstanceName);
+        Assert.Equal("9f3c0d2e6a1b4c77", uninstalled.InstallNonce);
+        Assert.Contains(KgsmEventCatalog.Describe("server.uninstalled").Fields, f => f.Name == "InstallNonce");
+    }
+
+    [Fact]
+    public void UninstalledEvent_FromAnOfflineLibraryHasNoNonce()
+    {
+        (_, EventDataBase? data) = Deserialize(OfflineUninstalledWireJson, typeof(InstanceUninstalledData));
+
+        Assert.Null(Assert.IsType<InstanceUninstalledData>(data).InstallNonce);
+    }
+
     // The name→type dispatch, read off the catalog that holds it. EventService deserializes into
     // EventDescriptor.PayloadType, so this IS the table the runtime uses — not a copy of it.
     private static Dictionary<string, Type> GetEventTypeMapping() =>

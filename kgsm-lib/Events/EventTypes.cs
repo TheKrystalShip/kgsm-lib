@@ -793,6 +793,12 @@ public class InstanceUninstallFailedData : EventDataBase
 /// </summary>
 public class InstanceUninstalledData : EventDataBase
 {
+    /// <summary>
+    /// The install nonce of the install that was removed, or <see langword="null"/> when the instance's
+    /// library was offline and nothing of it could be read. A grant naming this nonce ends with the
+    /// install; one naming a later install under the same name is a different instance's.
+    /// </summary>
+    public string? InstallNonce { get; set; }
 }
 
 /// <summary>
