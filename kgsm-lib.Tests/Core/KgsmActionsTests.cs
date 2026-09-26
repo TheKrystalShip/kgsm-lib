@@ -84,7 +84,7 @@ public sealed class KgsmActionsTests
 
     [Fact]
     public void TheNamespaceIsTheEngines() =>
-        Assert.Equal(Engine().Component, KgsmActions.Component);
+        Assert.Equal(KgsmActions.Component, Engine().Component);
 
     [Fact]
     public void EveryMarkedCallPerformsAnEngineAction()

@@ -371,6 +371,21 @@ public static class KgsmEventCatalog
             Account<IdentityLinkEventData>("identity.linked", EventOutcome.Neutral, IdentityFields),
             Account<IdentityLinkEventData>("identity.unlinked", EventOutcome.Neutral, IdentityFields),
 
+            // -- access ------------------------------------------------------------------------
+            // Who may do what, written by the auth anchor alone. An assignment is about the account
+            // holding it; a role, a permission, the catalog and a service's requirement are about the
+            // model, because a change to one changes what everybody holding it may do.
+            Account<AssignmentEventData>("auth.assignment.granted", EventOutcome.Neutral, AssignmentFields),
+            Account<AssignmentEventData>("auth.assignment.revoked", EventOutcome.Neutral, AssignmentFields),
+            AccessEvent<AuthorityRecordEventData>("auth.role.changed", AuthorityRecordFields),
+            AccessEvent<AuthorityRecordEventData>("auth.role.removed", AuthorityRecordFields),
+            AccessEvent<AuthorityRecordEventData>("auth.permission.changed", AuthorityRecordFields),
+            AccessEvent<AuthorityRecordEventData>("auth.permission.removed", AuthorityRecordFields),
+            AccessEvent<CatalogEventData>("auth.catalog.changed",
+                [Field("Member", FieldShape.Text), Field("Added", FieldShape.Text), Field("Removed", FieldShape.Text), AuthorityVersion]),
+            AccessEvent<ServiceRequirementEventData>("auth.service.requirement.approved", RequirementFields),
+            AccessEvent<ServiceRequirementEventData>("auth.service.requirement.revoked", RequirementFields),
+
             // -- leaf services -----------------------------------------------------------------
             Service<ServiceProvisioningEventData>("service.connected", EventOutcome.Success, [Leaf, DisplayName]),
             Service<ServiceProvisioningEventData>("service.disconnected", EventOutcome.Neutral, [Leaf, DisplayName]),
@@ -539,6 +554,11 @@ public static class KgsmEventCatalog
         string type, EventOutcome outcome, IReadOnlyList<EventField> fields)
         where TData : AccountEventDataBase =>
         new(type, EventSubject.Account, EventWeight.Fact, outcome, fields, typeof(TData), Known: true);
+
+    /// <summary>A descriptor for a change to the access model itself.</summary>
+    private static EventDescriptor AccessEvent<TData>(string type, IReadOnlyList<EventField> fields)
+        where TData : KgsmEventDataBase =>
+        new(type, EventSubject.Access, EventWeight.Fact, EventOutcome.Neutral, fields, typeof(TData), Known: true);
 
     /// <summary>A leaf-service descriptor.</summary>
     private static EventDescriptor Service<TData>(
@@ -757,6 +777,26 @@ public static class KgsmEventCatalog
         Field("ByHolder", FieldShape.Text),
     ];
 
+    private static readonly EventField AuthorityVersion = Field("AuthorityVersion", FieldShape.Number);
+
+    /// <summary>The fields both <c>auth.assignment.*</c> events carry.</summary>
+    private static readonly EventField[] AssignmentFields =
+    [
+        UserId, Username, Field("AssignmentId", FieldShape.Opaque), Field("RoleId", FieldShape.Opaque),
+        Field("Role", FieldShape.Text), Field("Scope", FieldShape.Text), AuthorityVersion,
+    ];
+
+    /// <summary>The fields every role and permission event carries.</summary>
+    private static readonly EventField[] AuthorityRecordFields =
+        [Field("Id", FieldShape.Opaque), Field("Name", FieldShape.Text), AuthorityVersion];
+
+    /// <summary>The fields both service requirement events carry.</summary>
+    private static readonly EventField[] RequirementFields =
+    [
+        Field("AccountId", FieldShape.Opaque), Field("Service", FieldShape.Text), Field("Action", FieldShape.Text),
+        Field("Scope", FieldShape.Text), Field("Automatic", FieldShape.Text), AuthorityVersion,
+    ];
+
     /// <summary>The fields both <c>identity_*</c> events carry.</summary>
     private static readonly EventField[] IdentityFields =
         [UserId, Username, Provider, Field("Handle", FieldShape.Identity, FieldSensitivity.Personal)];
@@ -946,6 +986,13 @@ public enum EventSubject
     /// being about a game server: a leaf can be reconfigured while every instance keeps running.
     /// </summary>
     Service,
+
+    /// <summary>
+    /// The cluster's access model itself — a role, a permission, the catalog of what can be granted, a
+    /// service's requirement. Never read as being about one account: a permission changing changes what
+    /// everybody holding it may do.
+    /// </summary>
+    Access,
 }
 
 /// <summary>

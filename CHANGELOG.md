@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — the access events (`TheKrystalShip.KGSM.Lib` 8.10.0-dev.4)
+
+- **The auth anchor's access events are in the catalog**, with their payloads registered in
+  `KgsmJsonContext`: `auth.assignment.granted`/`.revoked` (`AssignmentEventData`, about the account),
+  `auth.role.changed`/`.removed` and `auth.permission.changed`/`.removed` (`AuthorityRecordEventData`),
+  `auth.catalog.changed` (`CatalogEventData`) and `auth.service.requirement.approved`/`.revoked`
+  (`ServiceRequirementEventData`). Every one carries the authority version it produced.
+- **`EventSubject.Access`**: the access model itself — a role, a permission, the catalog, a service's
+  requirement — which is never about one account.
+
 ### Added — the install nonce (`TheKrystalShip.KGSM.Lib` 8.10.0-dev.3)
 
 `Instance.InstallNonce` (`install_nonce`) is what tells one install apart from another under the same

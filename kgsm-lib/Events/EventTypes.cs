@@ -1488,6 +1488,98 @@ public class IdentityLinkEventData : AccountEventDataBase
 }
 
 /// <summary>
+/// Data for <c>auth.assignment.granted</c> / <c>auth.assignment.revoked</c> — an account was given a
+/// role within a scope, or lost one.
+/// </summary>
+/// <remarks>
+/// A revocation is recorded one assignment at a time even when a role's or an account's deletion took
+/// it, so an access review reads what happened to each person rather than inferring it.
+/// </remarks>
+public class AssignmentEventData : AccountEventDataBase
+{
+    /// <summary>Gets or sets the assignment's id.</summary>
+    public string AssignmentId { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the role's id.</summary>
+    public string RoleId { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the role's name at the time, or null when it was not known.</summary>
+    public string? Role { get; set; }
+
+    /// <summary>Gets or sets where the role is held: <c>cluster</c>, <c>node:&lt;id&gt;</c> or an instance.</summary>
+    public string Scope { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the authority version the change produced.</summary>
+    public long AuthorityVersion { get; set; }
+}
+
+/// <summary>
+/// Data for <c>auth.role.changed</c>, <c>auth.role.removed</c>, <c>auth.permission.changed</c> and
+/// <c>auth.permission.removed</c> — a role or a permission was created, changed or deleted.
+/// </summary>
+public class AuthorityRecordEventData : KgsmEventDataBase
+{
+    /// <summary>Gets or sets the role's or permission's id.</summary>
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets what it is called, or null when it was not known.</summary>
+    public string? Name { get; set; }
+
+    /// <summary>Gets or sets the authority version the change produced.</summary>
+    public long AuthorityVersion { get; set; }
+}
+
+/// <summary>
+/// Data for <c>auth.catalog.changed</c> — actions arrived in or left the catalog of what can be granted.
+/// </summary>
+/// <remarks>
+/// An action that arrives is in no permission until a person files it; one that leaves is gone from
+/// every permission that held it.
+/// </remarks>
+public class CatalogEventData : KgsmEventDataBase
+{
+    /// <summary>Gets or sets the member whose report, or removal, changed the catalog.</summary>
+    public string Member { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the action ids that arrived.</summary>
+    public string[]? Added { get; set; }
+
+    /// <summary>Gets or sets the action ids no member declares any more.</summary>
+    public string[]? Removed { get; set; }
+
+    /// <summary>Gets or sets the authority version the change produced.</summary>
+    public long AuthorityVersion { get; set; }
+}
+
+/// <summary>
+/// Data for <c>auth.service.requirement.approved</c> / <c>auth.service.requirement.revoked</c> — an
+/// action a service account needs was approved at a scope, or revoked.
+/// </summary>
+public class ServiceRequirementEventData : KgsmEventDataBase
+{
+    /// <summary>Gets or sets the service account's id.</summary>
+    public string AccountId { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the service as <c>svc:&lt;component&gt;@&lt;member&gt;</c>, or null when it was not known.</summary>
+    public string? Service { get; set; }
+
+    /// <summary>Gets or sets the action required.</summary>
+    public string Action { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets where it is approved, or null when it was revoked.</summary>
+    public string? Scope { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether nobody decided it: approved because the account had never held it. A
+    /// grant nobody chose is still one somebody should see.
+    /// </summary>
+    public bool Automatic { get; set; }
+
+    /// <summary>Gets or sets the authority version the change produced.</summary>
+    public long AuthorityVersion { get; set; }
+}
+
+/// <summary>
 /// Base for an event about a leaf service on this host.
 /// </summary>
 /// <remarks>
