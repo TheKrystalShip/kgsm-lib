@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — who wrote an instance's maintenance windows (`TheKrystalShip.KGSM.Lib` 8.10.0-dev.5)
+
+- **`Instance.MaintenanceWindowsAuthor`** reads `maintenance_windows_author`, the account the engine
+  (`3.18.0-rc29`) records beside the windows. A window runs only while its author may do what it does,
+  so windows with no author run nothing.
+- **`IInstanceService.SetMaintenanceWindows(instance, packed, author, …)`**, marked
+  `kgsm:server.windows.write`, writes the windows with `--author`. Windows written through
+  `SetInstanceConfigValue` are left with no author, and the author key is refused there.
+
 ### Added — the access events (`TheKrystalShip.KGSM.Lib` 8.10.0-dev.4)
 
 - **The auth anchor's access events are in the catalog**, with their payloads registered in

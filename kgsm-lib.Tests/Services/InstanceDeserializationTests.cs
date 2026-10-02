@@ -397,6 +397,7 @@ public class InstanceDeserializationTests
         StubProcessOutput("""
             {"name":"factorio-42",
              "maintenance_windows":"daily@05:00/backup;weekly.sun@04:00/backup,update,restart",
+             "maintenance_windows_author":"usr_alice",
              "timezone":"Europe/Madrid",
              "backup_retention":"5",
              "announce_lead_minutes":"15,5,1",
@@ -410,6 +411,7 @@ public class InstanceDeserializationTests
         Assert.Equal(
             "daily@05:00/backup;weekly.sun@04:00/backup,update,restart",
             result!.MaintenanceWindows);
+        Assert.Equal("usr_alice", result.MaintenanceWindowsAuthor);
         Assert.Equal("Europe/Madrid", result.Timezone);
         Assert.Equal(5, result.BackupRetention);
         Assert.Equal("15,5,1", result.AnnounceLeadMinutes);

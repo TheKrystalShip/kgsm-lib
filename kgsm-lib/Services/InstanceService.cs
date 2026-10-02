@@ -533,6 +533,25 @@ public class InstanceService : IInstanceService
     }
 
     /// <inheritdoc/>
+    public KgsmResult SetMaintenanceWindows(string instanceName, string packedWindows, string? author, string? actor = null, string? origin = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(instanceName, nameof(instanceName));
+        ArgumentNullException.ThrowIfNull(packedWindows, nameof(packedWindows));
+
+        List<string> args = ["instances", "config-set", instanceName, $"maintenance_windows={packedWindows}"];
+        if (!string.IsNullOrWhiteSpace(author))
+        {
+            args.Add("--author");
+            args.Add(author);
+        }
+
+        IReadOnlyDictionary<string, string>? provenance = KgsmProvenance.Build(actor, origin);
+        return provenance is null
+            ? _commandExecutor.Execute([.. args])
+            : _commandExecutor.Execute(provenance, [.. args]);
+    }
+
+    /// <inheritdoc/>
     public KgsmResult SetDisplayName(string instanceId, string displayName, string? actor = null, string? origin = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(instanceId, nameof(instanceId));

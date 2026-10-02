@@ -1152,6 +1152,39 @@ public class InstanceServiceTests
         Assert.Equal(8, result.ExitCode);
     }
 
+    // --- SetMaintenanceWindows : one config-set of the windows, naming their author ---
+
+    [Fact]
+    public void SetMaintenanceWindows_NamesTheAuthor()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a,
+                "instances", "config-set", "my-instance", "maintenance_windows=daily@05:00/backup",
+                "--author", "usr_alice"))))
+            .Returns(new KgsmResult(new ProcessResult(0, "ok", string.Empty)));
+
+        KgsmResult result = _instanceService.SetMaintenanceWindows("my-instance", "daily@05:00/backup", "usr_alice");
+
+        Assert.True(result.IsSuccess);
+    }
+
+    /// <summary>
+    /// No author is no flag at all: the engine then writes the windows with nobody recorded, which is
+    /// the windows running nothing — never an empty author string the engine would refuse.
+    /// </summary>
+    [Fact]
+    public void SetMaintenanceWindows_WithNoAuthor_PassesNoFlag()
+    {
+        _mockCommandExecutor
+            .Setup(x => x.Execute(It.Is<string[]>(a => ArgsAre(a,
+                "instances", "config-set", "my-instance", "maintenance_windows="))))
+            .Returns(new KgsmResult(new ProcessResult(0, "ok", string.Empty)));
+
+        KgsmResult result = _instanceService.SetMaintenanceWindows("my-instance", string.Empty, author: null);
+
+        Assert.True(result.IsSuccess);
+    }
+
     // --- SetDisplayName : one config-set of display_name, text handed over verbatim ---
 
     [Fact]

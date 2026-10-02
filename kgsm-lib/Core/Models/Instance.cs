@@ -245,6 +245,19 @@ public record class Instance
     public string? MaintenanceWindows { get; set; }
 
     /// <summary>
+    /// Gets or sets the account that wrote <see cref="MaintenanceWindows"/>, or null when nobody is
+    /// recorded.
+    /// </summary>
+    /// <remarks>
+    /// A window runs only while both the scheduler's service account and this author may do what it
+    /// does, so windows with no author run nothing. The engine writes it with the windows and nowhere
+    /// else — <see cref="Interfaces.IInstanceService.SetMaintenanceWindows"/> — and clears it on any
+    /// windows write that names nobody.
+    /// </remarks>
+    [JsonPropertyName("maintenance_windows_author")]
+    public string? MaintenanceWindowsAuthor { get; set; }
+
+    /// <summary>
     /// Gets or sets the lead times, in minutes, at which this instance announces an
     /// upcoming maintenance window — comma-separated, e.g. <c>"15,5,1"</c>.
     /// </summary>
