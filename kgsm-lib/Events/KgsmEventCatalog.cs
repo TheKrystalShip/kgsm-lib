@@ -707,7 +707,7 @@ public static class KgsmEventCatalog
         Field("Target", FieldShape.Identity, FieldSensitivity.Conditional);
 
     /// <summary>
-    /// The console command that was delivered. Admin-level by nature — a command can create an
+    /// The console command that was delivered. Powerful by nature — a command can create an
     /// operator, set a password or carry a token — so it is privileged rather than public, whatever
     /// the particular command turns out to be.
     /// </summary>

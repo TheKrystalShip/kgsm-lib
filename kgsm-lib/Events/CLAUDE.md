@@ -19,8 +19,8 @@ identical — no two surfaces can disagree about whether a player's network addr
   wrote the rule**, and the surfaces lose the right to differ. This is the constraint to defend when
   extending it.
 - **`FieldSensitivity` is what the data is, not who may see it.** `Public` is safe wherever events are
-  read; `Personal` identifies a natural person (`PlayerAddr`); `Privileged` is operator-level content
-  that may carry a credential (`Command`); `Conditional` may identify a person depending on something
+  read; `Personal` identifies a natural person (`PlayerAddr`); `Privileged` is content that acts on a
+  server and may carry a credential (`Command`); `Conditional` may identify a person depending on something
   the event does not carry — a moderation `Target` is an address, a name or an id according to the
   blueprint, and **a consumer that cannot resolve which must treat it as `Personal`**.
   `InstanceModerationDataBase.Target` already refuses to classify itself here; the catalog refuses on

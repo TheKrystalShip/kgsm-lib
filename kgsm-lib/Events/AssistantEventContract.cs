@@ -36,7 +36,7 @@ public static class AssistantEvents
     public const string ClaimCorrected = "assistant.claim.corrected";
 
     /// <summary>
-    /// <c>assistant_action_declined</c> — somebody reached for an action their tier does not carry.
+    /// <c>assistant_action_declined</c> — somebody reached for an action they do not hold.
     /// </summary>
     /// <remarks>
     /// Authorization only. The assistant also refuses for blast-radius reasons — too many staged
@@ -152,7 +152,7 @@ public static class AssistantClaimNets
 /// <summary>Why an action was refused.</summary>
 public static class AssistantDeclineReasons
 {
-    /// <summary>The caller's tier does not carry the action.</summary>
+    /// <summary>The caller does not hold the action.</summary>
     public const string Authority = "authority";
 
     /// <summary>This host has actions turned off entirely.</summary>

@@ -937,9 +937,9 @@ public class InstanceDisplayNameChangedData : EventDataBase
 /// <remarks>
 /// Unlike <see cref="InstanceConfigChangedData"/> (which carries the key but never the value),
 /// this event carries the FULL command text — a deliberate choice so the audit trail records
-/// exactly what an operator ran (console commands are admin-level: ban/kick/op/…). A console
-/// command can therefore contain a secret (e.g. an RCON login); the trade was accepted because
-/// the command surface is operator-gated and the trail's value is who-ran-what. A consumer that
+/// exactly what an operator ran (a console command can do anything the game allows: ban/kick/op/…).
+/// A console command can therefore contain a secret (e.g. an RCON login); the trade was accepted
+/// because sending one takes <c>kgsm:server.console.write</c> and the trail's value is who-ran-what. A consumer that
 /// must redact should do so at its own boundary.
 /// </remarks>
 public class InstanceInputSentData : EventDataBase
@@ -1343,7 +1343,7 @@ public abstract class AccountEventDataBase : KgsmEventDataBase
     /// the account row in hand.
     /// </summary>
     /// <remarks>
-    /// Nullable because it honestly is: an administrator acting on somebody's account holds their id,
+    /// Nullable because it honestly is: somebody acting on another person's account holds their id,
     /// while a sign-out holds only the identity in the caller's own token. Writing a blank or
     /// re-deriving one from the handle would put a value in the record that nothing looked up.
     /// </remarks>
@@ -1370,7 +1370,7 @@ public class AuthSessionEventData : AccountEventDataBase
     /// <summary>Gets or sets the identity provider that vouched for them (<c>discord</c>, <c>local</c>, …).</summary>
     public string? Provider { get; set; }
 
-    /// <summary>Gets or sets the authority the account store resolved for them.</summary>
+    /// <summary>Gets or sets the authority a record names, when it carries one; no producer writes it.</summary>
     public string? Tier { get; set; }
 
     /// <summary>Gets or sets the session id, so a login and its logout pair up.</summary>
@@ -1459,7 +1459,7 @@ public class UserAccountEventData : AccountEventDataBase
     public string? ToStatus { get; set; }
 
     /// <summary>
-    /// Gets or sets whether the account's own holder did this, as opposed to an administrator acting
+    /// Gets or sets whether the account's own holder did this, as opposed to somebody else acting
     /// on them. Null when the distinction does not apply to the event.
     /// </summary>
     /// <remarks>
@@ -1774,7 +1774,7 @@ public class AssistantClaimCorrectedEventData : AssistantEventData
 }
 
 /// <summary>
-/// Data for <c>assistant_action_declined</c> — somebody reached past their tier.
+/// Data for <c>assistant_action_declined</c> — somebody reached for an action they do not hold.
 /// </summary>
 public class AssistantActionDeclinedEventData : AssistantEventData
 {
@@ -1786,7 +1786,7 @@ public class AssistantActionDeclinedEventData : AssistantEventData
     [JsonPropertyName(AssistantEventFields.DeclineReason)]
     public string DeclineReason { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the tier the caller actually holds.</summary>
+    /// <summary>Gets or sets the authority a record names, when it carries one; no producer writes it.</summary>
     [JsonPropertyName("Tier")]
     public string? Tier { get; set; }
 

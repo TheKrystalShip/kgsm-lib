@@ -15,7 +15,7 @@ namespace TheKrystalShip.KGSM.Lifecycle;
 /// <b>Not <c>service_*</c>.</b> Those four events already exist and mean the opposite direction:
 /// kgsm-api emits them to record what was done <em>to</em> a leaf, on somebody's instruction, with a
 /// person as the actor. These are what a leaf did by itself. Both land in one merged page, so the
-/// prefix is what keeps a reader from confusing "an admin restarted the monitor" with "the monitor
+/// prefix is what keeps a reader from confusing "somebody restarted the monitor" with "the monitor
 /// came back".
 /// </para>
 /// </remarks>
