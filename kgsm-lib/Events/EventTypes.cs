@@ -1359,31 +1359,21 @@ public abstract class AccountEventDataBase : KgsmEventDataBase
 }
 
 /// <summary>
-/// Data for <c>auth_login</c>, <c>auth_logout</c> and <c>auth_cluster_session</c> — somebody's
-/// session on this host began or ended.
+/// Data for <c>auth.signed_in</c> and <c>auth.signed_out</c> — somebody's session began or ended.
 /// </summary>
 public class AuthSessionEventData : AccountEventDataBase
 {
     /// <summary>Gets or sets the identity that arrived, as <c>provider:name</c>.</summary>
     public string Identity { get; set; } = string.Empty;
 
-    /// <summary>Gets or sets the identity provider that vouched for them (<c>discord</c>, <c>local</c>, …).</summary>
+    /// <summary>Gets or sets the identity provider that proved who they are (<c>discord</c>, <c>local</c>, …).</summary>
     public string? Provider { get; set; }
-
-    /// <summary>Gets or sets the authority a record names, when it carries one; no producer writes it.</summary>
-    public string? Tier { get; set; }
 
     /// <summary>Gets or sets the session id, so a login and its logout pair up.</summary>
     public string? Sid { get; set; }
 
     /// <summary>Gets or sets the calling device's user agent, or <see langword="null"/> when it sent none.</summary>
     public string? UserAgent { get; set; }
-
-    /// <summary>
-    /// Gets or sets the peer node that asserted this identity, for a cluster SSO vouch; null for a
-    /// sign-in this host performed itself.
-    /// </summary>
-    public string? PeerNode { get; set; }
 }
 
 /// <summary>
@@ -1397,7 +1387,8 @@ public class AuthSessionRevokedData : AccountEventDataBase
 {
     /// <summary>
     /// Gets or sets what was revoked — <c>self</c> (one of the caller's own), <c>all</c> (every
-    /// session the caller holds), or <c>admin</c> (somebody else's).
+    /// session the caller holds), <c>other</c> (somebody else's), or <c>withdrawn</c> (ended because
+    /// the account was switched off).
     /// </summary>
     public string Scope { get; set; } = string.Empty;
 
@@ -1436,8 +1427,8 @@ public class AuthLockedOutData : AccountEventDataBase
 }
 
 /// <summary>
-/// Data for the <c>user_*</c> events — an account was provisioned, approved, disabled, deleted, had
-/// its authority changed, or had its password set.
+/// Data for the <c>user.*</c> events — an account was provisioned, approved, disabled, deleted, or
+/// had its password set.
 /// </summary>
 /// <remarks>
 /// <b>Never carries a password</b>, in any form, hashed or otherwise. <c>user_password_changed</c>
@@ -1446,12 +1437,6 @@ public class AuthLockedOutData : AccountEventDataBase
 /// </remarks>
 public class UserAccountEventData : AccountEventDataBase
 {
-    /// <summary>Gets or sets the authority the account held before, or null when it had none / did not change.</summary>
-    public string? FromTier { get; set; }
-
-    /// <summary>Gets or sets the authority it holds after, or null when the event did not change it.</summary>
-    public string? ToTier { get; set; }
-
     /// <summary>Gets or sets the status the account held before, or null when it did not change.</summary>
     public string? FromStatus { get; set; }
 
@@ -1785,10 +1770,6 @@ public class AssistantActionDeclinedEventData : AssistantEventData
     /// <summary>Gets or sets why (<c>authority</c>, <c>actions_disabled</c>).</summary>
     [JsonPropertyName(AssistantEventFields.DeclineReason)]
     public string DeclineReason { get; set; } = string.Empty;
-
-    /// <summary>Gets or sets the authority a record names, when it carries one; no producer writes it.</summary>
-    [JsonPropertyName("Tier")]
-    public string? Tier { get; set; }
 
     /// <summary>Gets or sets the instance the action would have touched, when it named one.</summary>
     [JsonPropertyName(AssistantEventFields.Instance)]

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed — the tier model's account events (`TheKrystalShip.KGSM.Lib` 9.0.0-dev.1, `TheKrystalShip.KGSM.Journal` 2.3.1-dev.1)
+
+- `auth.cluster.vouched` and `user.tier_changed` leave the catalog, and their legacy names leave the
+  journal's name table.
+- `AuthSessionEventData` drops `Tier` and `PeerNode`, `UserAccountEventData` drops `FromTier` and
+  `ToTier`, and `AssistantActionDeclinedEventData` drops `Tier`.
+- A session ended on somebody else's behalf carries scope `other`.
+
 ### Added — who wrote an instance's maintenance windows (`TheKrystalShip.KGSM.Lib` 8.10.0-dev.5)
 
 - **`Instance.MaintenanceWindowsAuthor`** reads `maintenance_windows_author`, the account the engine

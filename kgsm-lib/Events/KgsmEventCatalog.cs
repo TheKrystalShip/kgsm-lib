@@ -334,18 +334,11 @@ public static class KgsmEventCatalog
             LibraryEvent<LibraryRemovedData>("library.removed"),
 
             // -- accounts ----------------------------------------------------------------------
-            // Signing in and authority changing. No engine command runs for any of them, so whichever
-            // component holds the accounts authors them — a host's own Control Panel when it holds its
-            // own, and a cluster's auth anchor when one does. They are classified here because a
-            // payload field nobody has classified renders nowhere, and these carry the values most
-            // worth care.
+            // Signing in and accounts changing. No engine command runs for any of them: the auth anchor,
+            // which holds the accounts, authors them. They are classified here because a payload field
+            // nobody has classified renders nowhere, and these carry the values most worth care.
             Account<AuthSessionEventData>("auth.signed_in", EventOutcome.Success, SessionFields),
             Account<AuthSessionEventData>("auth.signed_out", EventOutcome.Neutral, SessionFields),
-
-            // A peer node asserting an already-authenticated identity, which this host then mints its
-            // own session for. Same shape as a login because that is what it is; PeerNode is what says
-            // the proof was somebody else's.
-            Account<AuthSessionEventData>("auth.cluster.vouched", EventOutcome.Success, SessionFields),
 
             Account<AuthSessionRevokedData>("auth.session.revoked", EventOutcome.Neutral,
                 [UserId, Username, Field("Scope", FieldShape.Text), Sid, Field("Count", FieldShape.Number)]),
@@ -357,12 +350,11 @@ public static class KgsmEventCatalog
                 [UserId, Username, Identity, Field("FailedCount", FieldShape.Number),
                  Field("Until", FieldShape.Timestamp)]),
 
-            // An account's authority is only ever changed by whoever writes the account store, so
-            // these six are the whole record of anybody's permissions moving.
+            // An account's standing is only ever changed by whoever writes the account store, so these
+            // are the whole record of an account arriving, being let in, switched off and removed.
             Account<UserAccountEventData>("user.provisioned", EventOutcome.Neutral, AccountChangeFields),
             Account<UserAccountEventData>("user.approved", EventOutcome.Success, AccountChangeFields),
             Account<UserAccountEventData>("user.disabled", EventOutcome.Neutral, AccountChangeFields),
-            Account<UserAccountEventData>("user.tier_changed", EventOutcome.Neutral, AccountChangeFields),
             Account<UserAccountEventData>("user.deleted", EventOutcome.Neutral, AccountChangeFields),
 
             // Records that a credential was set and by whom. Never the credential.
@@ -428,7 +420,7 @@ public static class KgsmEventCatalog
 
             AssistantEvent<AssistantActionDeclinedEventData>(
                 AssistantEvents.ActionDeclined, EventOutcome.Failure,
-                [Tool, DeclineReason, Tier, ActionInstance]),
+                [Tool, DeclineReason, ActionInstance]),
 
             // Neutral: a proposal is the assistant doing exactly what it is meant to — stopping to ask.
             AssistantEvent<AssistantActionProposedEventData>(
@@ -764,15 +756,14 @@ public static class KgsmEventCatalog
     /// <summary>The content hash. Identifies the bytes; is not the bytes.</summary>
     private static readonly EventField Sha256 = Field("Sha256", FieldShape.Opaque);
 
-    /// <summary>The fields every <c>auth_*</c> session event carries.</summary>
+    /// <summary>The fields every <c>auth.*</c> session event carries.</summary>
     private static readonly EventField[] SessionFields =
-        [UserId, Username, Identity, Provider, Tier, Sid, UserAgent, Field("PeerNode", FieldShape.Text)];
+        [UserId, Username, Identity, Provider, Sid, UserAgent];
 
-    /// <summary>The fields every <c>user_*</c> account-change event carries.</summary>
+    /// <summary>The fields every <c>user.*</c> account-change event carries.</summary>
     private static readonly EventField[] AccountChangeFields =
     [
         UserId, Username,
-        Field("FromTier", FieldShape.Text), Field("ToTier", FieldShape.Text),
         Field("FromStatus", FieldShape.Text), Field("ToStatus", FieldShape.Text),
         Field("ByHolder", FieldShape.Text),
     ];

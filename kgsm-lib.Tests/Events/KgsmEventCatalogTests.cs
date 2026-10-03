@@ -340,11 +340,11 @@ public class KgsmEventCatalogTests
     public void An_account_event_still_says_who_it_was_about()
     {
         // The counterweight to the rule above: withholding the username too would leave a trail that
-        // records privilege changing and names nobody, which is not a safer log — it is a useless one.
+        // records accounts changing and names nobody, which is not a safer log — it is a useless one.
         EventDescriptor login = KgsmEventCatalog.Describe("auth.signed_in");
 
         Assert.Equal(FieldSensitivity.Public, login.Field("Username")!.Sensitivity);
-        Assert.Equal(FieldSensitivity.Public, login.Field("Tier")!.Sensitivity);
+        Assert.Equal(FieldSensitivity.Public, login.Field("Provider")!.Sensitivity);
     }
 
     [Fact]
@@ -363,11 +363,10 @@ public class KgsmEventCatalogTests
     [Fact]
     public void The_panels_own_events_are_not_read_as_being_about_a_game_server()
     {
-        // A login is not an instance event. Before Account/Service existed, an unrecognised type fell
-        // back to Instance by the engine's naming convention — which would have filed every sign-in
-        // under whichever server the reader was looking at.
+        // A login is not an instance event. Read off the engine's naming convention instead, it would
+        // file every sign-in under whichever server the reader was looking at.
         Assert.Equal(EventSubject.Account, KgsmEventCatalog.Describe("auth.signed_in").Subject);
-        Assert.Equal(EventSubject.Account, KgsmEventCatalog.Describe("user.tier_changed").Subject);
+        Assert.Equal(EventSubject.Account, KgsmEventCatalog.Describe("user.approved").Subject);
         Assert.Equal(EventSubject.Service, KgsmEventCatalog.Describe("service.restarted").Subject);
 
         // These two genuinely are about one instance, and stay that way.
