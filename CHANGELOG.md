@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — released (`TheKrystalShip.KGSM.Lib` 9.0.0, `TheKrystalShip.KGSM.Journal` 2.3.1)
+
+Both packages are released as their last prereleases stood; the library builds with
+`TheKrystalShip.KGSM.ComponentConfig` 3.2.0. No behaviour changes.
+
 ### Removed — the tier model's account events (`TheKrystalShip.KGSM.Lib` 9.0.0-dev.1, `TheKrystalShip.KGSM.Journal` 2.3.1-dev.1)
 
 - `auth.cluster.vouched` and `user.tier_changed` leave the catalog, and their legacy names leave the
