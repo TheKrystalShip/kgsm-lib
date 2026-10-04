@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — the organization's services are journal producers (`TheKrystalShip.KGSM.Lib` 9.1.0, `TheKrystalShip.KGSM.Journal` 2.4.0)
+
+- `JournalProducer.OrganizationPrefix` (`tks-`), `ScannedPrefixes` and `IsScanned`: a state directory
+  beginning `kgsm` or `tks-` is one a reader scans. `JournalLayout.ProducerOf` and
+  `JournalDiscovery` both answer from that one rule, so `tks-auth`'s journal — every sign-in and every
+  access change in the cluster — is found beside the ecosystem's own.
+
 ### Changed — released (`TheKrystalShip.KGSM.Lib` 9.0.0, `TheKrystalShip.KGSM.Journal` 2.3.1)
 
 Both packages are released as their last prereleases stood; the library builds with

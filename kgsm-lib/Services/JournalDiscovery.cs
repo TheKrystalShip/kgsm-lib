@@ -160,9 +160,12 @@ public sealed class JournalDiscovery : IJournalDiscovery
                 return [];
             }
 
-            // Only this ecosystem's own state directories are considered. A producer id has to be a
-            // usable one anyway, but narrowing the scan keeps it from stat-ing every service on the host.
-            candidates = Directory.GetDirectories(_stateRoot, JournalProducer.Kgsm + "*");
+            // Only the ecosystem's and the organization's own state directories are considered. A
+            // producer id has to be a usable one anyway, but narrowing the scan keeps it from stat-ing
+            // every service on the host.
+            candidates = [.. JournalProducer.ScannedPrefixes
+                .SelectMany(prefix => Directory.GetDirectories(_stateRoot, prefix + "*"))
+                .Distinct(StringComparer.Ordinal)];
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

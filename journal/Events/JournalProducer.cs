@@ -28,6 +28,35 @@ public static class JournalProducer
     /// <summary>The prefix every component in this ecosystem carries.</summary>
     public const string EcosystemPrefix = Kgsm + "-";
 
+    /// <summary>
+    /// The prefix the organization's own services carry: the ones KGSM runs beside and reads, such as
+    /// <c>tks-auth</c>, which is not a KGSM component and records what happened to the cluster's
+    /// accounts.
+    /// </summary>
+    public const string OrganizationPrefix = "tks-";
+
+    /// <summary>
+    /// The beginnings of the state directories a reader scans: the engine and this ecosystem's
+    /// components, and the organization's services.
+    /// </summary>
+    public static IReadOnlyList<string> ScannedPrefixes { get; } = [Kgsm, OrganizationPrefix];
+
+    /// <summary>
+    /// Whether a reader scanning a state root finds <paramref name="producer"/>'s journal at all.
+    /// </summary>
+    /// <param name="producer">The producer id.</param>
+    /// <returns>True when its state directory begins with one of <see cref="ScannedPrefixes"/>.</returns>
+    public static bool IsScanned(string producer)
+    {
+        foreach (string prefix in ScannedPrefixes)
+        {
+            if (producer.StartsWith(prefix, StringComparison.Ordinal))
+                return true;
+        }
+
+        return false;
+    }
+
     /// <summary>The actor provider an autonomous component attributes its own actions to.</summary>
     public const string SystemActorProvider = "system";
 
