@@ -30,6 +30,63 @@ public class AccessEventTests
         Assert.Contains(descriptor.Fields, f => f.Name == "AuthorityVersion");
     }
 
+    [Theory]
+    [InlineData("auth.application.changed", typeof(ApplicationEventData), EventSubject.Access, EventOutcome.Neutral)]
+    [InlineData("auth.application.removed", typeof(ApplicationEventData), EventSubject.Access, EventOutcome.Neutral)]
+    [InlineData("auth.application.client.removed", typeof(ApplicationEventData), EventSubject.Access, EventOutcome.Neutral)]
+    [InlineData("auth.application.secret.rotated", typeof(ApplicationEventData), EventSubject.Access, EventOutcome.Neutral)]
+    [InlineData("auth.token.exchanged", typeof(TokenExchangeEventData), EventSubject.Account, EventOutcome.Success)]
+    [InlineData("auth.token.exchange_refused", typeof(TokenExchangeEventData), EventSubject.Account, EventOutcome.Failure)]
+    public void EveryApplicationEvent_IsClassified(string type, Type payload, EventSubject subject, EventOutcome outcome)
+    {
+        EventDescriptor descriptor = KgsmEventCatalog.Describe(type);
+
+        Assert.True(descriptor.Known);
+        Assert.Equal(payload, descriptor.PayloadType);
+        Assert.Equal(subject, descriptor.Subject);
+        Assert.Equal(outcome, descriptor.Outcome);
+    }
+
+    [Fact]
+    public void AClientChange_ReadsBackFromTheAnchorsPayload()
+    {
+        const string json = """
+            {"Id":"cinema","Name":"Krystal Cinema","Client":"cinema-web","Actor":"local:owner","Origin":"ui"}
+            """;
+
+        var data = JsonSerializer.Deserialize(json, KgsmJsonContext.Default.ApplicationEventData)!;
+
+        Assert.Equal("cinema", data.Id);
+        Assert.Equal("Krystal Cinema", data.Name);
+        Assert.Equal("cinema-web", data.Client);
+    }
+
+    [Fact]
+    public void ARefusedExchange_NamesNobodyWhenNoAccountHoldsTheIdentity()
+    {
+        const string json = """
+            {"Client":"cinema-bot","Application":"cinema","Identity":"discord:1234","UserId":null,"Username":null,
+             "ActedBy":"cinema-bot","Reason":"account_unknown","Actor":"discord:1234","Origin":"discord"}
+            """;
+
+        var data = JsonSerializer.Deserialize(json, KgsmJsonContext.Default.TokenExchangeEventData)!;
+
+        Assert.Equal("cinema-bot", data.Client);
+        Assert.Equal("cinema", data.Application);
+        Assert.Equal("discord:1234", data.Identity);
+        Assert.Null(data.UserId);
+        Assert.Equal("cinema-bot", data.ActedBy);
+        Assert.Equal("account_unknown", data.Reason);
+    }
+
+    [Fact]
+    public void AnExchange_IdentityIsPersonal()
+    {
+        EventDescriptor descriptor = KgsmEventCatalog.Describe("auth.token.exchanged");
+
+        Assert.Equal(FieldSensitivity.Personal, descriptor.Fields.Single(f => f.Name == "Identity").Sensitivity);
+    }
+
     [Fact]
     public void AnAssignment_ReadsBackFromTheAnchorsPayload()
     {

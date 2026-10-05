@@ -1565,6 +1565,60 @@ public class ServiceRequirementEventData : KgsmEventDataBase
 }
 
 /// <summary>
+/// Data for <c>auth.application.changed</c>, <c>auth.application.removed</c>,
+/// <c>auth.application.client.removed</c> and <c>auth.application.secret.rotated</c> — an application
+/// that obtains tokens from the auth anchor, or one of its clients, was registered, changed or removed.
+/// </summary>
+/// <remarks>
+/// About the access model rather than an account: an application and its clients decide who can be
+/// handed a token at all, for every account at once.
+/// </remarks>
+public class ApplicationEventData : KgsmEventDataBase
+{
+    /// <summary>Gets or sets the application's id, which is also its action namespace.</summary>
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets what it is called, or null when it was not known.</summary>
+    public string? Name { get; set; }
+
+    /// <summary>Gets or sets the client the change was to, or null when it was to the application's own fields.</summary>
+    public string? Client { get; set; }
+}
+
+/// <summary>
+/// Data for <c>auth.token.exchanged</c> / <c>auth.token.exchange_refused</c> — a client exchanged a
+/// Discord credential for a token naming an account, or asked to and was refused.
+/// </summary>
+/// <remarks>
+/// <see cref="AccountEventDataBase.UserId"/> and <see cref="AccountEventDataBase.Username"/> are null when
+/// no account holds the identity: a refusal for an unknown account names nobody, and an id derived from
+/// the identity would put a value on the row that nothing looked up.
+/// </remarks>
+public class TokenExchangeEventData : AccountEventDataBase
+{
+    /// <summary>Gets or sets the client that authenticated and asked.</summary>
+    public string Client { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the application the token is, or would have been, for.</summary>
+    public string Application { get; set; } = string.Empty;
+
+    /// <summary>Gets or sets the Discord identity exchanged, as <c>provider:subject</c>, when it is known.</summary>
+    public string? Identity { get; set; }
+
+    /// <summary>
+    /// Gets or sets the client acting for the person, when the token names it as actor; null when the
+    /// person presented their own credential.
+    /// </summary>
+    public string? ActedBy { get; set; }
+
+    /// <summary>
+    /// Gets or sets why no token was given — <c>subject_invalid</c>, <c>discord_application</c>,
+    /// <c>client_not_allowed</c>, <c>account_unknown</c>, <c>account_pending</c>, … — or null when one was.
+    /// </summary>
+    public string? Reason { get; set; }
+}
+
+/// <summary>
 /// Base for an event about a leaf service on this host.
 /// </summary>
 /// <remarks>

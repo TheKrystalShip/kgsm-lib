@@ -343,7 +343,7 @@ public static class KgsmEventCatalog
             Account<AuthSessionRevokedData>("auth.session.revoked", EventOutcome.Neutral,
                 [UserId, Username, Field("Scope", FieldShape.Text), Sid, Field("Count", FieldShape.Number)]),
 
-            // The one authentication FAILURE that is a fact rather than noise. It is emitted when the
+            // The one failed sign-in that is a fact rather than noise. It is emitted when the
             // lock begins and not on the attempts it goes on to refuse, so one run of guessing is one
             // row however long it runs.
             Account<AuthLockedOutData>("auth.locked_out", EventOutcome.Failure,
@@ -377,6 +377,19 @@ public static class KgsmEventCatalog
                 [Field("Member", FieldShape.Text), Field("Added", FieldShape.Text), Field("Removed", FieldShape.Text), AuthorityVersion]),
             AccessEvent<ServiceRequirementEventData>("auth.service.requirement.approved", RequirementFields),
             AccessEvent<ServiceRequirementEventData>("auth.service.requirement.revoked", RequirementFields),
+
+            // Applications are about the model too: a client registered, removed or given a new secret
+            // changes who can be handed a token at all.
+            AccessEvent<ApplicationEventData>("auth.application.changed", ApplicationFields),
+            AccessEvent<ApplicationEventData>("auth.application.removed", ApplicationFields),
+            AccessEvent<ApplicationEventData>("auth.application.client.removed", ApplicationFields),
+            AccessEvent<ApplicationEventData>("auth.application.secret.rotated", ApplicationFields),
+
+            // An application's client exchanging somebody's Discord credential for a token naming their
+            // account. A refusal is a row per request: the client authenticated, so each one is a
+            // decision about a real caller rather than noise at an open door.
+            Account<TokenExchangeEventData>("auth.token.exchanged", EventOutcome.Success, TokenExchangeFields),
+            Account<TokenExchangeEventData>("auth.token.exchange_refused", EventOutcome.Failure, TokenExchangeFields),
 
             // -- leaf services -----------------------------------------------------------------
             Service<ServiceProvisioningEventData>("service.connected", EventOutcome.Success, [Leaf, DisplayName]),
@@ -786,6 +799,17 @@ public static class KgsmEventCatalog
     [
         Field("AccountId", FieldShape.Opaque), Field("Service", FieldShape.Text), Field("Action", FieldShape.Text),
         Field("Scope", FieldShape.Text), Field("Automatic", FieldShape.Text), AuthorityVersion,
+    ];
+
+    /// <summary>The fields every <c>auth.application.*</c> event carries.</summary>
+    private static readonly EventField[] ApplicationFields =
+        [Field("Id", FieldShape.Opaque), Field("Name", FieldShape.Text), Field("Client", FieldShape.Text)];
+
+    /// <summary>The fields both <c>auth.token.*</c> exchange events carry.</summary>
+    private static readonly EventField[] TokenExchangeFields =
+    [
+        UserId, Username, Identity, Field("Client", FieldShape.Text), Field("Application", FieldShape.Text),
+        Field("ActedBy", FieldShape.Text), Field("Reason", FieldShape.Text),
     ];
 
     /// <summary>The fields both <c>identity_*</c> events carry.</summary>

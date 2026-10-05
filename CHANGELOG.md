@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — applications and token exchange (`TheKrystalShip.KGSM.Lib` 9.2.0)
+
+- **The auth anchor's application events are in the catalog**, with `ApplicationEventData` (`Id`,
+  `Name`, `Client`) registered in `KgsmJsonContext`: `auth.application.changed`, `.removed`,
+  `.client.removed` and `.secret.rotated`, all about the access model (`EventSubject.Access`).
+- **`auth.token.exchanged` (Success) and `auth.token.exchange_refused` (Failure)**, about the account
+  the exchange is for, read into `TokenExchangeEventData`: the client that asked, the application, the
+  Discord identity (`Personal`), the client acting for the person, and the refusal's reason. `UserId`
+  and `Username` are null when no account holds the identity.
+
 ### Added — the organization's services are journal producers (`TheKrystalShip.KGSM.Lib` 9.1.0, `TheKrystalShip.KGSM.Journal` 2.4.0)
 
 - `JournalProducer.OrganizationPrefix` (`tks-`), `ScannedPrefixes` and `IsScanned`: a state directory

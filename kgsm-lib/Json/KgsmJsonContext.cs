@@ -148,6 +148,8 @@ namespace TheKrystalShip.KGSM;
 [JsonSerializable(typeof(AuthorityRecordEventData))]
 [JsonSerializable(typeof(CatalogEventData))]
 [JsonSerializable(typeof(ServiceRequirementEventData))]
+[JsonSerializable(typeof(ApplicationEventData))]
+[JsonSerializable(typeof(TokenExchangeEventData))]
 [JsonSerializable(typeof(ServiceProvisioningEventData))]
 [JsonSerializable(typeof(ServiceConfigChangedEventData))]
 [JsonSerializable(typeof(ServiceRestartedEventData))]
